@@ -17,6 +17,21 @@ if(SWITCH_LIBNX)
     add_compile_options(-fsigned-char -Wno-strict-aliasing -Wfatal-errors -Wno-sign-compare)
 endif()
 
+# ANDROID is set automatically by the NDK's toolchain file.
+#
+# Android reuses the POSIX paths the Switch port already introduced
+# (PLATFORM_UNIX), and adds PLATFORM_ANDROID for the places that differ:
+# SDL2 instead of GLFW for windowing/input, GLES2 instead of desktop GL,
+# and no romfs - game data lives on external storage.
+if(ANDROID)
+    add_definitions(-DPLATFORM_UNIX=1)
+    add_definitions(-DPLATFORM_ANDROID=1)
+    add_definitions(-D_FILE_OFFSET_BITS=64)
+    add_definitions(-D_LARGEFILE_SOURCE=1)
+    add_definitions(-DPRAGMA_ONCE=1)
+    add_compile_options(-fsigned-char -Wno-strict-aliasing -Wno-sign-compare)
+endif()
+
 include_directories(.)
 #include_directories(Audio)
 include_directories(Character)
@@ -38,7 +53,7 @@ include_directories(Net/Packets)
 include_directories(Template)
 include_directories(Util)
 
-add_executable(HeavenClient
+set(HEAVEN_SOURCES
         Audio/Audio.cpp
         Audio/Audio.h
         Character/Inventory/Equip.cpp
@@ -454,8 +469,34 @@ add_executable(HeavenClient
         resource.h
         Timer.h
         Audio/membuf.cpp
-        Audio/membuf.h
-        switch_wrapper.c)
+        Audio/membuf.h)
+
+# Android loads native code as a shared library from the Java shell, so the
+# target is a .so rather than an executable. switch_wrapper.c is libnx-only
+# (romfs + nxlink) and has no Android equivalent.
+if(ANDROID)
+    add_library(HeavenClient SHARED ${HEAVEN_SOURCES})
+else()
+    list(APPEND HEAVEN_SOURCES switch_wrapper.c)
+    add_executable(HeavenClient ${HEAVEN_SOURCES})
+endif()
+
+if(ANDROID)
+    find_library(ANDROID_LOG_LIB log)
+    find_library(ANDROID_EGL_LIB EGL)
+    find_library(ANDROID_GLES_LIB GLESv2)
+
+    target_link_libraries(HeavenClient ${ANDROID_EGL_LIB})
+    target_link_libraries(HeavenClient ${ANDROID_GLES_LIB})
+    target_link_libraries(HeavenClient ${ANDROID_LOG_LIB})
+    target_link_libraries(HeavenClient android)
+
+    # Provided by the SDL2 Android project that wraps this library.
+    target_link_libraries(HeavenClient SDL2)
+
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/NoLifeNx)
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/stb)
+endif()
 
 if(SWITCH_LIBNX)
     target_link_libraries(HeavenClient ${PROJECT_SOURCE_DIR}/libs/alure/switch-build/libalure2_s.a)
