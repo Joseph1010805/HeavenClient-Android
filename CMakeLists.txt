@@ -483,6 +483,15 @@ set(HEAVEN_SOURCES
 # Android loads native code as a shared library from the Java shell, so the
 # target is a .so rather than an executable. switch_wrapper.c is libnx-only
 # (romfs + nxlink) and has no Android equivalent.
+# Vendored dependencies, carried as git submodules (see .gitmodules).
+# The Switch build takes these from devkitPro portlibs instead.
+if(ANDROID)
+    set(SDL_SHARED ON  CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+    add_subdirectory(libs/SDL2   EXCLUDE_FROM_ALL)
+    add_subdirectory(libs/freetype EXCLUDE_FROM_ALL)
+endif()
+
 if(ANDROID)
     # IO/Window.cpp is GLFW-based and GLFW has no Android backend.
     # IO/Window_Android.cpp is the SDL2 equivalent - same class, same contract.
@@ -504,9 +513,11 @@ if(ANDROID)
     target_link_libraries(HeavenClient ${ANDROID_LOG_LIB})
     target_link_libraries(HeavenClient android)
 
-    # Provided by the SDL2 Android project that wraps this library.
     target_link_libraries(HeavenClient SDL2)
+    target_link_libraries(HeavenClient freetype)
 
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/SDL2/include)
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/freetype/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/NoLifeNx)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/stb)
 endif()
