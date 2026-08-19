@@ -62,7 +62,7 @@ namespace ms
 		iconpositions[Equipslot::Id::EARACC] = Point<int16_t>(137, 132);
 		iconpositions[Equipslot::Id::SHOULDER] = Point<int16_t>(137, 173);
 		iconpositions[Equipslot::Id::GLOVES] = Point<int16_t>(137, 214);
-		iconpositions[Equipslot::Id::ANDROID] = Point<int16_t>(137, 255);
+		iconpositions[Equipslot::Id::ANDROID_SLOT] = Point<int16_t>(137, 255);
 
 		// Column 5
 		iconpositions[Equipslot::Id::EMBLEM] = Point<int16_t>(178, 50);

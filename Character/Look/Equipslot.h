@@ -53,7 +53,12 @@ namespace ms
 			BOOK, // TODO: What is the proper value for this?
 			PENDANT2, // TODO: What is the proper value for this?
 			SHOULDER, // TODO: What is the proper value for this?
-			ANDROID, // TODO: What is the proper value for this?
+			// Named ANDROID upstream, after the in-game android companion.
+			// The Android NDK defines ANDROID as a preprocessor macro, which
+			// turns this identifier into a literal and breaks the enum. Renamed
+			// rather than #undef'd, because an #undef here would depend on
+			// include order within every translation unit.
+			ANDROID_SLOT, // TODO: What is the proper value for this?
 			EMBLEM, // TODO: What is the proper value for this?
 			BADGE, // TODO: What is the proper value for this?
 			SUBWEAPON, // TODO: What is the proper value for this?

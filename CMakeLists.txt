@@ -504,11 +504,25 @@ if(ANDROID)
     set(ALSOFT_EXAMPLES  OFF CACHE BOOL "" FORCE)
     set(ALSOFT_UTILS     OFF CACHE BOOL "" FORCE)
     set(ALSOFT_TESTS     OFF CACHE BOOL "" FORCE)
-    set(ALSOFT_INSTALL   OFF CACHE BOOL "" FORCE)
+    # Must stay ON. openal-soft only puts its OpenAL target into an export set
+    # when installing, and alure2 has an unconditional export() that requires
+    # every public dependency to be exported. Turning this off fails the
+    # generate step with "target OpenAL is not in any export set". We never run
+    # install, so the rules themselves are inert.
+    set(ALSOFT_INSTALL   ON  CACHE BOOL "" FORCE)
     add_subdirectory(libs/openal-soft EXCLUDE_FROM_ALL)
 
     set(ALURE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(ALURE_BUILD_STATIC   ON  CACHE BOOL "" FORCE)
+
+    # alure2 does find_package(OpenAL REQUIRED), which hunts for a system
+    # install and cannot see the copy we are building in this same project.
+    # Pre-seeding the cache variables makes find_package succeed and point at
+    # our in-tree build - OpenAL is openal-soft's target name.
+    set(OPENAL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/libs/openal-soft/include
+        CACHE PATH "" FORCE)
+    set(OPENAL_LIBRARY OpenAL CACHE STRING "" FORCE)
+
     add_subdirectory(libs/alure EXCLUDE_FROM_ALL)
 endif()
 
@@ -520,6 +534,21 @@ if(ANDROID)
 
     # mbedtls backend is Switch-only - see USE_ASIO above.
     list(REMOVE_ITEM HEAVEN_SOURCES Net/SocketMbedtls.cpp)
+
+    # NoLifeNx reads the WZ/NX game data. Its own CMakeLists links a prebuilt
+    # liblz4.a that only exists for the Switch toolchain, so its sources and
+    # the bundled lz4 are compiled straight into the client instead. The code
+    # itself is already portable - it has POSIX mmap paths alongside Win32.
+    list(APPEND HEAVEN_SOURCES
+        libs/NoLifeNx/nlnx/audio.cpp
+        libs/NoLifeNx/nlnx/bitmap.cpp
+        libs/NoLifeNx/nlnx/file.cpp
+        libs/NoLifeNx/nlnx/node.cpp
+        libs/NoLifeNx/nlnx/nx.cpp
+        libs/NoLifeNx/nlnx/lz4-1.8.2/lib/lz4.c
+        libs/NoLifeNx/nlnx/lz4-1.8.2/lib/lz4frame.c
+        libs/NoLifeNx/nlnx/lz4-1.8.2/lib/lz4hc.c
+        libs/NoLifeNx/nlnx/lz4-1.8.2/lib/xxhash.c)
     add_library(HeavenClient SHARED ${HEAVEN_SOURCES})
 else()
     list(APPEND HEAVEN_SOURCES switch_wrapper.c)
@@ -539,7 +568,8 @@ if(ANDROID)
     target_link_libraries(HeavenClient SDL2)
     target_link_libraries(HeavenClient freetype)
     target_link_libraries(HeavenClient OpenAL)
-    target_link_libraries(HeavenClient alure2)
+    # alure builds its static library as alure2_s, not alure2.
+    target_link_libraries(HeavenClient alure2_s)
     target_link_libraries(HeavenClient OpenSLES)
 
     # Note the doubled path: at tag asio-1-12-2 the headers sit under
@@ -550,6 +580,7 @@ if(ANDROID)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/SDL2/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/freetype/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/NoLifeNx)
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/NoLifeNx/nlnx/lz4-1.8.2/lib)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/stb)
 endif()
 
@@ -590,14 +621,22 @@ endif()
 
 include_directories("$ENV{PORTLIBS_PREFIX}/include")
 
-target_link_libraries(HeavenClient pthread)
+# Android has no separate libpthread - the pthread API lives in libc.
+if(NOT ANDROID)
+    target_link_libraries(HeavenClient pthread)
+endif()
 
 set(BINARY_NAME "HeavenClient")
 set(NRONAME "HeavenClient")
 set(GAMENAME "HeavenClient")
 
-add_custom_command(TARGET HeavenClient POST_BUILD
-        COMMAND nacptool --create "${GAMENAME}" "rich" "1.0.0-nx" "${CMAKE_BINARY_DIR}/${NRONAME}.nacp"
-        COMMAND aarch64-none-elf-strip -o "${CMAKE_BINARY_DIR}/${BINARY_NAME}_stripped" "${CMAKE_BINARY_DIR}/${BINARY_NAME}"
-        COMMAND elf2nro "${CMAKE_BINARY_DIR}/${BINARY_NAME}" "${CMAKE_BINARY_DIR}/${NRONAME}.nro" --icon="${CMAKE_SOURCE_DIR}/ms_icon.jpg" --nacp="${CMAKE_BINARY_DIR}/${NRONAME}.nacp"
-        )
+# Packages the binary as a Switch .nro. nacptool/elf2nro are devkitPro tools
+# and do not exist on any other platform, so this must not run elsewhere -
+# Gradle packages the .so into an APK itself.
+if(NOT ANDROID)
+    add_custom_command(TARGET HeavenClient POST_BUILD
+            COMMAND nacptool --create "${GAMENAME}" "rich" "1.0.0-nx" "${CMAKE_BINARY_DIR}/${NRONAME}.nacp"
+            COMMAND aarch64-none-elf-strip -o "${CMAKE_BINARY_DIR}/${BINARY_NAME}_stripped" "${CMAKE_BINARY_DIR}/${BINARY_NAME}"
+            COMMAND elf2nro "${CMAKE_BINARY_DIR}/${BINARY_NAME}" "${CMAKE_BINARY_DIR}/${NRONAME}.nro" --icon="${CMAKE_SOURCE_DIR}/ms_icon.jpg" --nacp="${CMAKE_BINARY_DIR}/${NRONAME}.nacp"
+            )
+endif()

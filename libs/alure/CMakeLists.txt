@@ -34,7 +34,13 @@ find_package(OpenAL REQUIRED)
 find_package(Threads)
 
 # Require C++14
-set(CMAKE_CXX_STANDARD 14)
+# Was 14. libc++ (the NDK's standard library) only makes
+# std::future_error(future_errc) public when _LIBCPP_STD_VER >= 17 - under
+# C++14 the only visible constructor is the private error_code one, and
+# src/source.cpp cannot compile. libstdc++ exposes it either way, which is
+# why this never surfaced on desktop or Switch. The rest of the client is
+# already C++17.
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 set(CXX_FLAGS )
