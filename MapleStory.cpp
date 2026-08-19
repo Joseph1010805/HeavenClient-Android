@@ -214,10 +214,59 @@ namespace ms
 }
 
 #if defined(PLATFORM_ANDROID)
+#include <android/log.h>
+#include <pthread.h>
+#include <unistd.h>
+
+namespace
+{
+	// This client reports what it is doing through printf, and on Android
+	// stdout goes nowhere. Piping stdout/stderr into logcat makes the
+	// existing instrumentation visible via `adb logcat` instead of having to
+	// guess at failures from the outside.
+	int stdio_pipe[2];
+
+	void* stdio_logger(void*)
+	{
+		char buffer[512];
+		ssize_t count;
+
+		while ((count = read(stdio_pipe[0], buffer, sizeof(buffer) - 1)) > 0)
+		{
+			if (buffer[count - 1] == '\n')
+				--count;
+
+			buffer[count] = '\0';
+			__android_log_write(ANDROID_LOG_INFO, "HeavenClient", buffer);
+		}
+
+		return nullptr;
+	}
+
+	void redirect_stdio_to_logcat()
+	{
+		setvbuf(stdout, nullptr, _IOLBF, 0);
+		setvbuf(stderr, nullptr, _IONBF, 0);
+
+		if (pipe(stdio_pipe) != 0)
+			return;
+
+		dup2(stdio_pipe[1], STDOUT_FILENO);
+		dup2(stdio_pipe[1], STDERR_FILENO);
+
+		pthread_t thread;
+
+		if (pthread_create(&thread, nullptr, stdio_logger, nullptr) == 0)
+			pthread_detach(thread);
+	}
+}
+
 // SDL renames this to SDL_main and supplies the real entry point from its
 // Java shell, which requires exactly this signature.
 int main(int argc, char* argv[])
 {
+	redirect_stdio_to_logcat();
+
 	ms::HardwareInfo();
 	ms::ScreenResolution();
 	ms::start();
