@@ -34,6 +34,60 @@ namespace ms
 	{
 		// Setup parameters
 		// ----------------
+#if defined(PLATFORM_ANDROID)
+		// GLSL ES 1.00. Same program as the desktop GLSL 1.20 source below,
+		// with the three things ES is stricter about:
+		//
+		//   1. #version 100
+		//   2. fragment shaders must declare a default float precision
+		//   3. no implicit int -> float conversion. The desktop source relies
+		//      on it in "coord.y + yoffset", "texpos.y == 0" and
+		//      "texpos.y <= fontregion"; each is made explicit here. Left
+		//      implicit, these fail at glCompileShader on device - a runtime
+		//      failure with no compile-time warning.
+		const char* vertexShaderSource =
+			"#version 100\n"
+			"attribute vec4 coord;"
+			"attribute vec4 color;"
+			"varying vec2 texpos;"
+			"varying vec4 colormod;"
+			"uniform vec2 screensize;"
+			"uniform int yoffset;"
+
+			"void main(void)"
+			"{"
+			"	float x = -1.0 + coord.x * 2.0 / screensize.x;"
+			"	float y = 1.0 - (coord.y + float(yoffset)) * 2.0 / screensize.y;"
+			"   gl_Position = vec4(x, y, 0.0, 1.0);"
+			"	texpos = coord.zw;"
+			"	colormod = color;"
+			"}";
+
+		const char* fragmentShaderSource =
+			"#version 100\n"
+			"precision mediump float;"
+			"varying vec2 texpos;"
+			"varying vec4 colormod;"
+			"uniform sampler2D texture;"
+			"uniform vec2 atlassize;"
+			"uniform int fontregion;"
+
+			"void main(void)"
+			"{"
+			"	if (texpos.y == 0.0)"
+			"	{"
+			"		gl_FragColor = colormod;"
+			"	}"
+			"	else if (texpos.y <= float(fontregion))"
+			"	{"
+			"		gl_FragColor = vec4(1.0, 1.0, 1.0, texture2D(texture, texpos / atlassize).r) * colormod;"
+			"	}"
+			"	else"
+			"	{"
+			"		gl_FragColor = texture2D(texture, texpos / atlassize) * colormod;"
+			"	}"
+			"}";
+#else
 		const char* vertexShaderSource =
 			"#version 120\n"
 			"attribute vec4 coord;"
@@ -75,6 +129,7 @@ namespace ms
 			"		gl_FragColor = texture2D(texture, texpos / atlassize) * colormod;"
 			"	}"
 			"}";
+#endif
 
 		const GLsizei bufSize = 512;
 
@@ -87,10 +142,13 @@ namespace ms
 		//if (GLenum error = glewInit())
 		//	return Error(Error::Code::GLEW, (const char*)glewGetErrorString(error));
 
+#if !defined(PLATFORM_ANDROID)
+        // Android links GLESv2 directly, so there is no loader to run.
         if(!gladLoadGL()) {
             printf("Something went wrong!\n");
             exit(-1);
         }
+#endif
 
 		std::cout << "Using OpenGL " << glGetString(GL_VERSION) << std::endl;
 		//std::cout << "Using GLEW " << glewGetString(GLEW_VERSION) << std::endl;
@@ -295,7 +353,14 @@ namespace ms
 			GLshort w = static_cast<GLshort>(g->bitmap.width);
 			GLshort h = static_cast<GLshort>(g->bitmap.rows);
 
+			// GL_RED is not a GLES2 format. GL_LUMINANCE is the single-channel
+			// equivalent and still reads back through .r in the shader, so the
+			// fragment shader needs no change.
+#if defined(PLATFORM_ANDROID)
+			glTexSubImage2D(GL_TEXTURE_2D, 0, ox, oy, w, h, GL_LUMINANCE, GL_UNSIGNED_BYTE, g->bitmap.buffer);
+#else
 			glTexSubImage2D(GL_TEXTURE_2D, 0, ox, oy, w, h, GL_RED, GL_UNSIGNED_BYTE, g->bitmap.buffer);
+#endif
 
 			Offset offset = Offset(ox, oy, w, h);
 			fonts[id].chars[c] = { ax, ay, w, h, l, t, offset };
@@ -479,7 +544,15 @@ namespace ms
 		//double wastedpercent = static_cast<double>(wasted) / used;
 		//Console::get().print("Used: " + std::to_string(usedpercent) + ", wasted: " + std::to_string(wastedpercent));
 
+		// GLES2 has no core GL_BGRA. Adreno (and every GPU we target) exposes
+		// GL_EXT_texture_format_BGRA8888, which defines GL_BGRA_EXT with the
+		// same semantics, so the pixel data needs no CPU-side swizzle.
+		// TODO: fall back to a swizzle if the extension is ever absent.
+#if defined(PLATFORM_ANDROID)
+		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_BGRA_EXT, GL_UNSIGNED_BYTE, bmp.data());
+#else
 		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bmp.data());
+#endif
 
 		return offsets.emplace(
 			std::piecewise_construct,
@@ -848,7 +921,12 @@ namespace ms
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
 		glBufferData(GL_ARRAY_BUFFER, csize, quads.data(), GL_STREAM_DRAW);
 
+#if defined(PLATFORM_ANDROID)
+		// No GL_QUADS in GLES2; Quad emits 6 vertices as two triangles.
+		glDrawArrays(GL_TRIANGLES, 0, fsize);
+#else
 		glDrawArrays(GL_QUADS, 0, fsize);
+#endif
 
 		glDisableVertexAttribArray(attribute_coord);
 		glDisableVertexAttribArray(attribute_color);

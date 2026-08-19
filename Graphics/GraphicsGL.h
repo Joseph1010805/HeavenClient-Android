@@ -152,15 +152,37 @@ namespace ms
 				Color color;
 			};
 
+			// GLES2 removed GL_QUADS, so on Android each quad is emitted as
+			// two triangles (TL,BL,BR + TL,BR,TR) and drawn with GL_TRIANGLES.
+			// Costs 50% more vertex data, which is nothing for a 2D client,
+			// and keeps every other platform on the cheaper 4-vertex path.
+#if defined(PLATFORM_ANDROID)
+			static const size_t LENGTH = 6;
+#else
 			static const size_t LENGTH = 4;
+#endif
 			Vertex vertices[LENGTH];
 
 			Quad(GLshort left, GLshort right, GLshort top, GLshort bottom, const Offset& offset, const Color& color, GLfloat rotation)
 			{
-				vertices[0] = { left, top, offset.left, offset.top, color };
-				vertices[1] = { left, bottom, offset.left, offset.bottom, color };
-				vertices[2] = { right, bottom, offset.right, offset.bottom, color };
-				vertices[3] = { right, top, offset.right, offset.top, color };
+				Vertex tl = { left,  top,    offset.left,  offset.top,    color };
+				Vertex bl = { left,  bottom, offset.left,  offset.bottom, color };
+				Vertex br = { right, bottom, offset.right, offset.bottom, color };
+				Vertex tr = { right, top,    offset.right, offset.top,    color };
+
+#if defined(PLATFORM_ANDROID)
+				vertices[0] = tl;
+				vertices[1] = bl;
+				vertices[2] = br;
+				vertices[3] = tl;
+				vertices[4] = br;
+				vertices[5] = tr;
+#else
+				vertices[0] = tl;
+				vertices[1] = bl;
+				vertices[2] = br;
+				vertices[3] = tr;
+#endif
 
 				if (rotation != 0.0f)
 				{
