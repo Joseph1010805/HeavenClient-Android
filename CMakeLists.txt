@@ -542,7 +542,9 @@ if(ANDROID)
     target_link_libraries(HeavenClient alure2)
     target_link_libraries(HeavenClient OpenSLES)
 
-    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/asio/include)
+    # Note the doubled path: at tag asio-1-12-2 the headers sit under
+    # asio/include, not include. Newer asio moved them.
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/asio/asio/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/openal-soft/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/alure/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/SDL2/include)
