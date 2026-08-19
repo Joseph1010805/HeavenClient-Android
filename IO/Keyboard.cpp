@@ -17,7 +17,12 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "Keyboard.h"
 
+#if defined(PLATFORM_ANDROID)
+// Keyboard.cpp only needs the GLFW_KEY_* values, not the library.
+#include "../Util/GLFWKeys.h"
+#else
 #include <GLFW/glfw3.h>
+#endif
 
 namespace ms
 {

@@ -30,6 +30,15 @@ if(ANDROID)
     add_definitions(-D_LARGEFILE_SOURCE=1)
     add_definitions(-DPRAGMA_ONCE=1)
     add_compile_options(-fsigned-char -Wno-strict-aliasing -Wno-sign-compare)
+
+    # Shared client code brace-initialises Point<int16_t> from int arithmetic
+    # (Template/Point.h). MSVC and GCC allow the narrowing; clang makes it a
+    # hard error. Demoting it keeps the port from touching code every other
+    # platform shares - the truncation to int16_t coordinates is deliberate.
+    add_compile_options(-Wno-c++11-narrowing)
+
+    # Template/EnumMap.h derives from std::iterator, deprecated in C++17.
+    add_compile_options(-Wno-deprecated-declarations)
 endif()
 
 include_directories(.)
@@ -475,6 +484,10 @@ set(HEAVEN_SOURCES
 # target is a .so rather than an executable. switch_wrapper.c is libnx-only
 # (romfs + nxlink) and has no Android equivalent.
 if(ANDROID)
+    # IO/Window.cpp is GLFW-based and GLFW has no Android backend.
+    # IO/Window_Android.cpp is the SDL2 equivalent - same class, same contract.
+    list(REMOVE_ITEM HEAVEN_SOURCES IO/Window.cpp)
+    list(APPEND HEAVEN_SOURCES IO/Window_Android.cpp)
     add_library(HeavenClient SHARED ${HEAVEN_SOURCES})
 else()
     list(APPEND HEAVEN_SOURCES switch_wrapper.c)

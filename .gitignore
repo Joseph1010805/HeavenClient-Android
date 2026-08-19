@@ -16,3 +16,4 @@ build-android/
 *.apk
 local.properties
 .gradle/
+libs/SDL2/

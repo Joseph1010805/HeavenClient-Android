@@ -18,7 +18,7 @@
 #pragma once
 
 //#include "GL/glew.h"
-#include <glad/glad.h>
+#include "../Util/GLHeaders.h"
 
 #include <array>
 #include <algorithm>

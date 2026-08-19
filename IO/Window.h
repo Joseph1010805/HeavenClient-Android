@@ -21,9 +21,19 @@
 
 #include "../Template/Singleton.h"
 
+#if defined(PLATFORM_ANDROID)
+// Android has no GLFW backend, so SDL2 provides the window, the GLES2
+// context and the input events. The GLFW_* key values are still the
+// client's keymap vocabulary - see Util/GLFWKeys.h - so configs written
+// against them keep working unchanged.
+#include <SDL.h>
+#include <GLES2/gl2.h>
+#include "../Util/GLFWKeys.h"
+#else
 //#include <GL/glew.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#endif
 #include <string>
 #include <functional>
 
@@ -72,8 +82,13 @@ namespace ms
 	private:
 		void updateopc();
 
+#if defined(PLATFORM_ANDROID)
+		SDL_Window* glwnd;
+		SDL_GLContext context;
+#else
 		GLFWwindow* glwnd;
 		GLFWwindow* context;
+#endif
 		bool fullscreen;
 		float opacity;
 		float opcstep;
