@@ -10,3 +10,9 @@
 /includes/**/*.vcxproj*
 /includes/**/*.txt
 /includes/**/*.gitignore
+build/
+build-android/
+.cxx/
+*.apk
+local.properties
+.gradle/
