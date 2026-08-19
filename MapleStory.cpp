@@ -117,7 +117,13 @@ namespace ms
 	    bool is_connected = Session::get().is_connected();
 	    bool not_quitted = UI::get().not_quitted();
 	    bool not_closed = Window::get().not_closed();
+#if defined(__SWITCH__)
 	    bool not_exiting = appletMainLoop();
+#else
+	    // appletMainLoop is libnx. On Android the equivalent signal arrives as
+	    // SDL_QUIT, which Window::check_events turns into not_closed.
+	    bool not_exiting = true;
+#endif
 
 		return not_exiting && not_quitted && not_closed;
 	}
@@ -135,7 +141,9 @@ namespace ms
 
 		bool show_fps = Configuration::get().get_show_fps();
         printf("[*] Starting loop,\n");
+#if defined(__SWITCH__)
         appletLockExit();
+#endif
         //int counter = 0;
 		while (running())
 		{
@@ -205,6 +213,20 @@ namespace ms
 	}
 }
 
+#if defined(PLATFORM_ANDROID)
+// SDL renames this to SDL_main and supplies the real entry point from its
+// Java shell, which requires exactly this signature.
+int main(int argc, char* argv[])
+{
+	ms::HardwareInfo();
+	ms::ScreenResolution();
+	ms::start();
+
+	// No glfwTerminate (no GLFW) and no appletUnlockExit (libnx only).
+	// Window's destructor does the SDL teardown.
+	return EXIT_SUCCESS;
+}
+#else
 int main()
 {
     printf("lets start the client...\n");
@@ -218,3 +240,4 @@ int main()
     appletUnlockExit();
 	return EXIT_SUCCESS;
 }
+#endif

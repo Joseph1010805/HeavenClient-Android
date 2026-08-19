@@ -1,0 +1,59 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'org.heavenclient.android'
+    compileSdk 34
+    ndkVersion '27.3.13750724'
+
+    defaultConfig {
+        applicationId 'org.heavenclient.android'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+
+        externalNativeBuild {
+            cmake {
+                // ANDROID_STL must be shared: SDL2, OpenAL and the client are
+                // all separate .so files and pass C++ objects between them.
+                arguments '-DANDROID_STL=c++_shared'
+
+                // Both target devices (AYN Thor, Retroid Pocket 5) are arm64.
+                // Building only this ABI keeps build times and APK size sane.
+                abiFilters 'arm64-v8a'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            // The project root - the same CMakeLists the Switch build uses.
+            path '../../CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    sourceSets {
+        main {
+            // SDL's Java shell comes from the submodule rather than being
+            // duplicated here, so updating SDL updates the shell too.
+            java.srcDirs += '../../libs/SDL2/android-project/app/src/main/java'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+    }
+}

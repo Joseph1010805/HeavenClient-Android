@@ -19,10 +19,26 @@
 
 #include <cstdint>
 #include <random>
+#if defined(__SWITCH__)
 #include <switch.h>
+#endif
 
 namespace ms
 {
+	// The Switch build seeds from libnx's randomGet64(), because devkitA64's
+	// std::random_device is not a real entropy source. Everywhere else - Linux,
+	// Android, Windows - std::random_device is backed by the OS, so it is used
+	// directly. Two draws are combined to fill all 64 bits.
+	inline uint64_t random_seed()
+	{
+#if defined(__SWITCH__)
+		return randomGet64();
+#else
+		static std::random_device rd;
+		return (static_cast<uint64_t>(rd()) << 32) ^ static_cast<uint64_t>(rd());
+#endif
+	}
+
 	// Can be used to generate random numbers.
 	class Randomizer
 	{
@@ -57,7 +73,7 @@ namespace ms
 			std::uniform_real_distribution<T> range(from, to);
 			static std::random_device rd;
 			std::default_random_engine engine{ rd() };
-            engine.seed(randomGet64());
+            engine.seed(random_seed());
 
 			return range(engine);
 		}
@@ -77,7 +93,7 @@ namespace ms
 			std::uniform_int_distribution<T> range(from, to - 1);
 			static std::random_device rd;
 			std::default_random_engine engine{ rd() };
-			engine.seed(randomGet64());
+			engine.seed(random_seed());
 			//engine.seed(get_random_string());
 
 			return range(engine);

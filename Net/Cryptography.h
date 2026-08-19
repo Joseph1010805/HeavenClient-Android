@@ -22,10 +22,7 @@
 #include "../MapleStory.h"
 
 #include <cstdint>
-
-//#if __SWITCH__
-//typedef unsigned int std::size_t;
-//#endif
+#include <cstddef>	// std::size_t - libc++ does not pull this in transitively
 
 namespace ms
 {

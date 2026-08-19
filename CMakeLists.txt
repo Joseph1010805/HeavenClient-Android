@@ -29,6 +29,13 @@ if(ANDROID)
     add_definitions(-D_FILE_OFFSET_BITS=64)
     add_definitions(-D_LARGEFILE_SOURCE=1)
     add_definitions(-DPRAGMA_ONCE=1)
+
+    # Net/Session.h picks a socket backend at compile time. The Switch build
+    # falls through to mbedtls; Android has a normal POSIX stack, so it uses
+    # asio like the desktop build and mbedtls is dropped entirely.
+    add_definitions(-DUSE_ASIO=1)
+    add_definitions(-DASIO_STANDALONE=1)
+
     add_compile_options(-fsigned-char -Wno-strict-aliasing -Wno-sign-compare)
 
     # Shared client code brace-initialises Point<int16_t> from int arithmetic
@@ -490,6 +497,19 @@ if(ANDROID)
     set(SDL_STATIC OFF CACHE BOOL "" FORCE)
     add_subdirectory(libs/SDL2   EXCLUDE_FROM_ALL)
     add_subdirectory(libs/freetype EXCLUDE_FROM_ALL)
+
+    # Audio: the same stack the Switch port uses. OpenAL Soft already has an
+    # OpenSL ES backend (Alc/backends/opensl.c), which is Android's audio path,
+    # so no backend work is needed - only turning off the parts we don't ship.
+    set(ALSOFT_EXAMPLES  OFF CACHE BOOL "" FORCE)
+    set(ALSOFT_UTILS     OFF CACHE BOOL "" FORCE)
+    set(ALSOFT_TESTS     OFF CACHE BOOL "" FORCE)
+    set(ALSOFT_INSTALL   OFF CACHE BOOL "" FORCE)
+    add_subdirectory(libs/openal-soft EXCLUDE_FROM_ALL)
+
+    set(ALURE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(ALURE_BUILD_STATIC   ON  CACHE BOOL "" FORCE)
+    add_subdirectory(libs/alure EXCLUDE_FROM_ALL)
 endif()
 
 if(ANDROID)
@@ -497,6 +517,9 @@ if(ANDROID)
     # IO/Window_Android.cpp is the SDL2 equivalent - same class, same contract.
     list(REMOVE_ITEM HEAVEN_SOURCES IO/Window.cpp)
     list(APPEND HEAVEN_SOURCES IO/Window_Android.cpp)
+
+    # mbedtls backend is Switch-only - see USE_ASIO above.
+    list(REMOVE_ITEM HEAVEN_SOURCES Net/SocketMbedtls.cpp)
     add_library(HeavenClient SHARED ${HEAVEN_SOURCES})
 else()
     list(APPEND HEAVEN_SOURCES switch_wrapper.c)
@@ -515,7 +538,13 @@ if(ANDROID)
 
     target_link_libraries(HeavenClient SDL2)
     target_link_libraries(HeavenClient freetype)
+    target_link_libraries(HeavenClient OpenAL)
+    target_link_libraries(HeavenClient alure2)
+    target_link_libraries(HeavenClient OpenSLES)
 
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/asio/include)
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/openal-soft/include)
+    TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/alure/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/SDL2/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/freetype/include)
     TARGET_INCLUDE_DIRECTORIES(HeavenClient PUBLIC ${PROJECT_SOURCE_DIR}/libs/NoLifeNx)
