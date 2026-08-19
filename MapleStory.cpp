@@ -216,6 +216,7 @@ namespace ms
 #if defined(PLATFORM_ANDROID)
 #include <android/log.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace
@@ -266,6 +267,44 @@ namespace
 int main(int argc, char* argv[])
 {
 	redirect_stdio_to_logcat();
+
+	// The client resolves everything - Settings, the NX data - against the
+	// working directory, which on Android is "/" and is not writable. Moving
+	// to the app's external files directory makes those relative paths land
+	// somewhere real, and somewhere reachable over adb so data can be dropped
+	// in without root:
+	//   /sdcard/Android/data/org.heavenclient.android/files/
+	if (const char* storage = SDL_AndroidGetExternalStoragePath())
+	{
+		if (chdir(storage) == 0)
+		{
+			printf("[*] working directory: %s\n", storage);
+
+			// Settings live in HeavenClient/Settings relative to here. The
+			// directory has to be created by the app itself: one made over
+			// adb is owned by the shell user with no access for others, so
+			// the app cannot even traverse into it.
+			if (mkdir("HeavenClient", 0755) == 0)
+				printf("[*] created HeavenClient directory\n");
+
+			// Configuration is a singleton that load()s from its constructor,
+			// which runs during static initialisation - before this chdir. At
+			// that point the working directory was "/" and the settings file
+			// was unreachable, so every value silently fell back to its
+			// default (notably ServerIP = 127.0.0.1). Re-loading here picks
+			// the file up now that the path resolves. save() was never
+			// affected: it runs at exit, by which time the chdir has happened.
+			ms::Configuration::get().load();
+		}
+		else
+		{
+			printf("[!] could not chdir to %s\n", storage);
+		}
+	}
+	else
+	{
+		printf("[!] SDL_AndroidGetExternalStoragePath returned null\n");
+	}
 
 	ms::HardwareInfo();
 	ms::ScreenResolution();

@@ -113,7 +113,21 @@ namespace ms
 			auto rsiter = rawsettings.find(setting.second->name);
 
 			if (rsiter != rawsettings.end())
-				setting.second->value = rsiter->second.substr(0, rsiter->second.length()-1);
+			{
+				std::string value = rsiter->second;
+
+				// A settings file with CRLF endings leaves a trailing \r on
+				// every value, because getline only consumes the \n. Strip it
+				// only when it is actually present: this previously removed
+				// the last character unconditionally, which silently
+				// truncated every value by one on LF-only files - so on Linux
+				// and Android "192.168.1.71" loaded as "192.168.1.7" and a
+				// single-character keybind loaded as empty.
+				if (!value.empty() && value.back() == '\r')
+					value.pop_back();
+
+				setting.second->value = value;
+			}
 		}
 	}
 
