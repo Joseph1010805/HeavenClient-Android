@@ -446,12 +446,19 @@ namespace ms
 
 	float Player::get_walkforce() const
 	{
-		// Tuned by play testing: halved from the original 0.05/0.11, then
-		// raised 30%, then a further 10% - about 71.5% of what the client
-		// shipped with. These are HeavenClient's own approximation of v83
-		// rather than Nexon's values, so there is no canonical number to
-		// restore. Terminal speed is proportional to this force.
-		return 0.03575f + 0.07865f * static_cast<float>(stats.get_total(Equipstat::Id::SPEED)) / 100;
+		// Calibrated against Nexon's own walkSpeed of 125 px/s, from
+		// Map.wz/Physics.img, rather than guessed at.
+		//
+		// On flat ground Physics::move_normal settles where
+		//   hforce == (FRICTION + SLOPEFACTOR) * hspeed / GROUNDSLIP
+		// so terminal speed is 7.5 * hforce, in pixels per step. At 125 steps
+		// a second, 125 px/s wants 1.0 px/step, so hforce is 1/7.5 = 0.13333
+		// at 100 speed.
+		//
+		// Upstream used 0.05 + 0.11, giving 0.16 and therefore 150 px/s -
+		// 20% faster than the real game, which is why it felt quick. These
+		// are the same coefficients scaled by 0.13333/0.16.
+		return 0.041667f + 0.091667f * static_cast<float>(stats.get_total(Equipstat::Id::SPEED)) / 100;
 	}
 
 	float Player::get_jumpforce() const

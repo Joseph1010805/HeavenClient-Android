@@ -52,6 +52,7 @@ namespace ms
 		worldpos = Point<int16_t>(586, 46);
 		charinfopos = Point<int16_t>(671, 339);
 		Point<int16_t> character_sel_pos = Point<int16_t>(601, 393);
+
 		Point<int16_t> character_new_pos = Point<int16_t>(200, 495);
 		Point<int16_t> character_del_pos = Point<int16_t>(316, 495);
 
@@ -115,6 +116,23 @@ namespace ms
 		burning_count = Text(Text::Font::A12B, Text::Alignment::LEFT, Color::Name::WHITE, "1");
 
 		charinfo = CharSelect["charInfo"];
+
+		// Temporary: these positions were tuned against a later UI version, so
+		// report what this artwork is actually sized at. A sprite carries its
+		// own origin, which is why the drawn result does not land where the
+		// coordinate alone would suggest.
+		{
+			Texture info_tex = Texture(CharSelect["charInfo"]);
+			Texture sel_tex = Texture(CharSelect["BtSelect"]["normal"]["0"]);
+
+			printf("[*] charselect: charInfo %dx%d org %d,%d | BtSelect %dx%d org %d,%d | infopos %d,%d selpos %d,%d\n",
+				info_tex.get_dimensions().x(), info_tex.get_dimensions().y(),
+				info_tex.get_origin().x(), info_tex.get_origin().y(),
+				sel_tex.get_dimensions().x(), sel_tex.get_dimensions().y(),
+				sel_tex.get_origin().x(), sel_tex.get_origin().y(),
+				charinfopos.x(), charinfopos.y(),
+				character_sel_pos.x(), character_sel_pos.y());
+		}
 		charslot = CharSelect["charSlot"]["0"];
 		pagebase = pageNew["base"]["0"];
 		pagenumber = Charset(pageNew["number"], Charset::Alignment::LEFT);

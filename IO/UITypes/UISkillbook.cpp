@@ -110,6 +110,12 @@ namespace ms
 
 		bg_dimensions = Texture(ui_backgrnd).get_dimensions();
 
+		// Temporary: the layout below assumes a window wide enough for two
+		// columns of ROW_WIDTH, which the artwork in some UI versions is not.
+		printf("[*] skillbook backgrnd %dx%d, needs %d for two columns\n",
+			bg_dimensions.x(), bg_dimensions.y(),
+			SKILL_OFFSET.x() + 2 * ROW_WIDTH);
+
 		skilld = main["skill0"];
 		skille = main["skill1"];
 		skillb = main["skillBlank"];

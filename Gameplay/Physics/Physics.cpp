@@ -21,7 +21,27 @@
 
 namespace ms
 {
-	const double GRAVFORCE = 0.14;
+	// Nexon publishes the real numbers in Map.wz/Physics.img, per second:
+	//
+	//   walkSpeed 125   gravityAcc 2000   fallSpeed 670   jumpSpeed 555
+	//
+	// The client steps physics every Constants::TIMESTEP (8ms), so 125 steps a
+	// second - which makes the conversion from "per second" to "per step"
+	// divide by 125 for speeds and by 125^2 for accelerations.
+	//
+	// The friction model here is not Nexon's, so walkDrag and maxFriction do
+	// not map onto FRICTION/GROUNDSLIP directly. What can be matched is the
+	// observable result: see Player::get_walkforce, which is calibrated so
+	// terminal walking speed comes out at Nexon's 125 px/s.
+
+	// 2000 px/s^2 over 125 steps/s: 2000 / 125^2. Was 0.14, about 9% heavy.
+	const double GRAVFORCE = 0.128;
+
+	// 670 px/s terminal fall, as fallSpeed. Nothing capped falling speed
+	// before, so anything dropped accelerated indefinitely - which is why
+	// items fell noticeably faster than they do in the real game.
+	const double FALLSPEED = 5.36;
+
 	const double SWIMGRAVFORCE = 0.03;
 	const double FRICTION = 0.3;
 	const double SLOPEFACTOR = 0.1;
@@ -102,6 +122,12 @@ namespace ms
 
 		phobj.hspeed += phobj.hacc;
 		phobj.vspeed += phobj.vacc;
+
+		// Nexon's fallSpeed. Without it a long fall keeps accelerating, so
+		// dropped items and falling characters outrun the real game the
+		// further they go.
+		if (phobj.vspeed > FALLSPEED)
+			phobj.vspeed = FALLSPEED;
 	}
 
 	void Physics::move_flying(PhysicsObject& phobj) const
