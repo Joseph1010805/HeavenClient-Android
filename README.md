@@ -16,7 +16,21 @@ can't give you any - see below.
 The client needs MapleStory's `.nx` data - the artwork, maps, music and sound.
 Those belong to Nexon, so they're not here and I can't send them to you. You
 convert them yourself from a client you already have, using
-[NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx):
+[NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx).
+
+There's no download for that tool - it's a Visual Studio project you build
+yourself, and it won't compile as-is on anything recent. Three things need
+fixing first:
+
+- It uses `std::experimental::filesystem`, which no longer exists. Change it to
+  `std::filesystem` and set the project to C++17.
+- That then trips a deprecation warning on `<codecvt>`, and warnings are treated
+  as errors. Define `_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS`.
+- The `libsquish.lib` it ships with is too old to link against and fails with
+  `C1047`. The source is in the same folder - add `includes/libsquish/*.cpp` to
+  the project and drop the `.lib`.
+
+Then run it once per file:
 
 ```
 NoLifeWzToNx.exe -c Character.wz
@@ -71,11 +85,16 @@ They go here:
 You can't `adb push` straight into that folder - Android won't allow it. Copy
 to somewhere else on the device first, then move them across:
 
-```
+```bash
 DIR=/sdcard/Android/data/org.heavenclient.android/files/HeavenClient
-adb push Character.nx /sdcard/Download/
-adb shell "mv /sdcard/Download/Character.nx $DIR/ && chmod 644 $DIR/Character.nx"
+
+for f in *.nx; do
+    adb push "$f" /sdcard/Download/
+    adb shell "mv /sdcard/Download/$f $DIR/ && chmod 644 $DIR/$f"
+done
 ```
+
+It's about 4 GB in total, so give it a few minutes.
 
 The `chmod` isn't optional. Files moved this way are owned by the shell user and
 the game can't read them without it.
@@ -88,7 +107,12 @@ nothing arrived. Check with `ls` rather than trusting what it says.
 
 ## Settings
 
-Create `Settings` alongside the data:
+Make a plain text file called `Settings` - no `.txt`, no extension at all - and
+put it next to the `.nx` files. Windows hides extensions by default and will
+quietly save it as `Settings.txt`, which the client won't find, so turn
+extensions on in Explorer and check the name is right.
+
+The contents are `name = value`, one per line, spaces around the `=`:
 
 ```
 ServerIP = 192.168.1.71
@@ -96,6 +120,9 @@ ServerPort = 8484
 Width = 800
 Height = 600
 ```
+
+Change the IP to whichever machine your server runs on. Everything else the
+client needs has a sensible default, so those four lines are enough.
 
 Use 800x600. The login and character screens were built for that size and don't
 adapt, so anything else leaves buttons and characters in the wrong places. The
@@ -117,8 +144,15 @@ completely dead.
 Passwords need five characters or more. Shorter ones are rejected before
 anything is sent, so they look exactly like a wrong password.
 
-Cosmic also saves characters once an hour by default, which is a long time to
-lose. `World.java` line 238 is where that's set.
+Cosmic only saves characters once an hour by default, so a crash can cost you
+an hour of play. It isn't in the config file - it's hardcoded in
+`src/main/java/net/server/world/World.java`, in the line registering
+`CharacterAutosaverTask`. Change both `HOURS.toMillis(1)` to
+`MINUTES.toMillis(2)` and rebuild with `./mvnw -DskipTests package`. `MINUTES`
+is already imported.
+
+Characters also save when you log out properly, so quit through the game rather
+than closing the app if you can.
 
 ## Something's wrong
 
@@ -130,7 +164,13 @@ lose. `World.java` line 238 is where that's set.
 
 **"Password is invalid" no matter what** - your password is under five characters.
 
-**No monsters** - you're in a town. Towns genuinely have none.
+**Monsters never appear, even in hunting maps** - your server probably encodes
+the spawn packet differently to Cosmic. It's the byte count in
+`SpawnMobHandler` and `SpawnMobControllerHandler` in
+`Net/Handlers/MapObjectHandlers.cpp`: Cosmic writes 16 bytes of monster status
+before the position, the original client expected 22. Get it wrong and monsters
+spawn at a nonsense position on a nonsense platform, so they're never drawn -
+the packets arrive perfectly and you see nothing.
 
 ## Credits
 
