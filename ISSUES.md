@@ -22,6 +22,31 @@ raised at the table gets quietly forgotten.
 - **SKILL POINT shows no number.** Probably the same thing - the label drawn at a
   coordinate outside this version's frame.
 
+### Client - gameplay
+
+- **Standing still does not restore health or mana.** v83 regenerates both while
+  idle. Not yet checked whether the server does it and the client ignores the
+  update, or whether nothing does it at all.
+- **Levelling up has no sound.** `Sound::Name::LEVELUP` is loaded and the level
+  up effect plays, so this is likely the same shape as the tombstone was - the
+  sound is there and nothing plays it.
+- **Monsters take about a second to start moving** after appearing. A controlled
+  monster waits for its animation to end and a counter to pass 200 updates,
+  which at 125 a second is 1.6 seconds before its first move.
+
+### Client - controller mapping on the quickslot
+
+The slide-out quickslot at the bottom right has twelve empty slots, in two rows
+of six, and is the natural place to bind a gamepad. Skills and items cannot
+currently be dragged into it.
+
+Wanted layout, left to right:
+
+| | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| **top** | Y | X | L2 | R2 | Start | Select |
+| **bottom** | B | A | L1 | R1 | L3 | R3 |
+
 ### Client - missing features
 
 - **Boss HP bar never appears.** The packet is parsed correctly in

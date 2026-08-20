@@ -18,6 +18,7 @@
 #include "Player.h"
 #include "PlayerStates.h"
 
+#include "../Audio/Audio.h"
 #include "../Constants.h"
 
 #include "../Data/WeaponData.h"
@@ -399,7 +400,14 @@ namespace ms
 		uint16_t oldlevel = get_level();
 
 		if (level > oldlevel)
+		{
 			show_effect_id(CharEffect::Id::LEVELUP);
+
+			// Same story as the tombstone: Audio has been loading this sound
+			// since long before the port and nothing ever played it, so the
+			// effect went up in silence.
+			Sound(Sound::Name::LEVELUP).play();
+		}
 
 		stats.set_stat(Maplestat::Id::LEVEL, level);
 	}

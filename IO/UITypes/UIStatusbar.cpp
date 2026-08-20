@@ -106,7 +106,7 @@ namespace ms
 
 			// Menu
 			menu_pos = Point<int16_t>(682, -280);
-			setting_pos = menu_pos + Point<int16_t>(0, 168);
+			setting_pos = menu_pos + Point<int16_t>(0, 132);
 			community_pos = menu_pos + Point<int16_t>(-26, 196);
 			character_pos = menu_pos + Point<int16_t>(-61, 168);
 			event_pos = menu_pos + Point<int16_t>(-94, 252);
@@ -123,7 +123,7 @@ namespace ms
 
 			// Menu
 			menu_pos = Point<int16_t>(720 + pos_adj, -280);
-			setting_pos = menu_pos + Point<int16_t>(0, 168);
+			setting_pos = menu_pos + Point<int16_t>(0, 132);
 			community_pos = menu_pos + Point<int16_t>(-26, 196);
 			character_pos = menu_pos + Point<int16_t>(-61, 168);
 			event_pos = menu_pos + Point<int16_t>(-94, 252);
@@ -288,6 +288,25 @@ namespace ms
 		buttons[Buttons::BT_MENU_MONSTER_LIFE] = std::make_unique<MapleButton>(submenu["menu"]["button:monsterLife"], menu_pos);
 		buttons[Buttons::BT_MENU_QUEST] = std::make_unique<MapleButton>(submenu["menu"]["button:quest"], menu_pos);
 		buttons[Buttons::BT_MENU_UNION] = std::make_unique<MapleButton>(submenu["menu"]["button:union"], menu_pos);
+
+		// Temporary: every setting button is created at the same point and
+		// relies on its own origin to sit in the right row of the menu. Quit
+		// is present in the artwork but never appears, so report where each
+		// one thinks it belongs.
+		{
+			const char* names[] = { "button:channel", "button:GameQuit",
+									"button:keySetting", "button:option" };
+
+			for (const char* n : names)
+			{
+				Texture t = Texture(submenu["setting"][n]["normal"]["0"]);
+
+				printf("[*] setting %s: %dx%d org %d,%d at %d,%d\n", n,
+					t.get_dimensions().x(), t.get_dimensions().y(),
+					t.get_origin().x(), t.get_origin().y(),
+					setting_pos.x(), setting_pos.y());
+			}
+		}
 
 		buttons[Buttons::BT_SETTING_CHANNEL] = std::make_unique<MapleButton>(submenu["setting"]["button:channel"], setting_pos);
 		buttons[Buttons::BT_SETTING_QUIT] = std::make_unique<MapleButton>(submenu["setting"]["button:GameQuit"], setting_pos);
