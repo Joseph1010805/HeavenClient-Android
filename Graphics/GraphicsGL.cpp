@@ -497,6 +497,12 @@ namespace ms
 
 	void GraphicsGL::clearinternal()
 	{
+		// Logged because this is the only thing that ever resets the atlas -
+		// GraphicsGL::clear() compares a fraction against 80.0 and so never
+		// fires - and a reset mid-frame invalidates offsets that quads already
+		// queued this frame are pointing at.
+		printf("[*] atlas reset (was %d,%d)\n", border.x(), border.y());
+
 		border = Point<GLshort>(0, fontymax);
 		yrange = Range<GLshort>();
 
@@ -641,6 +647,14 @@ namespace ms
 		// atlas is allocated with this same format precisely so that holds.
 		// TODO: fall back to a swizzle if the extension is ever absent.
 #if defined(PLATFORM_ANDROID)
+		// Bind the atlas rather than trusting whatever happens to be bound.
+		// This upload used to rely on the binding left over from init, which
+		// held only because nothing else ever bound a texture - no longer true
+		// now that the frame is composed through an offscreen target, and a
+		// fragile thing to depend on regardless. Uploading into the wrong
+		// texture would silently cache a valid-looking atlas entry whose
+		// pixels were never written, drawing as a blank rectangle.
+		glBindTexture(GL_TEXTURE_2D, atlas);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_BGRA_EXT, GL_UNSIGNED_BYTE, bmp.data());
 		check_gl("sprite glTexSubImage2D");
 #else

@@ -67,8 +67,14 @@ namespace ms
 				"You have died. You will return to the nearest town.",
 				[](bool)
 				{
-					// -1 asks the server to choose the return map itself.
-					ChangeMapPacket(true, -1, "", false).dispatch();
+					// The map id must not be -1. Cosmic wraps its whole revive
+					// path in "if (targetMapId != -1)", so -1 - the obvious
+					// way to say "server, you pick" - makes it drop the
+					// request silently. The value is otherwise unused when the
+					// player is dead: the server always returns them to
+					// getReturnMapId(), so the current map is a safe thing to
+					// send.
+					ChangeMapPacket(true, Stage::get().get_mapid(), "", false).dispatch();
 				});
 		}
 	}
