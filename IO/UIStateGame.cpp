@@ -37,6 +37,7 @@
 #include "UITypes/UIEvent.h"
 #include "UITypes/UIChannel.h"
 #include "UITypes/UIQuit.h"
+#include "UITypes/UILoginNotice.h"
 
 #include "../Gameplay/Stage.h"
 
@@ -427,7 +428,11 @@ namespace ms
 
 	void UIStateGame::send_close()
 	{
-		UI::get().emplace<UIQuit>(stats);
+		// UIQuit is the elaborate in-game one, and it does not show with this
+		// UI version's artwork - so pressing back in game appeared to do
+		// nothing. UIQuitConfirm is the plain "Are you ready to exit?" box the
+		// login screens use, which does work, so use it in both places.
+		UI::get().emplace<UIQuitConfirm>();
 	}
 
 	void UIStateGame::drag_icon(Icon* drgic)

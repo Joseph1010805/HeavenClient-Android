@@ -349,7 +349,16 @@ int main(int argc, char* argv[])
 
 	// No glfwTerminate (no GLFW) and no appletUnlockExit (libnx only).
 	// Window's destructor does the SDL teardown.
-	return EXIT_SUCCESS;
+	printf("[*] quitting\n");
+
+	// Returning from here is not enough on Android: SDL hands control back to
+	// the Java activity, which stays alive, so choosing to quit only sent the
+	// app to the background and it was still running when reopened. Ending the
+	// process is what actually closes it.
+	//
+	// Settings are written when they change rather than at exit, so nothing is
+	// lost by stopping here.
+	std::exit(EXIT_SUCCESS);
 }
 #else
 int main()

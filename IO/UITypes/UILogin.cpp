@@ -197,6 +197,36 @@ namespace ms
 			return;
 		}
 
+		// Remember both halves when the box is ticked, so logging in is one
+		// tap. Only the account name was ever saved, even though the client
+		// already reads a saved password back into the field at startup and a
+		// SavePassword setting exists - the reading half was there and the
+		// writing half was not.
+		//
+		// The password is stored as typed, in the settings file next to the
+		// game data. That is what "save my login" means here, and the file
+		// sits inside the app's own directory.
+		if (saveid)
+		{
+			Setting<DefaultAccount>::get().save(account_text);
+			Setting<DefaultPassword>::get().save(password_text);
+			Setting<SavePassword>::get().save(true);
+		}
+		else
+		{
+			Setting<DefaultAccount>::get().save("");
+			Setting<DefaultPassword>::get().save("");
+			Setting<SavePassword>::get().save(false);
+		}
+
+		Setting<SaveLogin>::get().save(saveid);
+
+		// Write the file now rather than at exit. Configuration saves itself
+		// from its destructor, which only runs on a clean shutdown - and on a
+		// handheld the app usually gets closed from outside, so nothing was
+		// ever written and the details never came back.
+		Configuration::get().save();
+
 		UI::get().emplace<UILoginwait>(okhandler);
 
 		auto loginwait = UI::get().get_element<UILoginwait>();

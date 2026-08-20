@@ -509,6 +509,22 @@ namespace ms
 			{
 				Uint8 button = ev.cbutton.button;
 
+				// The handheld's back button arrives as a controller button
+				// rather than a key, which is why the SDLK_AC_BACK handler
+				// never saw it. It was mapped to Enter, so pressing back
+				// opened the chat box instead of offering to quit.
+				//
+				// send_close is what each screen already answers with its own
+				// exit prompt - the "Are you ready to exit?" box on the login
+				// screens, and the quit dialog in game.
+				if (button == SDL_CONTROLLER_BUTTON_BACK)
+				{
+					if (ev.type == SDL_CONTROLLERBUTTONDOWN)
+						UI::get().send_close();
+
+					break;
+				}
+
 				if (button < SDL_CONTROLLER_BUTTON_MAX)
 				{
 					int16_t key = padmap[button];
