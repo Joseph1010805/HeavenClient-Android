@@ -23,9 +23,56 @@
 #include "../IO/UITypes/UIBuffList.h"
 #include "../IO/UITypes/UIStatsinfo.h"
 #include "../IO/UITypes/UISkillbook.h"
+#include "../IO/UITypes/UINotice.h"
+#include "../Net/Packets/GameplayPackets.h"
 
 namespace ms
 {
+	namespace
+	{
+		// Whether the player has already been told they are dead, so the
+		// prompt is raised once rather than on every stat packet that arrives
+		// while HP sits at zero.
+		bool death_prompted = false;
+
+		// The client had no notion of dying. Char::State::DIED exists and is
+		// read in two places, but nothing ever set it, so reaching 0 HP left
+		// the character standing about as though nothing had happened.
+		//
+		// The server has already done its half by this point - Cosmic's
+		// playerDead() cancels buffs and applies the penalty - and is waiting
+		// for a revive request that never came. That request is just a change
+		// map with its first byte set, which ChangeMapPacket already supports;
+		// only the detection and the prompt were missing.
+		void check_death()
+		{
+			Player& player = Stage::get().get_player();
+
+			if (player.get_stats().get_stat(Maplestat::Id::HP) > 0)
+			{
+				death_prompted = false;
+				return;
+			}
+
+			if (death_prompted)
+				return;
+
+			death_prompted = true;
+
+			// Maps to the DEAD stance through Stance::by_state, and stops the
+			// character being walked around while dead.
+			player.set_state(Char::State::DIED);
+
+			UI::get().emplace<UIOk>(
+				"You have died. You will return to the nearest town.",
+				[](bool)
+				{
+					// -1 asks the server to choose the return map itself.
+					ChangeMapPacket(true, -1, "", false).dispatch();
+				});
+		}
+	}
+
 	void KeymapHandler::handle(InPacket& recv) const
 	{
 		recv.skip(1);
@@ -68,6 +115,8 @@ namespace ms
 
 		if (recalculate)
 			Stage::get().get_player().recalc_stats(false);
+
+		check_death();
 
 		UI::get().enable();
 	}

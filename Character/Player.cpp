@@ -446,7 +446,11 @@ namespace ms
 
 	float Player::get_walkforce() const
 	{
-		return 0.05f + 0.11f * static_cast<float>(stats.get_total(Equipstat::Id::SPEED)) / 100;
+		// Halved from 0.05/0.11. These are HeavenClient's own approximation of
+		// v83 movement rather than Nexon's values, and they ran noticeably
+		// fast on the handheld. Terminal speed is proportional to this force,
+		// so halving it halves how fast the character travels.
+		return 0.025f + 0.055f * static_cast<float>(stats.get_total(Equipstat::Id::SPEED)) / 100;
 	}
 
 	float Player::get_jumpforce() const

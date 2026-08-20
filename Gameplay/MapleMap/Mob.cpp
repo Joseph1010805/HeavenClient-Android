@@ -218,7 +218,10 @@ namespace ms
 			case Stance::HIT:
 				if (canmove)
 				{
-					double KBFORCE = phobj.onground ? 0.2 : 0.1;
+					// How far a monster is pushed by the player's hit. Halved from
+				// 0.2/0.1 - like the walk force these are the client's own
+				// approximation of v83, and monsters slid much too far.
+				double KBFORCE = phobj.onground ? 0.1 : 0.05;
 					phobj.hforce = flip ? -KBFORCE : KBFORCE;
 				}
 
