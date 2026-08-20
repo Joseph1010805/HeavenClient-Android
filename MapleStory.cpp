@@ -308,6 +308,25 @@ int main(int argc, char* argv[])
 			// the file up now that the path resolves. save() was never
 			// affected: it runs at exit, by which time the chdir has happened.
 			ms::Configuration::get().load();
+
+			// Width/Height were only ever applied by the in-game options menu,
+			// so the client always started at its hardcoded 1280x720 no matter
+			// what the file said. That matters here because the resolution is
+			// not really a preference on this platform: it sets how large
+			// everything is on a handheld panel. v83's own art is drawn for
+			// 800x600 - at 1280x720 the login screen occupies a 800x600 corner
+			// of the client's own screen and the UI is small - so honouring the
+			// setting at startup makes it adjustable without a rebuild.
+			const int16_t view_width = ms::Setting<ms::Width>::get().load();
+			const int16_t view_height = ms::Setting<ms::Height>::get().load();
+
+			if (view_width > 0 && view_height > 0)
+			{
+				ms::Constants::Constants::get().set_viewwidth(view_width);
+				ms::Constants::Constants::get().set_viewheight(view_height);
+
+				printf("[*] view resolution %dx%d\n", view_width, view_height);
+			}
 		}
 		else
 		{

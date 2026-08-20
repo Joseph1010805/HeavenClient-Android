@@ -62,6 +62,102 @@ namespace ms
 		bool running = true;
 		SDL_GameController* gamepad = nullptr;
 
+		// The panel is 1920x1080 while the client draws in a 1280x720
+		// coordinate space. Rendering straight to the panel means every sprite
+		// is scaled by 1.5 in the vertex shader and sampled with GL_NEAREST,
+		// and a 1.5x scale cannot be expressed evenly in whole pixels: each
+		// glyph row lands on one or two physical pixels depending where it
+		// falls, which is what made small text unreadable rather than merely
+		// soft.
+		//
+		// So the scene is drawn into an offscreen buffer at exactly the
+		// client's resolution - pixel-for-pixel, no scaling, nearest sampling
+		// is exact - and that buffer is then stretched to the panel in one
+		// blit with GL_LINEAR. The upscale still happens, but it happens once,
+		// on a finished image, with filtering, instead of independently per
+		// sprite with none.
+		GLuint scene_fbo = 0;
+		GLuint scene_color = 0;
+
+		int scene_w = 0;
+		int scene_h = 0;
+		int panel_w = 0;
+		int panel_h = 0;
+
+		void init_offscreen(int w, int h)
+		{
+			scene_w = w;
+			scene_h = h;
+
+			if (scene_fbo)
+			{
+				glDeleteFramebuffers(1, &scene_fbo);
+				glDeleteTextures(1, &scene_color);
+				scene_fbo = 0;
+				scene_color = 0;
+			}
+
+			glGenTextures(1, &scene_color);
+			glBindTexture(GL_TEXTURE_2D, scene_color);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+			// GL_LINEAR here is what makes the upscale smooth. It is safe in a
+			// way it would not be on the sprite atlas: this texture holds one
+			// complete frame, so there are no neighbouring sub-images for the
+			// filter to bleed together.
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+			glGenFramebuffers(1, &scene_fbo);
+			glBindFramebuffer(GL_FRAMEBUFFER, scene_fbo);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, scene_color, 0);
+
+			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+			if (status != GL_FRAMEBUFFER_COMPLETE)
+			{
+				// Fall back to drawing straight to the panel. It looks worse,
+				// but a client that renders badly beats one that renders
+				// nothing.
+				LOGE("offscreen target incomplete (0x%04X), rendering direct", status);
+
+				glDeleteFramebuffers(1, &scene_fbo);
+				glDeleteTextures(1, &scene_color);
+				scene_fbo = 0;
+				scene_color = 0;
+			}
+
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
+
+		void bind_offscreen()
+		{
+			if (!scene_fbo)
+				return;
+
+			glBindFramebuffer(GL_FRAMEBUFFER, scene_fbo);
+			glViewport(0, 0, scene_w, scene_h);
+		}
+
+		void present_offscreen()
+		{
+			if (!scene_fbo)
+				return;
+
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, scene_fbo);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			glViewport(0, 0, panel_w, panel_h);
+
+			glBlitFramebuffer(
+				0, 0, scene_w, scene_h,
+				0, 0, panel_w, panel_h,
+				GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
+
 		// Gamepad button -> GLFW key code, populated from Setting<Joystick_*>.
 		// SDL_CONTROLLER_BUTTON_MAX is small, so a flat array beats a map here.
 		int16_t padmap[SDL_CONTROLLER_BUTTON_MAX];
@@ -214,8 +310,11 @@ namespace ms
 			glwnd = nullptr;
 		}
 
+		// ES3 rather than ES2 purely for glBlitFramebuffer, used to upscale the
+		// offscreen target below. It is backwards compatible, so the renderer
+		// and its GLSL ES 1.00 shaders are unaffected.
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
@@ -246,19 +345,6 @@ namespace ms
 			return Error::Code::WINDOW;
 		}
 
-		// Pin the drawable to the client's own resolution. Without this the
-		// surface comes back at the panel size (1920x1080) while the client
-		// still draws in a 1280x720 coordinate space, so every sprite is
-		// scaled by 1.5 in the vertex shader and sampled with GL_NEAREST -
-		// which cannot represent a 1.5x scale evenly. Glyph rows land on one
-		// or two physical pixels at random, and small text turns to mush.
-		//
-		// On Android SDL implements this as SurfaceHolder.setFixedSize(), so
-		// GL then renders 1:1 with the client's coordinates - text is
-		// pixel-exact - and the display hardware does the upscale to the panel
-		// with linear filtering, which is smooth rather than aliased.
-		SDL_SetWindowSize(glwnd, width, height);
-
 		bool vsync = Setting<VSync>::get().load();
 		SDL_GL_SetSwapInterval(vsync ? 1 : 0);
 
@@ -268,13 +354,13 @@ namespace ms
 			return error;
 		}
 
-		int drawable_w = width;
-		int drawable_h = height;
-		SDL_GL_GetDrawableSize(glwnd, &drawable_w, &drawable_h);
-		glViewport(0, 0, drawable_w, drawable_h);
+		SDL_GL_GetDrawableSize(glwnd, &panel_w, &panel_h);
+		glViewport(0, 0, width, height);
 
 		LOGI("window %dx%d, drawable %dx%d, GL_VERSION %s",
-			width, height, drawable_w, drawable_h, glGetString(GL_VERSION));
+			width, height, panel_w, panel_h, glGetString(GL_VERSION));
+
+		init_offscreen(width, height);
 
 		GraphicsGL::get().reinit();
 
@@ -426,12 +512,14 @@ namespace ms
 
 	void Window::begin() const
 	{
+		bind_offscreen();
 		GraphicsGL::get().clearscene();
 	}
 
 	void Window::end() const
 	{
 		GraphicsGL::get().flush(opacity);
+		present_offscreen();
 		SDL_GL_SwapWindow(glwnd);
 	}
 

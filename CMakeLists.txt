@@ -558,10 +558,13 @@ endif()
 if(ANDROID)
     find_library(ANDROID_LOG_LIB log)
     find_library(ANDROID_EGL_LIB EGL)
-    find_library(ANDROID_GLES_LIB GLESv2)
+    # GLESv3 rather than GLESv2: the renderer is GLES2, but the frame is
+    # upscaled to the panel with glBlitFramebuffer, which is ES3. libGLESv3
+    # exports the ES2 entry points too, so this is a superset.
+    find_library(ANDROID_GLES3_LIB GLESv3)
 
     target_link_libraries(HeavenClient ${ANDROID_EGL_LIB})
-    target_link_libraries(HeavenClient ${ANDROID_GLES_LIB})
+    target_link_libraries(HeavenClient ${ANDROID_GLES3_LIB})
     target_link_libraries(HeavenClient ${ANDROID_LOG_LIB})
     target_link_libraries(HeavenClient android)
 

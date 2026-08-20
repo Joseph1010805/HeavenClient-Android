@@ -18,8 +18,12 @@
 //
 #pragma once
 
+// The renderer itself is written against GLES2, but the ES3 header is pulled
+// in as well for glBlitFramebuffer, which is what upscales the offscreen
+// target to the panel. ES3 is backwards compatible, so every GLES2 call and
+// the GLSL ES 1.00 shaders keep working unchanged.
 #if defined(PLATFORM_ANDROID)
-#include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 #include <GLES2/gl2ext.h>
 #else
 #include <glad/glad.h>
