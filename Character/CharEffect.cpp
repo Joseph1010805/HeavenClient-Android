@@ -25,6 +25,10 @@ namespace ms
 		"JobChanged",
 		"Enchant/Success",
 		"Enchant/Failure",
-		"MonsterBook/cardGet"
+		"MonsterBook/cardGet",
+		// TOMBSTONE is not under BasicEff.img, so it has no path here and is
+		// loaded by Char::init directly. The entry keeps the map the same
+		// length as the enum.
+		nullptr
 	};
 }

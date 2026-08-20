@@ -379,7 +379,15 @@ namespace ms
 		nl::node src = nl::nx::effect["BasicEff.img"];
 
 		for (auto iter : CharEffect::PATHS)
-			chareffects.emplace(iter.first, src.resolve(iter.second));
+			if (iter.second)
+				chareffects.emplace(iter.first, src.resolve(iter.second));
+
+		// The tombstone that lands on you when you die. It sits in its own
+		// Tomb.img rather than under BasicEff.img, so it cannot come through
+		// PATHS with the rest. The data has always been here - nothing ever
+		// drew it, because nothing implemented dying.
+		chareffects.emplace(CharEffect::Id::TOMBSTONE,
+			nl::nx::effect["Tomb.img"]["fall"]);
 	}
 
 	EnumMap<CharEffect::Id, Animation> Char::chareffects;

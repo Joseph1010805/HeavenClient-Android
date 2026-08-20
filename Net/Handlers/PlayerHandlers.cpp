@@ -17,7 +17,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "PlayerHandlers.h"
 
+#include "../Audio/Audio.h"
 #include "../Character/Buff.h"
+#include "../Character/CharEffect.h"
 #include "../Gameplay/Stage.h"
 #include "../IO/UI.h"
 #include "../IO/UITypes/UIBuffList.h"
@@ -62,6 +64,13 @@ namespace ms
 			// Maps to the DEAD stance through Stance::by_state, and stops the
 			// character being walked around while dead.
 			player.set_state(Char::State::DIED);
+
+			// The tombstone and its sound. Both have been sitting in the data
+			// and in Audio's sound table all along - Sound::Name::TOMBSTONE is
+			// loaded at startup and was never once played, because nothing
+			// implemented dying for it to belong to.
+			player.show_effect_id(CharEffect::Id::TOMBSTONE);
+			Sound(Sound::Name::TOMBSTONE).play();
 
 			UI::get().emplace<UIOk>(
 				"You have died. You will return to the nearest town.",

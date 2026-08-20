@@ -31,6 +31,10 @@ namespace ms
 			SCROLL_SUCCESS,
 			SCROLL_FAILURE,
 			MONSTER_CARD,
+			// The tombstone dropped on a dead character. Unlike the others
+			// this lives in Effect.wz/Tomb.img rather than BasicEff.img, so
+			// Char::init loads it separately and PATHS has no entry for it.
+			TOMBSTONE,
 			LENGTH
 		};
 
