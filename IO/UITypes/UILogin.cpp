@@ -34,6 +34,25 @@
 
 namespace ms
 {
+	namespace
+	{
+		// The login panel and the sign both used to sit in the middle of the
+		// screen, stacked on top of each other, which was fine over a static
+		// backdrop and wastes a moving one. They are pushed into opposite top
+		// corners so the artwork between them stays visible.
+		//
+		// Every coordinate in this file was authored against the panel's old
+		// centred position, so rather than renumber each one they are all
+		// shifted by this. The panel art (signboard) is 243x132 with its origin
+		// at 115,66, so drawn at 391,330 its top-left corner was 276,264 -
+		// which is what this offset measures from.
+		constexpr Point<int16_t> PANEL = Point<int16_t>(40 - 276, 45 - 264);
+
+		// Top right, inside the frame's inner edge (about x 769). The sign is
+		// 240 wide, and this clears the version text at y 1.
+		constexpr Point<int16_t> LOGO_POS = Point<int16_t>(530, 16);
+	}
+
 	UILogin::UILogin() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(800, 600))
 	{
 		Music("BgmUI.img/Title").play();
@@ -62,8 +81,7 @@ namespace ms
 		{
 			sprites.emplace_back(custom["LoginBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
 
-			// Centred above the login box, which starts at y 279.
-			sprites.emplace_back(custom["Logo"], Point<int16_t>(280, 20));
+			sprites.emplace_back(custom["Logo"], LOGO_POS);
 		}
 		else
 		{
@@ -78,21 +96,21 @@ namespace ms
 			sprites.emplace_back(back["35"], Point<int16_t>(399, 260));
 		}
 
-		sprites.emplace_back(title["signboard"], Point<int16_t>(391, 330));
+		sprites.emplace_back(title["signboard"], Point<int16_t>(391, 330) + PANEL);
 		sprites.emplace_back(common["frame"], Point<int16_t>(400, 300));
 
-		buttons[Buttons::BT_LOGIN] = std::make_unique<MapleButton>(title["BtLogin"], Point<int16_t>(454, 279));
-		buttons[Buttons::BT_SAVEID] = std::make_unique<MapleButton>(title["BtLoginIDSave"], Point<int16_t>(303, 332));
-		buttons[Buttons::BT_IDLOST] = std::make_unique<MapleButton>(title["BtLoginIDLost"], Point<int16_t>(375, 332));
-		buttons[Buttons::BT_PASSLOST] = std::make_unique<MapleButton>(title["BtPasswdLost"], Point<int16_t>(447, 332));
-		buttons[Buttons::BT_REGISTER] = std::make_unique<MapleButton>(title["BtNew"], Point<int16_t>(291, 352));
-		buttons[Buttons::BT_HOMEPAGE] = std::make_unique<MapleButton>(title["BtHomePage"], Point<int16_t>(363, 352));
-		buttons[Buttons::BT_QUIT] = std::make_unique<MapleButton>(title["BtQuit"], Point<int16_t>(435, 352));
+		buttons[Buttons::BT_LOGIN] = std::make_unique<MapleButton>(title["BtLogin"], Point<int16_t>(454, 279) + PANEL);
+		buttons[Buttons::BT_SAVEID] = std::make_unique<MapleButton>(title["BtLoginIDSave"], Point<int16_t>(303, 332) + PANEL);
+		buttons[Buttons::BT_IDLOST] = std::make_unique<MapleButton>(title["BtLoginIDLost"], Point<int16_t>(375, 332) + PANEL);
+		buttons[Buttons::BT_PASSLOST] = std::make_unique<MapleButton>(title["BtPasswdLost"], Point<int16_t>(447, 332) + PANEL);
+		buttons[Buttons::BT_REGISTER] = std::make_unique<MapleButton>(title["BtNew"], Point<int16_t>(291, 352) + PANEL);
+		buttons[Buttons::BT_HOMEPAGE] = std::make_unique<MapleButton>(title["BtHomePage"], Point<int16_t>(363, 352) + PANEL);
+		buttons[Buttons::BT_QUIT] = std::make_unique<MapleButton>(title["BtQuit"], Point<int16_t>(435, 352) + PANEL);
 
 		checkbox[false] = title["check"]["0"];
 		checkbox[true] = title["check"]["1"];
 
-		account = Textfield(Text::Font::A13M, Text::Alignment::LEFT, Color::Name::WHITE, Rectangle<int16_t>(Point<int16_t>(296, 279), Point<int16_t>(446, 303)), 12);
+		account = Textfield(Text::Font::A13M, Text::Alignment::LEFT, Color::Name::WHITE, Rectangle<int16_t>(Point<int16_t>(296, 279) + PANEL, Point<int16_t>(446, 303) + PANEL), 12);
 
 		account.set_key_callback
 		(
@@ -113,7 +131,7 @@ namespace ms
 
 		accountbg = title["ID"];
 
-		password = Textfield(Text::Font::A13M, Text::Alignment::LEFT, Color::Name::WHITE, Rectangle<int16_t>(Point<int16_t>(296, 305), Point<int16_t>(446, 329)), 12);
+		password = Textfield(Text::Font::A13M, Text::Alignment::LEFT, Color::Name::WHITE, Rectangle<int16_t>(Point<int16_t>(296, 305) + PANEL, Point<int16_t>(446, 329) + PANEL), 12);
 
 		password.set_key_callback
 		(
@@ -171,12 +189,12 @@ namespace ms
 		password.draw(position);
 
 		if (account.get_state() == Textfield::State::NORMAL && account.empty())
-			accountbg.draw(DrawArgument(position + Point<int16_t>(291, 279)));
+			accountbg.draw(DrawArgument(position + Point<int16_t>(291, 279) + PANEL));
 
 		if (password.get_state() == Textfield::State::NORMAL && password.empty())
-			passwordbg.draw(DrawArgument(position + Point<int16_t>(291, 305)));
+			passwordbg.draw(DrawArgument(position + Point<int16_t>(291, 305) + PANEL));
 
-		checkbox[saveid].draw(DrawArgument(position + Point<int16_t>(291, 335)));
+		checkbox[saveid].draw(DrawArgument(position + Point<int16_t>(291, 335) + PANEL));
 	}
 
 	void UILogin::update()

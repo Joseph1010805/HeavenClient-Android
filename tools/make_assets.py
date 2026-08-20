@@ -63,50 +63,75 @@ def frames(source, vf, fps, duration=None, start=None):
 
 
 def logo_bgra(path, target_width):
-    """Load the sign and knock out the white it was drawn on.
+    """Load the sign and knock out the background it was drawn on.
 
-    Only the white *around* the sign goes: the paper is cream and would be
-    caught by any plain white-key, so the transparent region is grown inward
-    from the edges and stops at the ink outline.
+    Only what is *not the sign* goes. The paper is cream, so a plain white-key
+    would eat it; instead a pixel counts as background when it is pale AND
+    near-neutral, which the cream fails on the second test whatever its
+    brightness.
     """
     img = Image.open(path).convert('RGB')
 
-    # Near-white AND near-neutral. The paper (roughly 250,243,225) is white
-    # enough to pass the first test on its own, and is excluded by the second.
     px = img.load()
     w, h = img.size
 
+    # The threshold has to reach down to about 212, not the 238 that "white"
+    # suggests: the artist drew a pale grey-green drop shadow down the right
+    # side of the sign, roughly (223,230,223), and left opaque it reads as a
+    # white outline against the sky.
     def is_background(x, y):
         r, g, b = px[x, y]
-        return min(r, g, b) >= 238 and max(r, g, b) - min(r, g, b) <= 12
+        return min(r, g, b) >= 212 and max(r, g, b) - min(r, g, b) <= 18
 
-    # Flood inward from every edge pixel, so enclosed white (inside a letter,
-    # say) is left opaque.
+    # Label every pale-neutral region, then decide which are actually holes.
+    seen = bytearray(w * h)
     mask = bytearray(w * h)
-    stack = []
 
-    for x in range(w):
-        stack.append((x, 0))
-        stack.append((x, h - 1))
-    for y in range(h):
-        stack.append((0, y))
-        stack.append((w - 1, y))
+    for sy in range(h):
+        for sx in range(w):
+            if seen[sy * w + sx] or not is_background(sx, sy):
+                continue
 
-    while stack:
-        x, y = stack.pop()
+            stack = [(sx, sy)]
+            seen[sy * w + sx] = 1
+            pixels = []
+            touches_edge = False
+            x0 = x1 = sx
+            y0 = y1 = sy
 
-        if x < 0 or y < 0 or x >= w or y >= h or mask[y * w + x]:
-            continue
-        if not is_background(x, y):
-            continue
+            while stack:
+                x, y = stack.pop()
+                pixels.append(y * w + x)
 
-        mask[y * w + x] = 255
-        stack += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+                if x == 0 or y == 0 or x == w - 1 or y == h - 1:
+                    touches_edge = True
+
+                x0 = min(x0, x)
+                x1 = max(x1, x)
+                y0 = min(y0, y)
+                y1 = max(y1, y)
+
+                for a, b in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                    if (0 <= a < w and 0 <= b < h
+                            and not seen[b * w + a] and is_background(a, b)):
+                        seen[b * w + a] = 1
+                        stack.append((a, b))
+
+            # Anything reachable from outside is background. An enclosed region
+            # is a hole only when it is wide and thin - that shape means a gap
+            # under a horizontal element, here the sky between the hanging pole
+            # and the top of the sign. Highlights on the paper are compact, so
+            # this leaves them alone rather than punching holes in the artwork.
+            wide_and_thin = (x1 - x0) >= 0.35 * w and (y1 - y0) <= 0.12 * h
+
+            if touches_edge or wide_and_thin:
+                for i in pixels:
+                    mask[i] = 255
 
     alpha = Image.frombytes('L', (w, h), bytes(mask)).point(lambda v: 255 - v)
 
     # Soften, then pull the midtones down. Blurring alone leaves a rim of
-    # half-transparent white - the JPEG's own edge ringing - which shows as a
+    # half-transparent pixels - the JPEG's own edge ringing - which shows as a
     # pale halo once it is composited over the sky.
     alpha = alpha.filter(ImageFilter.GaussianBlur(0.8))
     alpha = alpha.point(lambda v: 0 if v < 96 else min(255, int((v - 96) * 1.6)))
