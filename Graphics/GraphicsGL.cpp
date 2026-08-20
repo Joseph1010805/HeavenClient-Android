@@ -17,6 +17,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "GraphicsGL.h"
 
+#include <cstring>
+#include <vector>
+
 #include "../Configuration.h"
 
 namespace ms
@@ -29,6 +32,26 @@ namespace ms
 		VHEIGHT = Constants::Constants::get().get_viewheight();
 		SCREEN = Rectangle<int16_t>(0, VWIDTH, 0, VHEIGHT);
 	}
+
+#if defined(PLATFORM_ANDROID)
+	namespace
+	{
+		// GLES2 is far stricter than desktop GL about texture formats and it
+		// reports that by setting an error rather than by failing loudly, so a
+		// bad upload just leaves the atlas empty and everything draws as the
+		// clear colour. Log the error code against the call that produced it.
+		void check_gl(const char* what)
+		{
+			for (GLenum err = glGetError(); err != GL_NO_ERROR; err = glGetError())
+				printf("[!] GL error 0x%04X after %s\n", err, what);
+		}
+	}
+#else
+	namespace
+	{
+		void check_gl(const char*) {}
+	}
+#endif
 
 	Error GraphicsGL::init()
 	{
@@ -248,7 +271,29 @@ namespace ms
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+#if defined(PLATFORM_ANDROID)
+		// Desktop GL converts freely in glTexSubImage2D, so this atlas could be
+		// RGBA while sprites arrived as BGRA and glyphs as a single channel.
+		// GLES2 does not convert: the format passed to glTexSubImage2D must
+		// EQUAL the internal format, or the call raises GL_INVALID_OPERATION
+		// and silently uploads nothing - leaving a blank atlas and a screen
+		// painted entirely in the (white) clear colour.
+		//
+		// Sprite data is already BGRA and is by far the bulk of the traffic, so
+		// the atlas is allocated as BGRA to make those uploads a straight copy;
+		// the glyphs are expanded to four channels instead, which is cheap
+		// because there are only 96 of them per font. Sampling a BGRA texture
+		// still yields correctly ordered RGBA in the shader, so the fragment
+		// program is unchanged.
+		printf("[*] GL extensions advertise BGRA8888: %s\n",
+			strstr(reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS)),
+				"texture_format_BGRA8888") ? "yes" : "NO");
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA_EXT, ATLASW, ATLASH, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, nullptr);
+#else
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ATLASW, ATLASH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+#endif
+		check_gl("atlas glTexImage2D");
 
 		fontborder.set_y(1);
 
@@ -353,11 +398,29 @@ namespace ms
 			GLshort w = static_cast<GLshort>(g->bitmap.width);
 			GLshort h = static_cast<GLshort>(g->bitmap.rows);
 
-			// GL_RED is not a GLES2 format. GL_LUMINANCE is the single-channel
-			// equivalent and still reads back through .r in the shader, so the
-			// fragment shader needs no change.
 #if defined(PLATFORM_ANDROID)
-			glTexSubImage2D(GL_TEXTURE_2D, 0, ox, oy, w, h, GL_LUMINANCE, GL_UNSIGNED_BYTE, g->bitmap.buffer);
+			// The atlas is BGRA (see init), and GLES2 will not convert on
+			// upload, so the single-channel coverage FreeType hands back has
+			// to be widened to four channels here. The shader samples .r for
+			// the font region, and replicating the value across all channels
+			// keeps that read correct whichever way the texel is ordered.
+			if (w > 0 && h > 0)
+			{
+				std::vector<uint8_t> expanded(static_cast<size_t>(w) * h * 4);
+
+				for (size_t i = 0; i < static_cast<size_t>(w) * h; i++)
+				{
+					uint8_t coverage = g->bitmap.buffer[i];
+
+					expanded[i * 4 + 0] = coverage;
+					expanded[i * 4 + 1] = coverage;
+					expanded[i * 4 + 2] = coverage;
+					expanded[i * 4 + 3] = coverage;
+				}
+
+				glTexSubImage2D(GL_TEXTURE_2D, 0, ox, oy, w, h, GL_BGRA_EXT, GL_UNSIGNED_BYTE, expanded.data());
+				check_gl("glyph glTexSubImage2D");
+			}
 #else
 			glTexSubImage2D(GL_TEXTURE_2D, 0, ox, oy, w, h, GL_RED, GL_UNSIGNED_BYTE, g->bitmap.buffer);
 #endif
@@ -546,10 +609,12 @@ namespace ms
 
 		// GLES2 has no core GL_BGRA. Adreno (and every GPU we target) exposes
 		// GL_EXT_texture_format_BGRA8888, which defines GL_BGRA_EXT with the
-		// same semantics, so the pixel data needs no CPU-side swizzle.
+		// same semantics, so the pixel data needs no CPU-side swizzle. The
+		// atlas is allocated with this same format precisely so that holds.
 		// TODO: fall back to a swizzle if the extension is ever absent.
 #if defined(PLATFORM_ANDROID)
 		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_BGRA_EXT, GL_UNSIGNED_BYTE, bmp.data());
+		check_gl("sprite glTexSubImage2D");
 #else
 		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bmp.data());
 #endif
