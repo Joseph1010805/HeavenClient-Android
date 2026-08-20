@@ -72,9 +72,15 @@ namespace ms
 			"#version 100\n"
 			"attribute vec4 coord;"
 			"attribute vec4 color;"
-			"varying vec2 texpos;"
+			// highp is essential, not cosmetic. The atlas is 8192x8192, and a
+			// mediump float carries only about 10 bits of mantissa - roughly
+			// 1024 distinguishable steps across a normalised coordinate, which
+			// over 8192 pixels quantises every lookup to ~8 pixel blocks.
+			// Backgrounds survive that; glyphs and button labels are shredded
+			// by it. Desktop GL has no such limit, so this only bites here.
+			"varying highp vec2 texpos;"
 			"varying vec4 colormod;"
-			"uniform vec2 screensize;"
+			"uniform highp vec2 screensize;"
 			"uniform int yoffset;"
 
 			"void main(void)"
@@ -89,10 +95,14 @@ namespace ms
 		const char* fragmentShaderSource =
 			"#version 100\n"
 			"precision mediump float;"
-			"varying vec2 texpos;"
+			// The texture coordinate and the atlas size must both be highp -
+			// see the vertex shader. Colour stays mediump, which is plenty for
+			// an 8 bit channel, so this costs nothing where precision does not
+			// matter.
+			"varying highp vec2 texpos;"
 			"varying vec4 colormod;"
 			"uniform sampler2D texture;"
-			"uniform vec2 atlassize;"
+			"uniform highp vec2 atlassize;"
 			"uniform int fontregion;"
 
 			"void main(void)"
@@ -408,14 +418,32 @@ namespace ms
 			{
 				std::vector<uint8_t> expanded(static_cast<size_t>(w) * h * 4);
 
-				for (size_t i = 0; i < static_cast<size_t>(w) * h; i++)
-				{
-					uint8_t coverage = g->bitmap.buffer[i];
+				// Rows are pitch bytes apart, which is not necessarily the
+				// glyph width - FreeType is free to pad. Walking the source
+				// as if it were tightly packed shifts every row a little
+				// further than the last, which shears the glyph rather than
+				// failing outright. A negative pitch means the rows are
+				// stored bottom-up.
+				const int pitch = g->bitmap.pitch;
+				const uint8_t* src = g->bitmap.buffer;
 
-					expanded[i * 4 + 0] = coverage;
-					expanded[i * 4 + 1] = coverage;
-					expanded[i * 4 + 2] = coverage;
-					expanded[i * 4 + 3] = coverage;
+				if (pitch < 0)
+					src += static_cast<size_t>(-pitch) * (h - 1);
+
+				for (int row = 0; row < h; row++)
+				{
+					const uint8_t* srcrow = src + static_cast<ptrdiff_t>(pitch) * row;
+
+					for (int col = 0; col < w; col++)
+					{
+						uint8_t coverage = srcrow[col];
+						size_t i = static_cast<size_t>(row) * w + col;
+
+						expanded[i * 4 + 0] = coverage;
+						expanded[i * 4 + 1] = coverage;
+						expanded[i * 4 + 2] = coverage;
+						expanded[i * 4 + 3] = coverage;
+					}
 				}
 
 				glTexSubImage2D(GL_TEXTURE_2D, 0, ox, oy, w, h, GL_BGRA_EXT, GL_UNSIGNED_BYTE, expanded.data());
