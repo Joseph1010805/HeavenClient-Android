@@ -219,7 +219,24 @@ namespace ms
 		recv.skip(2);
 
 		uint16_t fh = recv.read_short();
+
+		// Spawn effect, then a marker saying whether this is a new spawn.
+		//
+		// The server writes the effect block only when there is an effect, but
+		// writes the marker either way - so with no effect the first byte here
+		// IS the marker, and with one it follows the block. Reading straight
+		// on to the team byte therefore worked by luck for ordinary monsters
+		// and drifted a byte for anything spawning with an effect, which is
+		// mostly bosses: the "King Slime spawn", "The Boss" and summoning
+		// animations all take this path.
+		// Known gap: a mob summoned by another mob is encoded differently
+		// again - the server writes the effect byte followed by the parent's
+		// object id, and no marker at all. Nothing in the bytes distinguishes
+		// that from the layout below, so those spawns are misread. It affects
+		// multi-part bosses whose limbs are separate linked monsters; ordinary
+		// monsters and standalone bosses are unaffected.
 		int8_t effect = recv.read_byte();
+		int8_t newspawn = effect;
 
 		if (effect > 0)
 		{
@@ -228,6 +245,8 @@ namespace ms
 
 			if (effect == 15)
 				recv.read_byte();
+
+			newspawn = recv.read_byte();
 		}
 
 		int8_t team = recv.read_byte();
@@ -235,7 +254,7 @@ namespace ms
 		recv.skip(4);
 
 		Stage::get().get_mobs().spawn(
-			{ oid, id, 0, stance, fh, effect == -2, team, position }
+			{ oid, id, 0, stance, fh, newspawn == -2, team, position }
 		);
 	}
 
@@ -273,7 +292,10 @@ namespace ms
 				recv.skip(2);
 
 				uint16_t fh = recv.read_short();
+
+				// Same effect-then-marker layout as SpawnMobHandler above.
 				int8_t effect = recv.read_byte();
+				int8_t newspawn = effect;
 
 				if (effect > 0)
 				{
@@ -282,6 +304,8 @@ namespace ms
 
 					if (effect == 15)
 						recv.read_byte();
+
+					newspawn = recv.read_byte();
 				}
 
 				int8_t team = recv.read_byte();
@@ -289,7 +313,7 @@ namespace ms
 				recv.skip(4);
 
 				Stage::get().get_mobs().spawn(
-					{ oid, id, mode, stance, fh, effect == -2, team, position }
+					{ oid, id, mode, stance, fh, newspawn == -2, team, position }
 				);
 			}
 			else
