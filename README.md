@@ -1,178 +1,94 @@
 # HeavenClient for Android
 
-An Android port of [HeavenClient](https://github.com/ryantpayton/MapleStory-Client),
-the from-scratch MapleStory client, playable on a phone or a handheld against a
-v83 server such as [Cosmic](https://github.com/P0nk/Cosmic) or HeavenMS.
+MapleStory on your phone or handheld. This is an Android port of
+[HeavenClient](https://github.com/ryantpayton/MapleStory-Client), an open-source
+client written from scratch, and it plays against a v83 private server like
+[Cosmic](https://github.com/P0nk/Cosmic) or HeavenMS.
 
-Built and tested on an AYN Thor (Adreno, OpenGL ES 3.2) against Cosmic over a
-LAN. The Switch port this descends from is
-[lain3d/HeavenClientNX](https://github.com/lain3d/HeavenClientNX); its README is
-kept here as `README_SWITCH.md`.
+I built it to play with my son over our home WiFi on an AYN Thor. It works:
+login, character creation, quests, combat, the lot.
 
----
+**You supply your own game files.** There are none in this repository and I
+can't give you any - see below.
 
-## No game data is included here, and none can be
+## Getting the game files
 
-This repository contains **code only**. The client needs MapleStory's `.nx`
-data files, converted from Nexon's `.wz` archives - Nexon's artwork, music and
-maps. Those are not mine to distribute and are not here. You must produce them
-yourself, from a client you have.
+The client needs MapleStory's `.nx` data - the artwork, maps, music and sound.
+Those belong to Nexon, so they're not here and I can't send them to you. You
+convert them yourself from a client you already have, using
+[NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx):
 
-Everything below assumes you understand that and are supplying your own data.
-
----
-
-# Build tutorial
-
-## 1. What you need
-
-| | |
-|---|---|
-| Android Studio | for the SDK, or the command line tools |
-| Android NDK | **r27** (`27.3.13750724`) - set in `android/app/build.gradle` |
-| **JDK 17** | Gradle 8.1.1 **rejects JDK 21**. This bites people |
-| Git | with submodule support |
-| A device | arm64, Android 7.0+ (minSdk 24), OpenGL ES 2.0+ |
-
-## 2. Clone with submodules
-
-SDL2, FreeType, asio and OpenAL are submodules. A plain `git clone` gives you
-empty directories and a confusing pile of CMake errors:
-
-```bash
-git clone --recursive https://github.com/Joseph1010805/HeavenClient-Android.git
-cd HeavenClient-Android
 ```
-
-Already cloned without `--recursive`?
-
-```bash
-git submodule update --init --recursive
-```
-
-## 3. Point Gradle at your SDK
-
-Create `android/local.properties`:
-
-```properties
-sdk.dir=C:/Users/YourName/AppData/Local/Android/Sdk
-```
-
-**Use forward slashes even on Windows.** `.properties` files treat backslashes
-as escapes, so `C:\Users\...` silently becomes nonsense - `\U`, `\D` and `\A`
-are eaten - and Gradle reports a missing SDK at a path you can plainly see
-exists.
-
-On macOS or Linux it is usually:
-
-```properties
-sdk.dir=/home/yourname/Android/Sdk
-```
-
-## 4. Build
-
-```bash
-cd android
-./gradlew assembleDebug
-```
-
-The APK lands at `android/app/build/outputs/apk/debug/app-debug.apk`.
-
-If Gradle complains about the Java version, point it at 17 explicitly:
-
-```bash
-JAVA_HOME=/path/to/jdk-17 ./gradlew assembleDebug
-```
-
-## 5. Install
-
-```bash
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-Launch it once and let it fail on the missing data - that first run creates the
-directory the data goes into, with the right ownership. This matters; see below.
-
----
-
-# Supplying the game data
-
-## 6. Convert your WZ files to NX
-
-Use [NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx). It is a Visual
-Studio project that predates current toolchains, so expect three fixes:
-
-1. `namespace sys = std::experimental::filesystem;` - modern MSVC only ships
-   `std::filesystem`. Switch it, and set the project to C++17.
-2. `<codecvt>` is deprecated in C++17 and the project treats warnings as
-   errors. Define `_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS`.
-3. The bundled `libsquish.lib` is a link-time-code-generation binary from a much
-   older compiler and will not link (`C1047`). The sources ship alongside it -
-   add `includes/libsquish/*.cpp` to the project and drop the `.lib`.
-
-Then, per file:
-
-```bash
 NoLifeWzToNx.exe -c Character.wz
 ```
 
-`-c` (client mode) matters - the server variant produces files this client
-cannot use.
+The `-c` matters. Without it you get server-format files the client can't read.
 
-## 7. Which versions to convert
+You need all 15 files listed in `Util/NxFiles.h`. Nearly all of them come from
+a v83 client, with one exception: **`UI.nx` has to come from a later client**
+(I used v178). The v83 interface is too old - the client looks for menus that
+didn't exist yet and refuses to start.
 
-This is the part that is easy to get wrong.
+## Building it
 
-| File | Version |
-|---|---|
-| Everything except `UI.nx` | **v83** |
-| `UI.nx` | **a later client** (this build uses v178) |
+You'll need Android Studio for the SDK, NDK r27, and **JDK 17** - Gradle rejects
+JDK 21, which catches most people out.
 
-v83's own `UI.wz` predates the node layout the UI code resolves - `StatusBar3`,
-and the `button:` / `layer:` naming - and the client rejects it outright with
-`WRONG_UI_FILE`. `Base.nx` is also required even though it is tiny: `load_all()`
-checks for it before loading anything else.
+Clone it with the submodules, or you'll get a pile of confusing CMake errors:
 
-`Map001.nx` is **not** required by this build. Upstream wants it for the login
-backdrop; here `nx.cpp` falls back to `Map.nx`, which has its own
-`Back/login.img`.
-
-See `Util/NxFiles.h` for the definitive list.
-
-## 8. Get the data onto the device
-
-`adb push` cannot write into the app's data directory directly - it tries to
-`fchown` the file and is not permitted to. Stage the files elsewhere on the same
-volume and move them, which is a rename rather than a copy:
-
-```bash
-DIR=/storage/emulated/0/Android/data/org.heavenclient.android/files/HeavenClient
-STAGE=/storage/emulated/0/Download/nxstage
-
-adb shell "mkdir -p $STAGE"
-for f in *.nx; do
-    adb push "$f" "$STAGE/"
-    adb shell "mv $STAGE/$(basename $f) $DIR/ && chmod 644 $DIR/$(basename $f)"
-done
-adb push fonts "$STAGE/" && adb shell "mv $STAGE/fonts $DIR/ && chmod -R a+rX $DIR/fonts"
+```
+git clone --recursive https://github.com/Joseph1010805/HeavenClient-Android.git
 ```
 
-The `chmod` is required: a file moved in this way is owned by `shell`, and
-without it the app - which is "other" on that file - cannot read it.
+Tell Gradle where your SDK is by creating `android/local.properties`:
 
-**Two failure modes worth knowing**, because both look like something else:
+```
+sdk.dir=C:/Users/YourName/AppData/Local/Android/Sdk
+```
 
-- `adb push` will report small files as copied into that directory when nothing
-  actually lands. Verify with `ls`, not with adb's output.
-- If the app has never been launched, the directory may not exist, or may exist
-  without group write. The app creates it `0775` on first run.
+Use forward slashes even on Windows. Backslashes get eaten as escape characters
+and Gradle will tell you the SDK is missing from a path you can see is right.
 
-Don't forget the `fonts` folder - `FT_New_Face` fails silently, so missing fonts
-present as text simply not appearing.
+Then build and install:
 
-## 9. Settings
+```
+cd android
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
-`HeavenClient/Settings`, alongside the data:
+Run it once and let it complain about missing data. That first run creates the
+folder your files go in, with the right permissions.
+
+## Putting the files on your device
+
+They go here:
+
+```
+/sdcard/Android/data/org.heavenclient.android/files/HeavenClient/
+```
+
+You can't `adb push` straight into that folder - Android won't allow it. Copy
+to somewhere else on the device first, then move them across:
+
+```
+DIR=/sdcard/Android/data/org.heavenclient.android/files/HeavenClient
+adb push Character.nx /sdcard/Download/
+adb shell "mv /sdcard/Download/Character.nx $DIR/ && chmod 644 $DIR/Character.nx"
+```
+
+The `chmod` isn't optional. Files moved this way are owned by the shell user and
+the game can't read them without it.
+
+Copy the `fonts` folder across the same way. If you forget it, text simply
+doesn't appear - no error, no warning.
+
+One thing to watch: `adb push` sometimes reports small files as copied when
+nothing arrived. Check with `ls` rather than trusting what it says.
+
+## Settings
+
+Create `Settings` alongside the data:
 
 ```
 ServerIP = 192.168.1.71
@@ -181,82 +97,51 @@ Width = 800
 Height = 600
 ```
 
-`Width`/`Height` are read at startup by this port; upstream only applies them
-from the in-game options menu. **800x600 is strongly recommended**: every login
-and character screen - `UILogin`, `UICharSelect`, `UIExplorerCreation` and the
-rest - hardcodes an 800x600 design space and none of them adapt, so at any other
-resolution the character and buttons sit visibly wrong. The frame is upscaled to
-your panel regardless.
+Use 800x600. The login and character screens were built for that size and don't
+adapt, so anything else leaves buttons and characters in the wrong places. The
+picture is scaled up to fill your screen either way.
 
-## 10. Server notes
+## If you're running Cosmic
 
-Against Cosmic, two settings need changing or nothing works from a phone:
+Two settings, or nothing works from a phone:
 
 ```yaml
-HOST: 192.168.1.71        # not 127.0.0.1
-LANHOST: 192.168.1.71     # not 127.0.0.1
+HOST: 192.168.1.71
+LANHOST: 192.168.1.71
 ```
 
-These are the addresses handed to the client when it selects a character. Left
-at loopback, the phone tries to connect to *itself* and the Start button appears
-to do nothing at all.
+These are the addresses the server hands out when you pick a character. Left at
+`127.0.0.1` your phone tries to connect to itself, and the Start button looks
+completely dead.
 
-Also worth knowing: passwords must be **5+ characters**. `UILogin` rejects
-anything shorter locally and never sends a packet, so a short password looks
-exactly like a rejected login.
+Passwords need five characters or more. Shorter ones are rejected before
+anything is sent, so they look exactly like a wrong password.
 
----
+Cosmic also saves characters once an hour by default, which is a long time to
+lose. `World.java` line 238 is where that's set.
 
-# What the port changes
+## Something's wrong
 
-Platform work:
+**Black or white screen** - the data isn't being found, or `UI.nx` is from v83.
 
-- **SDL2 replaces GLFW** for the window, GL context and input
-  (`IO/Window_Android.cpp`). GLFW has no Android backend. Key codes stay GLFW
-  values so existing config files and `IO/Keyboard.cpp` work untouched.
-- **GLES2 instead of desktop GL** - `GL_QUADS` becomes two triangles, `GL_RED`
-  becomes `GL_LUMINANCE`, `GL_BGRA` becomes `GL_BGRA_EXT`, and the shaders are
-  rewritten as GLSL ES 1.00.
-- **An on-screen keyboard**, tied to whether a text field has focus. Typed
-  characters arrive as `SDL_TEXTINPUT` and bypass the keycode path, which would
-  otherwise lose capitalisation - passwords are case sensitive.
-- **The frame renders to an offscreen target** at the client's own resolution
-  and is upscaled in one filtered blit, rather than every sprite being scaled
-  individually with nearest sampling.
-- **libnx and mbedtls dependencies removed**; asio is used for sockets as on
-  desktop, and `randomGet64()` is replaced with `std::random_device`.
+**No text anywhere** - the `fonts` folder is missing.
 
-Bugs found while porting. Several are not Android-specific and affect the
-desktop client too:
+**Start button does nothing** - `HOST`/`LANHOST` are still pointing at localhost.
 
-- **`mediump` cannot address the 8192x8192 sprite atlas.** GLES2 mediump gives
-  about 1024 steps across a texture coordinate, landing roughly 8 pixels apart
-  on that atlas - large art survived, all text was shredded. The texture
-  coordinate and atlas size must be `highp`.
-- **Texture uploads did not bind the atlas**, relying on a binding left from
-  init. Uploading into whatever happened to be bound caches an atlas entry whose
-  pixels were never written, which draws as a blank rectangle.
-- **The mob spawn packet's status block is 16 bytes, not 22.** Reading six bytes
-  late put every monster's position and foothold at nonsense values, so spawns
-  arrived and were drawn nowhere visible.
-- **Dropped connections were invisible.** `receive()` only checked for an error
-  when bytes were already waiting, and a dead link has none, so the session
-  stayed "connected" indefinitely while the client sent input into nothing.
-- **Dying did nothing.** `Char::State::DIED` exists and is read, but nothing in
-  the codebase - or in the far newer upstream - ever set it. Reaching 0 HP now
-  raises a prompt whose confirmation sends the revive request.
-- **`Configuration::load()` truncated every value by one character** on
-  LF-terminated files, and `save()` wrote the damage back, so settings decayed
-  by a character per run. This affects every non-Windows platform.
-- **`GraphicsGL::clear()` can never fire** - it compares a fraction against
-  `80.0`, so the atlas is never trimmed and is only ever wiped when full.
+**"Password is invalid" no matter what** - your password is under five characters.
 
-Movement and knockback constants are tuned down from upstream's, which are that
-project's approximation of v83 rather than values extracted from the game.
+**No monsters** - you're in a town. Towns genuinely have none.
 
----
+## Credits
 
-# Licence
+[HeavenClient](https://github.com/ryantpayton/MapleStory-Client) by Ryan Payton,
+built on Daniel Allendorf's Journey. The Switch port by
+[lain3d](https://github.com/lain3d/HeavenClientNX) is what this started from -
+its README is here as `README_SWITCH.md`.
 
-AGPL-3.0, inherited from HeavenClient. See `LICENSE`. If you distribute a
-binary, you must offer the corresponding source under the same terms.
+[CHANGES.md](CHANGES.md) lists what I changed and the bugs I fixed along the
+way, some of which affect the desktop client too.
+
+## Licence
+
+AGPL-3.0, same as HeavenClient. If you share a build, share the source too.
