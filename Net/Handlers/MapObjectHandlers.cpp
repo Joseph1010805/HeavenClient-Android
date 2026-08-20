@@ -205,7 +205,13 @@ namespace ms
 		recv.read_byte(); // 5 if controller == null
 		int32_t id = recv.read_int();
 
-		recv.skip(22);
+		// The monster's temporary-status block. Cosmic writes 16 bytes here -
+		// either four ints of status mask, or a plain 16 byte pad when no
+		// controller is requested - so skipping 22 read the position, stance
+		// and foothold six bytes past where they actually are. The mob was
+		// then placed at a nonsense coordinate on a nonsense foothold and
+		// never appeared, even though the spawn packets were arriving fine.
+		recv.skip(16);
 
 		Point<int16_t> position = recv.read_point();
 		int8_t stance = recv.read_byte();
@@ -258,7 +264,8 @@ namespace ms
 
 				int32_t id = recv.read_int();
 
-				recv.skip(22);
+				// Same 16 byte status block as SpawnMobHandler above.
+				recv.skip(16);
 
 				Point<int16_t> position = recv.read_point();
 				int8_t stance = recv.read_byte();
