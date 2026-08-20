@@ -41,7 +41,18 @@ namespace ms
 		if (!error)
 		{
 			size_t result = socket.read_some(asio::buffer(buffer), error);
-			return !error && (result == HANDSHAKE_LEN);
+
+			if (error || result != HANDSHAKE_LEN)
+				return false;
+
+			// Switch to non-blocking now the handshake is in. receive() can
+			// then attempt a read every frame instead of only reading when
+			// bytes are already waiting - and it is that "only when waiting"
+			// guard which hid disconnections, because a dead link has nothing
+			// waiting and so never reached the code that reports an error.
+			socket.non_blocking(true, error);
+
+			return !error;
 		}
 
 		return !error;
@@ -58,14 +69,28 @@ namespace ms
 
 	size_t SocketAsio::receive(bool* recvok)
 	{
-		if (socket.available() > 0)
+		error_code error;
+		size_t result = socket.read_some(asio::buffer(buffer), error);
+
+		if (!error)
 		{
-			error_code error;
-			size_t result = socket.read_some(asio::buffer(buffer), error);
-			*recvok = !error;
+			// A read of nothing on a readable socket is an orderly shutdown.
+			if (result == 0)
+				*recvok = false;
 
 			return result;
 		}
+
+		// Nothing to read yet. This is the ordinary case on a non-blocking
+		// socket and says nothing about the connection's health.
+		if (error == asio::error::would_block || error == asio::error::try_again)
+			return 0;
+
+		// Anything else - eof, connection reset, a killed server - means the
+		// link is gone. Reporting it is what lets the client stop pretending
+		// to play: previously it went on sending into a dead socket, so a
+		// dropped connection looked like combat that did nothing.
+		*recvok = false;
 
 		return 0;
 	}

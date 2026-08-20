@@ -21,6 +21,8 @@
 
 #include "../Configuration.h"
 #include "../Console.h"
+#include "../IO/UI.h"
+#include "../IO/UITypes/UINotice.h"
 
 namespace ms
 {
@@ -131,14 +133,34 @@ namespace ms
 		cryptography.create_header(header, packet_length);
 		cryptography.encrypt(packet_bytes, packet_length);
 
-		socket.dispatch(header, HEADER_LENGTH);
-		socket.dispatch(packet_bytes, packet_length);
+		// dispatch reports failure and this used to discard it, so sends into a
+		// dead socket looked successful.
+		if (!socket.dispatch(header, HEADER_LENGTH) ||
+			!socket.dispatch(packet_bytes, packet_length))
+			connected = false;
 	}
 
 	void Session::read()
 	{
+		bool was_connected = connected;
+
 		// Check if a packet has arrived. Handle if data is sufficient: 4 bytes(header) + 2 bytes(opcode) = 6.
 		size_t result = socket.receive(&connected);
+
+		// Say so, once, when the link goes down. Without this the client keeps
+		// drawing the world and sending input into nothing, which reads as the
+		// game quietly breaking - attacks that never land, monsters that deal
+		// no damage - rather than as a lost connection.
+		if (was_connected && !connected)
+		{
+			printf("[!] connection to the server was lost\n");
+
+			// quit() rather than send_close(), which would raise a second
+			// "do you want to quit" dialog on top of this one.
+			UI::get().emplace<UIOk>(
+				"The connection to the server was lost.",
+				[](bool) { UI::get().quit(); });
+		}
 
 		if (result >= MIN_PACKET_LENGTH || length > 0)
 		{

@@ -114,7 +114,12 @@ namespace ms
 
 	bool running()
 	{
-	    bool is_connected = Session::get().is_connected();
+	    // Losing the connection no longer ends the loop on the spot. It used
+	    // to, which meant the process simply vanished - and only once the
+	    // socket layer started noticing drops at all would that have become
+	    // the common outcome. Session raises a notice instead, and quitting is
+	    // what the player chooses from it.
+	    bool is_connected = true;
 	    bool not_quitted = UI::get().not_quitted();
 	    bool not_closed = Window::get().not_closed();
 #if defined(__SWITCH__)

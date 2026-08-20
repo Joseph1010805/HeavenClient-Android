@@ -447,11 +447,11 @@ namespace ms
 	float Player::get_walkforce() const
 	{
 		// Tuned by play testing: halved from the original 0.05/0.11, then
-		// raised 30% from there, so 65% of what the client shipped with.
-		// These are HeavenClient's own approximation of v83 rather than
-		// Nexon's values, so there is no canonical number to restore.
-		// Terminal speed is proportional to this force.
-		return 0.0325f + 0.0715f * static_cast<float>(stats.get_total(Equipstat::Id::SPEED)) / 100;
+		// raised 30%, then a further 10% - about 71.5% of what the client
+		// shipped with. These are HeavenClient's own approximation of v83
+		// rather than Nexon's values, so there is no canonical number to
+		// restore. Terminal speed is proportional to this force.
+		return 0.03575f + 0.07865f * static_cast<float>(stats.get_total(Equipstat::Id::SPEED)) / 100;
 	}
 
 	float Player::get_jumpforce() const
