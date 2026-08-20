@@ -394,6 +394,19 @@ namespace ms
 		scrollingnotice.setnotice(notice);
 	}
 
+	void UI::send_text(const std::string& text)
+	{
+		// add_string enforces the field's own length limit, so an on-screen
+		// keyboard cannot overrun a field the way send_key never could.
+		if (focusedtextfield)
+			focusedtextfield->add_string(text);
+	}
+
+	bool UI::has_focused_textfield() const
+	{
+		return focusedtextfield.operator bool();
+	}
+
 	void UI::focus_textfield(Textfield* tofocus)
 	{
 		if (focusedtextfield)

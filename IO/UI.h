@@ -64,6 +64,16 @@ namespace ms
 		void doubleclick();
 		void send_key(int32_t keycode, bool pressed);
 
+		// Text arriving already decoded rather than as a keycode. An on-screen
+		// keyboard reports what the user typed, not which physical key was
+		// pressed, and routing that back through the keycode map would lose
+		// case - passwords are case sensitive, so it has to bypass it.
+		void send_text(const std::string& text);
+
+		// Lets the platform layer raise an on-screen keyboard only while there
+		// is somewhere for the text to go.
+		bool has_focused_textfield() const;
+
 		void set_scrollnotice(const std::string& notice);
 		void focus_textfield(Textfield* textfield);
 		void remove_textfield();

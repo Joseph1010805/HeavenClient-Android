@@ -220,8 +220,9 @@ namespace ms
 		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
 
-		// Android decides the surface size; the client renders at its own
-		// virtual resolution and SDL scales it to fit the panel.
+		// The size passed here is only a request: Android hands back a surface
+		// the size of the panel regardless, so see the SDL_SetWindowSize call
+		// below, which is what actually pins it.
 		glwnd = SDL_CreateWindow(
 			"MapleStory",
 			SDL_WINDOWPOS_UNDEFINED,
@@ -244,6 +245,19 @@ namespace ms
 			LOGE("SDL_GL_CreateContext failed: %s", SDL_GetError());
 			return Error::Code::WINDOW;
 		}
+
+		// Pin the drawable to the client's own resolution. Without this the
+		// surface comes back at the panel size (1920x1080) while the client
+		// still draws in a 1280x720 coordinate space, so every sprite is
+		// scaled by 1.5 in the vertex shader and sampled with GL_NEAREST -
+		// which cannot represent a 1.5x scale evenly. Glyph rows land on one
+		// or two physical pixels at random, and small text turns to mush.
+		//
+		// On Android SDL implements this as SurfaceHolder.setFixedSize(), so
+		// GL then renders 1:1 with the client's coordinates - text is
+		// pixel-exact - and the display hardware does the upscale to the panel
+		// with linear filtering, which is smooth rather than aliased.
+		SDL_SetWindowSize(glwnd, width, height);
 
 		bool vsync = Setting<VSync>::get().load();
 		SDL_GL_SetSwapInterval(vsync ? 1 : 0);
@@ -300,6 +314,18 @@ namespace ms
 
 	void Window::check_events()
 	{
+		// There is no physical keyboard here, so text can only be entered
+		// through the IME - and SDL only shows that while text input is
+		// active. Tie it to whether the UI actually has a field focused: the
+		// keyboard then appears for the login fields and character naming, and
+		// stays out of the way the rest of the time.
+		bool wants_text = UI::get().has_focused_textfield();
+
+		if (wants_text && !SDL_IsTextInputActive())
+			SDL_StartTextInput();
+		else if (!wants_text && SDL_IsTextInputActive())
+			SDL_StopTextInput();
+
 		SDL_Event ev;
 
 		while (SDL_PollEvent(&ev))
@@ -309,6 +335,13 @@ namespace ms
 			case SDL_QUIT:
 				UI::get().send_close();
 				running = false;
+				break;
+
+			case SDL_TEXTINPUT:
+				// Printable characters come through here with their case
+				// intact. Editing keys (backspace, enter) still arrive as
+				// SDL_KEYDOWN below and go through the keycode path.
+				UI::get().send_text(ev.text.text);
 				break;
 
 			case SDL_KEYDOWN:
