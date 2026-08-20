@@ -512,12 +512,19 @@ namespace ms
 		wasted = 0;
 	}
 
-	void GraphicsGL::clear()
+	double GraphicsGL::used_fraction() const
 	{
 		size_t used = ATLASW * border.y() + border.x() * yrange.second();
-		double usedpercent = static_cast<double>(used) / (ATLASW * ATLASH);
 
-		if (usedpercent > 80.0)
+		return static_cast<double>(used) / (ATLASW * ATLASH);
+	}
+
+	void GraphicsGL::clear()
+	{
+		// Compared against 80.0 originally, while the value is a fraction
+		// between 0 and 1 - so this could never fire and the atlas was only
+		// ever emptied by running out of room completely.
+		if (used_fraction() > 0.8)
 			clearinternal();
 	}
 
@@ -1047,5 +1054,16 @@ namespace ms
 	{
 		if (!locked)
 			quads.clear();
+
+		// Empty the atlas here, at the start of a frame, while nothing is
+		// queued to draw from it.
+		//
+		// Before, the only thing that ever emptied it was running out of room
+		// part way through drawing - which threw away every cached position
+		// while quads already queued that frame were still pointing at them,
+		// so those sprites came out as blank rectangles. Entering a map made it
+		// obvious, since that is when a lot of new artwork arrives at once and
+		// fills the remaining space.
+		clear();
 	}
 }

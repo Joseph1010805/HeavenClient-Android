@@ -313,6 +313,11 @@ namespace ms
 
 	Error Window::init()
 	{
+		// Ask for the back button as a key event. Without this SDL leaves it to
+		// Android, which just sends the app to the background - so the handler
+		// added for it never saw anything.
+		SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+
 		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0)
 		{
 			LOGE("SDL_Init failed: %s", SDL_GetError());

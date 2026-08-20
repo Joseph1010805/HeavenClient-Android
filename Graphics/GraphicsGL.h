@@ -74,6 +74,8 @@ namespace ms
 
 	private:
 		void clearinternal();
+		// How much of the atlas is spoken for, 0 to 1.
+		double used_fraction() const;
 		bool addfont(const char* name, Text::Font id, FT_UInt width, FT_UInt height);
 
 		struct Offset
