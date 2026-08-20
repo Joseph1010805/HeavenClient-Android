@@ -51,7 +51,17 @@ namespace ms
 		pagepos = Point<int16_t>(247, 462);
 		worldpos = Point<int16_t>(586, 46);
 		charinfopos = Point<int16_t>(671, 339);
-		Point<int16_t> character_sel_pos = Point<int16_t>(601, 393);
+
+		// Measured against this artwork rather than guessed at. charInfo is
+		// 178x260 with its origin at 89,130 - dead centre - so drawn at 671,339
+		// it covers y 209 to 469. BtSelect is 151x44 with a top-left origin,
+		// and at the original 601,393 it landed at y 393 to 437: inside the
+		// panel, on top of the stat rows.
+		//
+		// So it sits just under the panel now, and centred on it: 671 minus
+		// half of 151. These positions were tuned for a later UI version whose
+		// panel is a different size, which is why they need correcting here.
+		Point<int16_t> character_sel_pos = Point<int16_t>(596, 478);
 
 		Point<int16_t> character_new_pos = Point<int16_t>(200, 495);
 		Point<int16_t> character_del_pos = Point<int16_t>(316, 495);
@@ -141,6 +151,19 @@ namespace ms
 		signpost[0] = CharSelect["adventure"]["0"];
 		signpost[1] = CharSelect["knight"]["0"];
 		signpost[2] = CharSelect["aran"]["0"];
+
+		// Temporary: the character is drawn at the same point as the signpost
+		// it stands on, so where its feet land depends entirely on the post's
+		// own origin. Report it rather than guess how far to move anything.
+		{
+			Texture post = Texture(CharSelect["adventure"]["0"]);
+
+			printf("[*] charselect: signpost %dx%d org %d,%d | charpos %d,%d\n",
+				post.get_dimensions().x(), post.get_dimensions().y(),
+				post.get_origin().x(), post.get_origin().y(),
+				get_character_slot_pos(0, 135, 234).x(),
+				get_character_slot_pos(0, 135, 234).y());
+		}
 
 		nametag = CharSelect["nameTag"];
 

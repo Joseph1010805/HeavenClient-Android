@@ -60,6 +60,10 @@ namespace ms
 		bool init(const char* host, const char* port);
 		void process(const int8_t* bytes, size_t available);
 
+		// Marks the session down and says so, once, whether the failure was
+		// noticed while reading or while writing.
+		void disconnected();
+
 		Cryptography cryptography;
 		PacketSwitch packetswitch;
 

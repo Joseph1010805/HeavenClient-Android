@@ -134,10 +134,28 @@ namespace ms
 		cryptography.encrypt(packet_bytes, packet_length);
 
 		// dispatch reports failure and this used to discard it, so sends into a
-		// dead socket looked successful.
+		// dead socket looked successful. Report it the same way a failed read
+		// does - silently dropping every outgoing packet from here on, with
+		// the world still drawing, is far more confusing than saying so.
 		if (!socket.dispatch(header, HEADER_LENGTH) ||
 			!socket.dispatch(packet_bytes, packet_length))
-			connected = false;
+			disconnected();
+	}
+
+	void Session::disconnected()
+	{
+		if (!connected)
+			return;
+
+		connected = false;
+
+		printf("[!] connection to the server was lost\n");
+
+		// quit() rather than send_close(), which would raise a second
+		// "do you want to quit" dialog on top of this one.
+		UI::get().emplace<UIOk>(
+			"The connection to the server was lost.",
+			[](bool) { UI::get().quit(); });
 	}
 
 	void Session::read()
@@ -153,13 +171,10 @@ namespace ms
 		// no damage - rather than as a lost connection.
 		if (was_connected && !connected)
 		{
-			printf("[!] connection to the server was lost\n");
-
-			// quit() rather than send_close(), which would raise a second
-			// "do you want to quit" dialog on top of this one.
-			UI::get().emplace<UIOk>(
-				"The connection to the server was lost.",
-				[](bool) { UI::get().quit(); });
+			// receive() has already cleared the flag; put it back so
+			// disconnected() sees the transition and reports it once.
+			connected = true;
+			disconnected();
 		}
 
 		if (result >= MIN_PACKET_LENGTH || length > 0)

@@ -102,10 +102,33 @@ namespace ms
 
 	bool SocketAsio::dispatch(const int8_t* bytes, size_t length)
 	{
-		error_code error;
-		size_t result = asio::write(socket, asio::buffer(bytes, length), error);
+		// The socket is non-blocking, so a write can come back with
+		// would_block simply because the kernel's send buffer is momentarily
+		// full. That is not an error and must not be reported as one: doing so
+		// marked the session dead, and Session::write then dropped every
+		// outgoing packet from that point on - silently, since the connection
+		// notice only fires for a drop noticed while reading. The client went
+		// on drawing and receiving while nothing it did reached the server.
+		size_t sent = 0;
 
-		return !error && (result == length);
+		// Bounded so a genuinely wedged socket cannot spin here forever. On a
+		// LAN, with packets this small, the buffer drains in microseconds.
+		for (int attempts = 0; sent < length && attempts < 100000; attempts++)
+		{
+			error_code error;
+			size_t result = socket.write_some(
+				asio::buffer(bytes + sent, length - sent), error);
+
+			if (error == asio::error::would_block || error == asio::error::try_again)
+				continue;
+
+			if (error)
+				return false;
+
+			sent += result;
+		}
+
+		return sent == length;
 	}
 }
 #endif
