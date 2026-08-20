@@ -27,7 +27,7 @@ namespace ms
 	namespace NxFiles
 	{
 		// Number of needed files.
-		constexpr uint8_t NUM_FILES = 16;
+		constexpr uint8_t NUM_FILES = 15;
 
 		// Names of the needed game files.
 		constexpr std::array<const char*, NUM_FILES> filenames =
@@ -39,7 +39,9 @@ namespace ms
 			"Map.nx",
 			//"MapPretty.nx",	// From v167,
 			//"MapLatest.nx",	// From v209.2,
-			"Map001.nx",	// From v209.2,
+			//"Map001.nx",		// From v209.2 - not shipped by the v178 client
+			//					this build's UI comes from. Only supplies the
+			//					login backdrop, and nx.cpp falls back to Map.nx.
 			"Mob.nx",
 			"Morph.nx",
 			"Npc.nx",
@@ -49,7 +51,9 @@ namespace ms
 			"Sound.nx",
 			"String.nx",
 			"TamingMob.nx",
-			"UI.nx"			// From v209.2
+			"UI.nx"			// From v178 - v83's own UI.wz predates the
+			//				post-Chaos node layout the UI code resolves
+			//				(StatusBar3, "button:"/"layer:" naming).
 		};
 
 		// Initialize nlnx.

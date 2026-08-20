@@ -72,6 +72,17 @@ namespace nl
                 */
                 printf("[*] init map001.nx\n");
                 map001 = add_file("Map001.nx");
+
+                // Map001.wz only exists in much later clients (v209+); the
+                // v178 UI this build pairs with does not ship one. It is used
+                // for exactly one thing - the login/character-creation
+                // background - and Map.nx carries a "Back/login.img" of its
+                // own, so fall back to that rather than losing the backdrop.
+                if (!map001)
+                {
+                    printf("[*] no Map001.nx - falling back to Map.nx\n");
+                    map001 = map;
+                }
                 printf("[*] init mob.nx\n");
                 mob = add_file("Mob.nx");
                 printf("[*] init morph.nx\n");

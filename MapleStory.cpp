@@ -280,12 +280,25 @@ int main(int argc, char* argv[])
 		{
 			printf("[*] working directory: %s\n", storage);
 
-			// Settings live in HeavenClient/Settings relative to here. The
-			// directory has to be created by the app itself: one made over
-			// adb is owned by the shell user with no access for others, so
-			// the app cannot even traverse into it.
-			if (mkdir("HeavenClient", 0755) == 0)
+			// Settings and the NX data live in HeavenClient/ relative to
+			// here. The directory has to be created by the app itself: one
+			// made over adb is owned by the shell user with no access for
+			// others, so the app cannot even traverse into it.
+			//
+			// It also has to be GROUP writable. Everything else under
+			// Android/data is drwxrws--- with group ext_data_rw, which is
+			// what lets adb drop files in; a directory created here at 0755
+			// leaves the group without the write bit and every `adb push`
+			// into it fails with "Permission denied" - and adb reports the
+			// small ones as copied even though nothing lands. chmod is
+			// separate from mkdir on purpose: mkdir's mode is masked by the
+			// umask (022 here), which would strip group write straight back
+			// off again.
+			if (mkdir("HeavenClient", 0775) == 0)
 				printf("[*] created HeavenClient directory\n");
+
+			if (chmod("HeavenClient", 0775) != 0)
+				printf("[!] could not chmod HeavenClient to 0775\n");
 
 			// Configuration is a singleton that load()s from its constructor,
 			// which runs during static initialisation - before this chdir. At
