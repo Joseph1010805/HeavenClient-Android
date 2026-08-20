@@ -199,6 +199,57 @@ namespace ms
 		}
 	}
 
+	namespace
+	{
+		// Reads the tail of a mob spawn: the effect, and the marker saying
+		// whether this is a fresh spawn.
+		//
+		// Three shapes arrive here, and the server gives no flag to say which:
+		//
+		//   no effect        the marker on its own, -1 or -2
+		//   summoned, plain  -3, then the parent monster's object id
+		//   with an effect   a pad byte, a zero short, then the marker -
+		//                    or, if summoned, the parent's object id
+		//
+		// The last two both occupy exactly four bytes, so the read position
+		// stays right whichever it is and only the meaning has to be settled.
+		// Value decides it: the marker sits in the top byte with zeroes under
+		// it, which an object id would have to exceed four billion to imitate.
+		//
+		// Getting this wrong is a boss problem specifically. Ordinary monsters
+		// spawn without an effect and without a parent, so they take the first
+		// shape and always worked; spawn animations and multi-part bosses are
+		// what land in the other two.
+		int8_t read_spawn_marker(InPacket& recv, int8_t effect)
+		{
+			// A summoned monster with no spawn effect.
+			if (effect == -3)
+			{
+				recv.read_int(); // parent object id, nothing here needs it
+
+				// It appears when its parent dies rather than fading in.
+				return -1;
+			}
+
+			if (effect <= 0)
+				return effect; // the byte was the marker itself
+
+			// Effect 15 pads an extra byte, but only when not summoned, which
+			// is what the remaining length tells us: four bytes plus the team
+			// byte and a trailing int is nine.
+			if (effect == 15 && recv.length() > 9)
+				recv.read_byte();
+
+			int32_t tail = recv.read_int();
+			int8_t marker = static_cast<int8_t>((tail >> 24) & 0xFF);
+
+			if ((tail & 0x00FFFFFF) == 0 && (marker == -1 || marker == -2))
+				return marker;
+
+			return -1; // an object id, so summoned again
+		}
+	}
+
 	void SpawnMobHandler::handle(InPacket& recv) const
 	{
 		int32_t oid = recv.read_int();
@@ -229,25 +280,8 @@ namespace ms
 		// and drifted a byte for anything spawning with an effect, which is
 		// mostly bosses: the "King Slime spawn", "The Boss" and summoning
 		// animations all take this path.
-		// Known gap: a mob summoned by another mob is encoded differently
-		// again - the server writes the effect byte followed by the parent's
-		// object id, and no marker at all. Nothing in the bytes distinguishes
-		// that from the layout below, so those spawns are misread. It affects
-		// multi-part bosses whose limbs are separate linked monsters; ordinary
-		// monsters and standalone bosses are unaffected.
 		int8_t effect = recv.read_byte();
-		int8_t newspawn = effect;
-
-		if (effect > 0)
-		{
-			recv.read_byte();
-			recv.read_short();
-
-			if (effect == 15)
-				recv.read_byte();
-
-			newspawn = recv.read_byte();
-		}
+		int8_t newspawn = read_spawn_marker(recv, effect);
 
 		int8_t team = recv.read_byte();
 
@@ -295,18 +329,7 @@ namespace ms
 
 				// Same effect-then-marker layout as SpawnMobHandler above.
 				int8_t effect = recv.read_byte();
-				int8_t newspawn = effect;
-
-				if (effect > 0)
-				{
-					recv.read_byte();
-					recv.read_short();
-
-					if (effect == 15)
-						recv.read_byte();
-
-					newspawn = recv.read_byte();
-				}
+				int8_t newspawn = read_spawn_marker(recv, effect);
 
 				int8_t team = recv.read_byte();
 
