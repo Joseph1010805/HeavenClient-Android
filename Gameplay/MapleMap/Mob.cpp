@@ -237,6 +237,14 @@ namespace ms
 			{
 				counter++;
 
+				// Temporary: a controlled monster picks its next move when the
+				// animation ends and the counter has run out. Report both, so
+				// whichever is stuck is visible rather than guessed at.
+				if (counter % 500 == 0)
+					printf("[*] mob %d: stance %d canmove %d aniend %d counter %d onground %d\n",
+						oid, static_cast<int>(stance), canmove ? 1 : 0,
+						aniend ? 1 : 0, counter, phobj.onground ? 1 : 0);
+
 				bool next;
 
 				switch (stance)

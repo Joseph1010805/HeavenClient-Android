@@ -467,6 +467,19 @@ namespace ms
 			case SDL_KEYDOWN:
 			case SDL_KEYUP:
 			{
+				// Android's back button, which is the only quit affordance a
+				// handheld has - there is no window to close and no menu bar.
+				// It opens the game's own quit dialog, so quitting still logs
+				// out through the server rather than just killing the process,
+				// which is what saves the character.
+				if (ev.key.keysym.sym == SDLK_AC_BACK)
+				{
+					if (ev.type == SDL_KEYDOWN)
+						UI::get().send_close();
+
+					break;
+				}
+
 				int key = to_glfw_key(ev.key.keysym.sym);
 
 				if (key == GLFW_KEY_UNKNOWN)
