@@ -41,22 +41,43 @@ namespace ms
 		std::string version_text = Configuration::get().get_version();
 		version = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LEMONGRASS, "Ver. " + version_text);
 
-		nl::node map = nl::nx::map001["Back"]["login.img"];
-		nl::node back = map["back"];
-		nl::node ani = map["ani"];
+		// Custom artwork, built by tools/make_assets.py into Map001.nx. The
+		// background is a video: an ordinary NX animation of numbered frames,
+		// so nothing here has to know it came from an mp4.
+		//
+		// The frames are authored well under 800x600 and stretched to fill the
+		// screen. Every frame stays in the texture atlas for as long as this
+		// screen is up, so authoring them full size would crowd out the rest
+		// of the UI - and the art is a soft painted background that loses very
+		// little to being scaled up.
+		// Falls back to the stock artwork when that file is absent, so a
+		// checkout without it still looks like MapleStory rather than showing
+		// a blank screen.
+		nl::node custom = nl::nx::map001["Custom"];
 
-		nl::node obj = nl::nx::map["Obj"]["login.img"];
 		nl::node title = nl::nx::ui["Login.img"]["Title"];
 		nl::node common = nl::nx::ui["Login.img"]["Common"];
 
-		//nl::node prettyLogo = nl::nx::mapPretty["Back"]["login.img"]["ani"]["16"];
+		if (custom["LoginBg"])
+		{
+			sprites.emplace_back(custom["LoginBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
 
-		sprites.emplace_back(back["11"], Point<int16_t>(400, 300));
-		sprites.emplace_back(ani["17"], Point<int16_t>(129, 283));
-		sprites.emplace_back(ani["18"], Point<int16_t>(306, 252));
-		sprites.emplace_back(ani["19"], Point<int16_t>(379, 207));
-		sprites.emplace_back(back["35"], Point<int16_t>(399, 260));
-		//sprites.emplace_back(prettyLogo, Point<int16_t>(394, 173));
+			// Centred above the login box, which starts at y 279.
+			sprites.emplace_back(custom["Logo"], Point<int16_t>(280, 20));
+		}
+		else
+		{
+			nl::node map = nl::nx::map001["Back"]["login.img"];
+			nl::node back = map["back"];
+			nl::node ani = map["ani"];
+
+			sprites.emplace_back(back["11"], Point<int16_t>(400, 300));
+			sprites.emplace_back(ani["17"], Point<int16_t>(129, 283));
+			sprites.emplace_back(ani["18"], Point<int16_t>(306, 252));
+			sprites.emplace_back(ani["19"], Point<int16_t>(379, 207));
+			sprites.emplace_back(back["35"], Point<int16_t>(399, 260));
+		}
+
 		sprites.emplace_back(title["signboard"], Point<int16_t>(391, 330));
 		sprites.emplace_back(common["frame"], Point<int16_t>(400, 300));
 

@@ -43,6 +43,12 @@ a v83 client, with one exception: **`UI.nx` has to come from a later client**
 (I used v178). The v83 interface is too old - the client looks for menus that
 didn't exist yet and refuses to start.
 
+There's also an optional 16th file, `Map001.nx`, holding custom artwork for the
+login, world select, character select and character creation screens. It isn't
+converted from anything - `tools/make_assets.py` builds it from your own video
+and images, and CHANGES.md explains how. Without it those screens fall back to
+the stock artwork, which is what they used before.
+
 ## Building it
 
 You'll need Android Studio for the SDK, NDK r27, and **JDK 17** - Gradle rejects

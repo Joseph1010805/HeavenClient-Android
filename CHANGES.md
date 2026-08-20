@@ -64,3 +64,56 @@ Walking speed and monster knockback are lower than upstream. Those numbers are
 HeavenClient's approximation of how v83 felt rather than anything extracted from
 the game, so there's no correct value to go back to - these are just what felt
 right on a handheld.
+
+## Custom artwork for the login screens
+
+The login, character select and character creation screens all read their
+backgrounds out of `Map001.wz`, which only exists in clients from v209 onward.
+Against v83 data those lookups find nothing, and against later data they find
+the wrong thing - v83's `back/13` is a mushroom house, v202's is a single pixel.
+Every version obtainable is wrong in some way, so there is nothing to fall back
+to. World select had the opposite problem: it drew two stacked city backdrops
+from content years newer than the rest of the client.
+
+So these four screens now use artwork of our own, in a small `Map001.nx` built
+by `tools/make_assets.py`. Nothing in the client had to learn a new trick: a
+background here is an ordinary NX animation - numbered bitmap children, each
+with an `origin` and a `delay` - which is exactly how a video is expressible.
+
+    Custom/LoginBg   80 frames, 10/sec   the login screen
+    Custom/CharBg    48 frames, 6/sec    character select and creation
+    Custom/WorldBg   one still           world select
+    Custom/Logo      one still           the sign on the login screen
+
+To rebuild it, with `login.mp4`, `character selection.mp4` and `LoginIcon.jpg`
+in `~/Downloads` and ffmpeg on PATH:
+
+    python tools/make_assets.py
+
+then put the result next to the other `.nx` files. `MAKE_ASSETS_SRC`,
+`MAKE_ASSETS_OUT` and `MAKE_ASSETS_FFMPEG` override those paths.
+
+Three things about the format are worth knowing before changing `nxbuild.py`,
+because each one fails quietly rather than loudly:
+
+**Children must be sorted by name.** Reading a child is a binary search over the
+parent's run of children, comparing raw bytes and then length. An unsorted run
+does not merely slow a lookup down - it returns the wrong node or none at all,
+while the parent still reports the right child count. That looks exactly like
+missing artwork.
+
+**A bitmap is a `uint32` compressed length followed by a raw LZ4 block** that
+inflates to exactly `4 * width * height` bytes of BGRA. The reader takes the
+decompressed size from the node's own width and height, so the stored length is
+only used to find the next blob.
+
+**The reader over-reads.** It asks for `4 * width * height` bytes from a blob
+that is usually much smaller, so the file ends with padding - without it the
+last (best-compressed) bitmap reads past the end of the file.
+
+Frames are authored at 400x300 and stretched to 800x600 when drawn. Every frame
+of a screen's animation ends up in the texture atlas for as long as that screen
+is up, and at full size they would crowd out the rest of the UI. Playback is
+`zigzag` - forward then backward - so the loop has no visible cut, which matters
+for the login video because it is a camera pan and its last frame looks nothing
+like its first.

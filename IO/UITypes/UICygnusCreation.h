@@ -85,9 +85,6 @@ namespace ms
 		std::vector<Sprite> sprites_lookboard;
 		std::vector<Sprite> sprites_gender_select;
 		std::vector<Sprite> sprites_keytype;
-		Texture sky;
-		Texture cloud;
-		float cloudfx;
 		Texture nameboard;
 		Textfield namechar;
 		CharLook newchar;

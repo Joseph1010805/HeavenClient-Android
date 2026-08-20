@@ -47,16 +47,30 @@ namespace ms
 		nl::node Login = nl::nx::ui["Login.img"];
 		nl::node Common = Login["Common"];
 		nl::node CustomizeChar = Login["CustomizeChar"]["000"];
-		nl::node back = nl::nx::map001["Back"]["login.img"]["back"];
 		//todo: (rich) nx
 		//nl::node signboard = nl::nx::mapLatest["Obj"]["login.img"]["NewChar"]["signboard"];
 		nl::node board = CustomizeChar["board"];
 		nl::node genderSelect = CustomizeChar["genderSelect"];
 
-		sky = back["2"];
-		cloud = back["27"];
+		// Custom artwork from Map001.nx - see UILogin. This screen shares the
+		// character select background, which is what the original data did too:
+		// both were numbered frames of the same login.img. The scrolling sky and
+		// cloud layers are gone with it, since the video is a whole scene.
+		nl::node custom = nl::nx::map001["Custom"];
 
-		sprites.emplace_back(back["14"], Point<int16_t>(250, 302));
+		if (custom["CharBg"])
+		{
+			sprites.emplace_back(custom["CharBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
+		}
+		else
+		{
+			// The stock scene, for a checkout without the custom file. The sky
+			// and cloud layers it used to scroll are gone either way - they
+			// belong to a backdrop this screen no longer draws.
+			nl::node back = nl::nx::map001["Back"]["login.img"]["back"];
+
+			sprites.emplace_back(back["14"], Point<int16_t>(250, 302));
+		}
 		//sprites.emplace_back(signboard["2"], DrawArgument(Point<int16_t>(234, 235), 2.0f));
 		sprites_gender_select.emplace_back(board["genderTop"], Point<int16_t>(486, 95));
 		sprites_gender_select.emplace_back(board["boardMid"], Point<int16_t>(486, 209));
@@ -203,21 +217,10 @@ namespace ms
 		randomize_look();
 
 		newchar.set_direction(true);
-
-		cloudfx = 200.0f;
 	}
 
 	void UIExplorerCreation::draw(float inter) const
 	{
-		for (size_t i = 0; i < 2; i++)
-			for (size_t k = 0; k < 800; k += sky.width())
-				sky.draw(Point<int16_t>(k, (400 * i) - 100));
-
-		int16_t cloudx = static_cast<int16_t>(cloudfx) % 800;
-		cloud.draw(Point<int16_t>(cloudx - cloud.width(), 310));
-		cloud.draw(Point<int16_t>(cloudx, 310));
-		cloud.draw(Point<int16_t>(cloudx + cloud.width(), 310));
-
 		if (!gender)
 		{
 			for (size_t i = 0; i < sprites_gender_select.size(); i++)
@@ -323,8 +326,6 @@ namespace ms
 		}
 
 		UIElement::update();
-
-		cloudfx += 0.25f;
 	}
 
 	Cursor::State UIExplorerCreation::send_cursor(bool clicked, Point<int16_t> cursorpos)

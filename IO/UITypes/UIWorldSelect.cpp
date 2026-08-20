@@ -49,14 +49,12 @@ namespace ms
 
 		recommended_message = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::JAMBALAYA, "", 100, true, 5);
 
-		Point<int16_t> background_pos = Point<int16_t>(400, 301);
 		channelsrc_pos = Point<int16_t>(203, 164);
 
 		worldid = Setting<DefaultWorld>::get().load();
 		channelid = Setting<DefaultChannel>::get().load();
 		uint8_t regionid = Setting<DefaultRegion>::get().load();
 
-		nl::node obj = nl::nx::map["Obj"]["login.img"];
 		nl::node login = nl::nx::ui["Login.img"];
 		worldselect = login["WorldSelect"];
 		worldsrc = worldselect["BtWorld"]["release"];
@@ -65,25 +63,24 @@ namespace ms
 
 		set_region(regionid);
 
-		sprites.emplace_back(obj["WorldSelect"]["neoCity"][0], background_pos);
+		// Custom artwork from Map001.nx - see UILogin. This replaces the two
+		// stacked Nexon city backdrops (neoCity under a randomly chosen one),
+		// which came from much later content than the rest of this client and
+		// looked nothing like the screens either side of it. A still from the
+		// character select scene keeps the login flow of a piece.
+		nl::node custom = nl::nx::map001["Custom"];
 
-		std::vector<std::string> backgrounds = { "cernium" };
-		auto backgrounds_size = backgrounds.size();
-
-		if (backgrounds_size > 0)
+		if (custom["WorldBg"])
 		{
-			if (backgrounds_size > 1)
-			{
-				std::srand(std::time(NULL)); // Generate a new seed
+			sprites.emplace_back(custom["WorldBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
+		}
+		else
+		{
+			nl::node obj = nl::nx::map["Obj"]["login.img"];
+			Point<int16_t> background_pos = Point<int16_t>(400, 301);
 
-				int index = rand() % backgrounds_size;
-
-				sprites.emplace_back(obj["WorldSelect"][backgrounds[index]][0], background_pos);
-			}
-			else
-			{
-				sprites.emplace_back(obj["WorldSelect"][backgrounds[0]][0], background_pos);
-			}
+			sprites.emplace_back(obj["WorldSelect"]["neoCity"][0], background_pos);
+			sprites.emplace_back(obj["WorldSelect"]["cernium"][0], background_pos);
 		}
 
 		sprites.emplace_back(common["frame"], Point<int16_t>(400, 300));

@@ -40,6 +40,29 @@
 
 namespace ms
 {
+	namespace
+	{
+		// Where a character's feet land. A character is drawn at the same
+		// point as the signpost it stands on, and that post's origin (52,156)
+		// puts this point at ground level - so this is the ground the row
+		// stands on, not the top of anything.
+		//
+		// The Create and Delete buttons sit at y 495; the row used to stand at
+		// 234, leaving it hanging in the middle of the screen.
+		constexpr uint16_t CHARACTER_BASE_Y = 490;
+
+		// The slot's clickable box is 90 tall and rises from the feet.
+		constexpr uint16_t CHARACTER_HITBOX_Y = CHARACTER_BASE_Y - 90;
+
+		// The name goes above the head rather than at the feet, which is where
+		// a Nametag draws by default. In game that is right - the name sits
+		// under the character - but here the row stands on the buttons, so a
+		// name below the feet lands on top of the page arrows.
+		// A character stands about 70 tall, and the tag hangs downward from
+		// where it is drawn, so this clears the head rather than landing on it.
+		constexpr int16_t CHARACTER_NAMETAG_Y = -96;
+	}
+
 	UICharSelect::UICharSelect(std::vector<CharEntry> c, int8_t char_count, int32_t s, int8_t rp) : UIElement(Point<int16_t>(0, 0), Point<int16_t>(800, 600)),
 		characters(c), characters_count(char_count), slots(s), require_pic(rp)
 	{
@@ -110,13 +133,30 @@ namespace ms
 		world_sprites.emplace_back(selectedWorld["name"][world], worldpos - Point<int16_t>(8, 1));
 		world_sprites.emplace_back(selectedWorld["ch"][channel_id], worldpos - Point<int16_t>(0, 1));
 
-		nl::node map = nl::nx::map001["Back"]["login.img"];
-		nl::node ani = map["ani"];
+		// Custom artwork from Map001.nx - see UILogin for what that file is.
+		// This replaces the numbered frames the screen used to ask for, which
+		// no obtainable version of the data actually contained: v83's back/13
+		// is a mushroom house and v202's is a single pixel.
+		nl::node custom = nl::nx::map001["Custom"];
 
-		sprites.emplace_back(map["back"]["13"], Point<int16_t>(392, 297));
-		sprites.emplace_back(ani["17"], Point<int16_t>(151, 283));
-		sprites.emplace_back(ani["18"], Point<int16_t>(365, 252));
-		sprites.emplace_back(ani["19"], Point<int16_t>(191, 208));
+		if (custom["CharBg"])
+		{
+			sprites.emplace_back(custom["CharBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
+		}
+		else
+		{
+			// What the screen asked for before. Kept only so a checkout without
+			// the custom file behaves as it used to; none of these frames are
+			// right in any obtainable version of the data.
+			nl::node map = nl::nx::map001["Back"]["login.img"];
+			nl::node ani = map["ani"];
+
+			sprites.emplace_back(map["back"]["13"], Point<int16_t>(392, 297));
+			sprites.emplace_back(ani["17"], Point<int16_t>(151, 283));
+			sprites.emplace_back(ani["18"], Point<int16_t>(365, 252));
+			sprites.emplace_back(ani["19"], Point<int16_t>(191, 208));
+		}
+
 		sprites.emplace_back(Common["frame"], Point<int16_t>(400, 300));
 		sprites.emplace_back(Common["step"]["2"], Point<int16_t>(40, 0));
 
@@ -127,22 +167,6 @@ namespace ms
 
 		charinfo = CharSelect["charInfo"];
 
-		// Temporary: these positions were tuned against a later UI version, so
-		// report what this artwork is actually sized at. A sprite carries its
-		// own origin, which is why the drawn result does not land where the
-		// coordinate alone would suggest.
-		{
-			Texture info_tex = Texture(CharSelect["charInfo"]);
-			Texture sel_tex = Texture(CharSelect["BtSelect"]["normal"]["0"]);
-
-			printf("[*] charselect: charInfo %dx%d org %d,%d | BtSelect %dx%d org %d,%d | infopos %d,%d selpos %d,%d\n",
-				info_tex.get_dimensions().x(), info_tex.get_dimensions().y(),
-				info_tex.get_origin().x(), info_tex.get_origin().y(),
-				sel_tex.get_dimensions().x(), sel_tex.get_dimensions().y(),
-				sel_tex.get_origin().x(), sel_tex.get_origin().y(),
-				charinfopos.x(), charinfopos.y(),
-				character_sel_pos.x(), character_sel_pos.y());
-		}
 		charslot = CharSelect["charSlot"]["0"];
 		pagebase = pageNew["base"]["0"];
 		pagenumber = Charset(pageNew["number"], Charset::Alignment::LEFT);
@@ -151,19 +175,6 @@ namespace ms
 		signpost[0] = CharSelect["adventure"]["0"];
 		signpost[1] = CharSelect["knight"]["0"];
 		signpost[2] = CharSelect["aran"]["0"];
-
-		// Temporary: the character is drawn at the same point as the signpost
-		// it stands on, so where its feet land depends entirely on the post's
-		// own origin. Report it rather than guess how far to move anything.
-		{
-			Texture post = Texture(CharSelect["adventure"]["0"]);
-
-			printf("[*] charselect: signpost %dx%d org %d,%d | charpos %d,%d\n",
-				post.get_dimensions().x(), post.get_dimensions().y(),
-				post.get_origin().x(), post.get_origin().y(),
-				get_character_slot_pos(0, 135, 234).x(),
-				get_character_slot_pos(0, 135, 234).y());
-		}
 
 		nametag = CharSelect["nameTag"];
 
@@ -178,7 +189,7 @@ namespace ms
 		buttons[Buttons::BACK] = std::make_unique<MapleButton>(Common["BtStart"], Point<int16_t>(0, 515));
 
 		for (size_t i = 0; i < PAGESIZE; i++)
-			buttons[Buttons::CHARACTER_SLOT0 + i] = std::make_unique<AreaButton>(get_character_slot_pos(i, 105, 144), Point<int16_t>(50, 90));
+			buttons[Buttons::CHARACTER_SLOT0 + i] = std::make_unique<AreaButton>(get_character_slot_pos(i, 105, CHARACTER_HITBOX_Y), Point<int16_t>(50, 90));
 
 		if (require_pic == 0)
 		{
@@ -250,10 +261,8 @@ namespace ms
 
 			if (index < characters_count)
 			{
-				Point<int16_t> charpos = get_character_slot_pos(i, 135, 234);
+				Point<int16_t> charpos = get_character_slot_pos(i, 135, CHARACTER_BASE_Y);
 				DrawArgument chararg = DrawArgument(charpos, flip_character);
-
-				nametags[index].draw(charpos);
 
 				const StatsEntry& character_stats = characters[index].stats;
 
@@ -294,12 +303,17 @@ namespace ms
 				signpost[j].draw(chararg);
 				charlooks[index].draw(chararg, inter);
 
+				// After the post and the character, not before: the name is
+				// what has to stay readable, and drawn first it ends up behind
+				// whichever of them it overlaps.
+				nametags[index].draw(charpos + Point<int16_t>(0, CHARACTER_NAMETAG_Y));
+
 				if (selectedslot)
 					selectedslot_effect[0].draw(charpos + Point<int16_t>(-5, -298), inter);
 			}
 			else if (i < slots)
 			{
-				Point<int16_t> emptyslotpos = get_character_slot_pos(i, 130, 234);
+				Point<int16_t> emptyslotpos = get_character_slot_pos(i, 130, CHARACTER_BASE_Y);
 
 				emptyslot_effect.draw(emptyslotpos, inter);
 				emptyslot.draw(DrawArgument(emptyslotpos, flip_character));
@@ -910,7 +924,13 @@ namespace ms
 	Point<int16_t> UICharSelect::get_character_slot_pos(size_t index, uint16_t x_adj, uint16_t y_adj) const
 	{
 		auto x = 125 * (index % 4);
-		auto y = 200 * (index > 3);
+
+		// The second row is placed ABOVE the first, not below it. The first
+		// row now stands just clear of the Create/Delete buttons near the
+		// bottom of the screen, so a row 200px below that would be off the
+		// bottom entirely; putting it behind instead keeps all eight slots on
+		// screen and reads as depth.
+		auto y = -200 * (index > 3);
 
 		return Point<int16_t>(x + x_adj, y + y_adj);
 	}

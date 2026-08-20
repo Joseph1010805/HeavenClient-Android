@@ -7,15 +7,8 @@ raised at the table gets quietly forgotten.
 
 ### Client - visual
 
-- **Characters sit too high on the character select screen.** They are drawn at
-  the same point as the signpost they stand on, so where their feet land
-  depends on the post's origin. Measured: the post is 71x158 with its origin at
-  52,156, so drawn at 135,234 it spans y 78 to 236. Needs the character offset
-  correcting against that.
 - **Stats do not sit inside their boxes** on character select. Same cause as the
   Start button, which is fixed - positions were tuned for a later UI version.
-- **The character select background is mostly white.** Looks like a layer that
-  is not being drawn. Not yet investigated.
 - **The skill window is too narrow for its contents.** The client lays skills out
   in two columns needing 297px; the artwork here is 174x299. Needs a
   single-column layout, using the scrollbar that is already there.
@@ -103,6 +96,18 @@ Wanted layout, left to right:
 
 ## Fixed
 
+- The login flow had no artwork of its own - the login, character select and
+  character creation screens all read numbered frames out of `Map001.wz`, which
+  no version this client can obtain actually contains (v83's `back/13` is a
+  mushroom house, v202's is a single pixel), and world select drew two stacked
+  city backdrops from far later content. All four now come from a custom
+  `Map001.nx` built by `tools/make_assets.py`, and the login and character
+  screens are video rather than stills. See CHANGES.md.
+- Characters sat too high on character select - they are drawn at the same point
+  as the signpost they stand on, so the post's origin (52,156) decided where
+  their feet landed. The row now stands just above the Create/Delete buttons,
+  with the name above the head rather than at the feet, where it collided with
+  the page arrows.
 - White screen on startup - GLES2 will not convert texture formats on upload
 - All text unreadable - `mediump` cannot address an 8192x8192 atlas
 - Sprites drawn as blank rectangles - uploads did not bind the atlas
