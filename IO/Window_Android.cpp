@@ -132,6 +132,31 @@ namespace ms
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		}
 
+		// Keys that move the caret or change the text without producing a
+		// character of their own, so they have to keep going through the
+		// keycode path even while an IME is supplying the text.
+		bool is_editing_key(int key)
+		{
+			switch (key)
+			{
+			case GLFW_KEY_BACKSPACE:
+			case GLFW_KEY_DELETE:
+			case GLFW_KEY_ENTER:
+			case GLFW_KEY_KP_ENTER:
+			case GLFW_KEY_TAB:
+			case GLFW_KEY_ESCAPE:
+			case GLFW_KEY_LEFT:
+			case GLFW_KEY_RIGHT:
+			case GLFW_KEY_UP:
+			case GLFW_KEY_DOWN:
+			case GLFW_KEY_HOME:
+			case GLFW_KEY_END:
+				return true;
+			default:
+				return false;
+			}
+		}
+
 		void bind_offscreen()
 		{
 			if (!scene_fbo)
@@ -302,6 +327,15 @@ namespace ms
 
 	Error Window::initwindow()
 	{
+		// Re-read the resolution rather than trusting what the constructor
+		// captured. Window is a singleton built during static initialisation,
+		// which runs before main() applies Width/Height from Settings, so the
+		// constructor only ever sees the compiled-in defaults. Stale values
+		// here also put touch input in the wrong coordinate space, because
+		// finger positions are scaled by these.
+		width = Constants::Constants::get().get_viewwidth();
+		height = Constants::Constants::get().get_viewheight();
+
 		if (glwnd)
 		{
 			SDL_GL_DeleteContext(context);
@@ -435,8 +469,19 @@ namespace ms
 			{
 				int key = to_glfw_key(ev.key.keysym.sym);
 
-				if (key != GLFW_KEY_UNKNOWN)
-					UI::get().send_key(key, ev.type == SDL_KEYDOWN);
+				if (key == GLFW_KEY_UNKNOWN)
+					break;
+
+				// A keypress on the on-screen keyboard arrives twice: once as
+				// SDL_TEXTINPUT with the character, and once here as a key
+				// event. Both paths insert into the focused field, so every
+				// letter was typed twice. While text input is active the
+				// character is the IME's business - only the editing keys,
+				// which produce no text, are forwarded.
+				if (SDL_IsTextInputActive() && !is_editing_key(key))
+					break;
+
+				UI::get().send_key(key, ev.type == SDL_KEYDOWN);
 
 				break;
 			}
