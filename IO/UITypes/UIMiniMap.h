@@ -81,6 +81,10 @@ namespace ms
 		Point<int16_t> panel_point(Point<int16_t> spot) const;
 		Point<int16_t> panel_marker(Point<int16_t> on_canvas) const;
 		void layout_panel();
+
+		// Where the map sits so the player is in the middle, clamped to
+		// its edges. Changes as the player walks.
+		Point<int16_t> panel_view() const;
 		void update_static_markers();
 		void set_npclist_active(bool active);
 		void update_dimensions();
@@ -135,10 +139,8 @@ namespace ms
 
 		// The scale for the canvas and everything drawn on it, and where the
 		// scaled canvas sits.
-		float panel_zoom_x;
-		float panel_zoom_y;
+		float panel_zoom;
 		Point<int16_t> panel_size;
-		Point<int16_t> panel_offset;
 		bool panel_needs_layout = false;
 		Point<int16_t> center_offset;
 		Point<int16_t> min_dimensions;

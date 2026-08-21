@@ -29,7 +29,7 @@
 namespace ms
 {
 	UIMiniMap::UIMiniMap(const CharStats& st) : UIDragElement<PosMINIMAP>(Point<int16_t>(128, 20)),
-		stats(st), big_map(true), has_map(false), panel(false), panel_zoom_x(1.0f), panel_zoom_y(1.0f), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
+		stats(st), big_map(true), has_map(false), panel(false), panel_zoom(1.0f), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
 	{
 		type = Setting<MiniMapType>::get().load();
 		user_type = type;
@@ -91,7 +91,7 @@ namespace ms
 			// window that is not there.
 			if (has_map && map_sprite.is_valid())
 			{
-				Point<int16_t> at = position + panel_offset;
+				Point<int16_t> at = position + panel_view();
 
 				map_sprite.draw(DrawArgument(at, at, panel_size, 1.0f, 1.0f, 1.0f, 0.0f));
 			}
@@ -483,15 +483,22 @@ namespace ms
 		if (canvas.x() <= 0 || canvas.y() <= 0)
 			return;
 
-		// Filled outright, both ways. This is worked out from the canvas, and
-		// the canvas does not exist until a map has loaded - which is why
-		// doing it once in set_panel left the zoom at 1 and the map its
-		// original postage-stamp size on a screen this large.
-		panel_zoom_x = static_cast<float>(panel_screen.x()) / canvas.x();
-		panel_zoom_y = static_cast<float>(panel_screen.y()) / canvas.y();
+		// Zoomed in far enough to cover the screen, keeping the map's own
+		// proportions. The point is not to see the whole room at once - it is
+		// to see where you are, close enough to read, and let the map move
+		// under you.
+		float across = static_cast<float>(panel_screen.x()) / canvas.x();
+		float down = static_cast<float>(panel_screen.y()) / canvas.y();
 
-		panel_size = panel_screen;
-		panel_offset = Point<int16_t>(0, 0);
+		panel_zoom = across > down ? across : down;
+
+		// Never shrink a map that is already bigger than the screen.
+		if (panel_zoom < 1.0f)
+			panel_zoom = 1.0f;
+
+		panel_size = Point<int16_t>(
+			static_cast<int16_t>(canvas.x() * panel_zoom),
+			static_cast<int16_t>(canvas.y() * panel_zoom));
 
 		// None of the window's own controls belong on the panel - shrink,
 		// enlarge, the world and NPC toggles are all for a window that is not
@@ -501,6 +508,32 @@ namespace ms
 				entry.second->set_active(false);
 	}
 
+	Point<int16_t> UIMiniMap::panel_view() const
+	{
+		// Where the map has to sit for the player to be in the middle of the
+		// screen. Worked out every frame, because the player moves and the map
+		// is what moves under them.
+		if (!panel)
+			return Point<int16_t>(0, 0);
+
+		Point<int16_t> player = (Stage::get().get_player().get_position() + center_offset) / scale;
+
+		int16_t x = panel_screen.x() / 2 - static_cast<int16_t>(player.x() * panel_zoom);
+		int16_t y = panel_screen.y() / 2 - static_cast<int16_t>(player.y() * panel_zoom);
+
+		// Stopped at the edges, so walking into a corner shows the corner
+		// rather than empty space beyond the map.
+		int16_t min_x = panel_screen.x() - panel_size.x();
+		int16_t min_y = panel_screen.y() - panel_size.y();
+
+		if (x > 0) x = 0;
+		if (y > 0) y = 0;
+		if (x < min_x) x = min_x;
+		if (y < min_y) y = min_y;
+
+		return Point<int16_t>(x, y);
+	}
+
 	Point<int16_t> UIMiniMap::panel_marker(Point<int16_t> on_canvas) const
 	{
 		// Already relative to the canvas corner, unlike the static markers, so
@@ -508,9 +541,9 @@ namespace ms
 		if (!panel)
 			return on_canvas + Point<int16_t>(map_draw_origin_x, map_draw_origin_y);
 
-		return panel_offset + Point<int16_t>(
-			static_cast<int16_t>(on_canvas.x() * panel_zoom_x),
-			static_cast<int16_t>(on_canvas.y() * panel_zoom_y));
+		return panel_view() + Point<int16_t>(
+			static_cast<int16_t>(on_canvas.x() * panel_zoom),
+			static_cast<int16_t>(on_canvas.y() * panel_zoom));
 	}
 
 	Point<int16_t> UIMiniMap::panel_point(Point<int16_t> spot) const

@@ -35,7 +35,7 @@ namespace ms
 		// is, is obvious from what is on it.
 		constexpr int16_t DOT = 7;
 		constexpr int16_t DOT_SPACING = 18;
-		constexpr int16_t DOT_BOTTOM = 16;
+		constexpr int16_t DOT_BOTTOM = 10;
 
 		// How far in the arrows sit, and how far around them a touch counts.
 		constexpr int16_t ARROW_INSET = 4;

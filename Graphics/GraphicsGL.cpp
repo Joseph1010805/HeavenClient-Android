@@ -22,6 +22,13 @@
 
 #include "../Configuration.h"
 
+// Said out loud when a sprite cannot be given room in the atlas. Two
+// explanations for the wrong-texture bug have been wrong already, so this
+// reports the moment the atlas actually runs out rather than leaving it to be
+// inferred from what is drawn.
+#define LOG_ATLAS_FULL(x, y, w, h) \
+	printf("[!] atlas full at %d,%d - %dx%d sprite skipped, reset queued\n", (x), (y), (w), (h))
+
 namespace ms
 {
 	GraphicsGL::GraphicsGL()
@@ -626,6 +633,8 @@ namespace ms
 					// next frame, where nothing is queued. This one sprite is
 					// missing for a frame, which is a far better failure.
 					reset_pending = true;
+
+					LOG_ATLAS_FULL(border.x(), border.y(), width, height);
 
 					return nulloffset;
 				}
