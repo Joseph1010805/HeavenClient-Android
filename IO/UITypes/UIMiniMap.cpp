@@ -100,8 +100,12 @@ namespace ms
 			{
 				Animation portal_marker(marker["portal"]);
 
+				// MAX_ADJ is the drop the largest layout gives its canvas, and
+				// the max branch below adds it to every static marker at draw
+				// time rather than storing it. Without it here the portals sat
+				// that far above everything else on the map.
 				for (auto sprite : static_marker_info)
-					portal_marker.draw(position + panel_point(sprite.second), alpha);
+					portal_marker.draw(position + panel_point(sprite.second + Point<int16_t>(0, MAX_ADJ)), alpha);
 
 				draw_movable_markers(position, alpha);
 			}
