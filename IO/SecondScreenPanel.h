@@ -96,6 +96,11 @@ namespace ms
 		// under it, which is what scrolling a long map needs.
 		int16_t pressed_arrow;
 
+		// Where a place was last highlighted, so lifting a finger on the same
+		// place is the click and the one before it was only the hover.
+		Point<int16_t> highlight_at;
+		bool highlighted = false;
+
 		// How big the panel is, remembered so a page can be told at the moment
 		// it is built rather than only when it is drawn. Mutable because
 		// drawing is where the size arrives and drawing is const.

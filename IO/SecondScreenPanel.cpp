@@ -24,6 +24,7 @@
 
 #include "../Gameplay/Stage.h"
 
+#include <cmath>
 #include <cstdlib>
 #include "../Graphics/GraphicsGL.h"
 
@@ -187,56 +188,81 @@ namespace ms
 		UIElement* element = window();
 		Point<int16_t> origin = window_position(screen);
 
+		// The pointer is here now, so it is not on the other screen.
+		UI::get().set_cursor_visible(false);
+
 		if (down)
 		{
 			touch_start = position;
-			touch_now = position;
 			touching = true;
 
-			// An arrow turns the page. Everything else belongs to the page,
-			// including a drag - scrolling a long map is what dragging is for
-			// now that the arrows do the turning.
 			pressed_arrow = arrow_at(position, screen);
 
-			if (pressed_arrow == 0 && element)
-			{
-				element->send_cursor(true, position - origin);
-				clear_leaked_tooltips();
-			}
+			if (pressed_arrow != 0)
+				return;
+		}
+
+		touch_now = position;
+
+		if (up && pressed_arrow != 0)
+		{
+			touching = false;
+
+			// Only if the finger lifted on the arrow it went down on.
+			if (arrow_at(position, screen) == pressed_arrow)
+				turn_to(current + pressed_arrow);
+
+			pressed_arrow = 0;
 
 			return;
 		}
 
-		touch_now = position;
+		if (!element || pressed_arrow != 0)
+			return;
+
+		// A finger is a cursor.
+		//
+		// The page is one of the game's own windows and already knows how to
+		// behave under a pointer: moving over a place highlights it, clicking
+		// travels. So the finger is passed on as a pointer and nothing here
+		// interprets it - no counting taps, no deciding what a gesture meant.
+		// Trying to do that is what stopped places highlighting, made a single
+		// tap travel, and eventually crashed.
+		//
+		// A touch moves the pointer without pressing, so the first touch on a
+		// place highlights it the way hovering does. The press is sent when the
+		// finger lifts on somewhere already highlighted, which is the second
+		// touch - so a place is read first and entered second.
+		Point<int16_t> at = position - origin;
 
 		if (up)
 		{
 			touching = false;
 
-			if (pressed_arrow != 0)
+			bool same_place = highlighted && std::abs(highlight_at.x() - position.x()) < 24
+				&& std::abs(highlight_at.y() - position.y()) < 24;
+
+			if (same_place)
 			{
-				// Only if the finger lifted on the arrow it went down on.
-				if (arrow_at(position, screen) == pressed_arrow)
-					turn_to(current + pressed_arrow);
+				element->send_cursor(true, at);
+				element->send_cursor(false, at);
 
-				pressed_arrow = 0;
-
-				return;
+				highlighted = false;
 			}
-
-			if (element)
+			else
 			{
-				element->send_cursor(false, position - origin);
-				clear_leaked_tooltips();
+				highlight_at = position;
+				highlighted = true;
 			}
-
-			return;
+		}
+		else
+		{
+			// Moving, pressed or not, is a hover as far as the page is
+			// concerned - which is what makes a region light up.
+			element->send_cursor(false, at);
 		}
 
-		// A move is deliberately not passed on. A page here asks the main UI to
-		// show its tooltips, and those then appear over the game on the other
-		// screen - which is where that white list of NPC names was coming
-		// from. There is no hovering on a touchscreen anyway.
+		clear_leaked_tooltips();
 	}
 
 	void SecondScreenPanel::draw_chrome(Point<int16_t> screen) const

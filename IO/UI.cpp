@@ -62,7 +62,8 @@ namespace ms
 
 		scrollingnotice.draw(alpha);
 
-		cursor.draw(alpha);
+		if (cursor_visible)
+			cursor.draw(alpha);
 	}
 
 	void UI::update()
@@ -162,6 +163,11 @@ namespace ms
 				break;
 			}
 		}
+	}
+
+	void UI::set_cursor_visible(bool visible)
+	{
+		cursor_visible = visible;
 	}
 
 	void UI::send_cursor(Point<int16_t> pos)

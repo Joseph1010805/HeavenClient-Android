@@ -608,6 +608,9 @@ namespace ms
 
 			case SDL_FINGERDOWN:
 			case SDL_FINGERMOTION:
+				// Touching this screen brings the pointer back to it.
+				UI::get().set_cursor_visible(true);
+
 				UI::get().send_cursor(
 					Point<int16_t>(
 						static_cast<int16_t>(ev.tfinger.x * width),

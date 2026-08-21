@@ -54,6 +54,12 @@ namespace ms
 		void quit();
 		bool not_quitted() const;
 
+		// Whether the pointer is drawn on the main screen.
+		//
+		// There is one cursor between two screens, and it is wherever it was
+		// last touched. Showing it on both at once would say there are two.
+		void set_cursor_visible(bool visible);
+
 		void send_cursor(Point<int16_t> pos);
 		void send_cursor(bool pressed);
 		void send_cursor(Point<int16_t> cursorpos, Cursor::State cursorstate);
@@ -103,6 +109,7 @@ namespace ms
 		std::unique_ptr<UIState> state;
 		Keyboard keyboard;
 		Cursor cursor;
+		bool cursor_visible = true;
 		ScrollingNotice scrollingnotice;
 
 		Optional<Textfield> focusedtextfield;
