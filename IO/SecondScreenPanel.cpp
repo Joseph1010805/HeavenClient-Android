@@ -38,7 +38,7 @@ namespace ms
 		constexpr int16_t DOT_BOTTOM = 16;
 
 		// How far in the arrows sit, and how far around them a touch counts.
-		constexpr int16_t ARROW_INSET = 16;
+		constexpr int16_t ARROW_INSET = 4;
 		constexpr int16_t ARROW_REACH = 60;
 
 		// The pages fill the panel, so there is no strip above them any more.
@@ -232,10 +232,14 @@ namespace ms
 
 		// A mark at each side saying there is more that way. Small, yellow and
 		// out of the way - the page itself is what matters.
-		int16_t mid = screen.y() / 2;
+		// An arrow is drawn from its top-left corner, so half its size comes
+		// off to sit it on the middle of the side rather than below and right
+		// of where it was asked for.
+		Point<int16_t> size = arrow_left.get_dimensions();
+		int16_t mid = screen.y() / 2 - size.y() / 2;
 
 		arrow_left.draw(Point<int16_t>(ARROW_INSET, mid));
-		arrow_right.draw(Point<int16_t>(screen.x() - ARROW_INSET, mid));
+		arrow_right.draw(Point<int16_t>(screen.x() - ARROW_INSET - size.x(), mid));
 	}
 
 	void SecondScreenPanel::draw(Point<int16_t> screen) const

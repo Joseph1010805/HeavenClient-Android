@@ -29,7 +29,7 @@
 namespace ms
 {
 	UIMiniMap::UIMiniMap(const CharStats& st) : UIDragElement<PosMINIMAP>(Point<int16_t>(128, 20)),
-		stats(st), big_map(true), has_map(false), panel(false), panel_scale_x(1.0f), panel_scale_y(1.0f), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
+		stats(st), big_map(true), has_map(false), panel(false), panel_zoom(1.0f), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
 	{
 		type = Setting<MiniMapType>::get().load();
 		user_type = type;
@@ -90,7 +90,11 @@ namespace ms
 			// title bar and a pair of resize buttons are all furniture for a
 			// window that is not there.
 			if (has_map && map_sprite.is_valid())
-				map_sprite.draw(DrawArgument(position, position, panel_screen, 1.0f, 1.0f, 1.0f, 0.0f));
+			{
+				Point<int16_t> at = position + panel_offset;
+
+				map_sprite.draw(DrawArgument(at, at, panel_size, 1.0f, 1.0f, 1.0f, 0.0f));
+			}
 
 			if (has_map)
 			{
@@ -470,37 +474,43 @@ namespace ms
 
 		if (canvas.x() > 0 && canvas.y() > 0)
 		{
-			// Stretched to the whole panel, both ways. A mini map is a scrap
-			// of a picture, and shown at its own size on a screen this large
-			// it is a stamp in the middle of nothing.
-			panel_scale_x = static_cast<float>(screen.x()) / canvas.x();
-			panel_scale_y = static_cast<float>(screen.y()) / canvas.y();
+			// One scale, not one per axis: a mini map stretched to a screen of
+			// a different shape stops matching the room it is a map of.
+			float across = static_cast<float>(screen.x()) / canvas.x();
+			float down = static_cast<float>(screen.y()) / canvas.y();
+
+			panel_zoom = across < down ? across : down;
+
+			panel_size = Point<int16_t>(
+				static_cast<int16_t>(canvas.x() * panel_zoom),
+				static_cast<int16_t>(canvas.y() * panel_zoom));
+
+			// Centred in whatever room is left over.
+			panel_offset = Point<int16_t>(
+				(screen.x() - panel_size.x()) / 2,
+				(screen.y() - panel_size.y()) / 2);
 		}
 	}
 
 	Point<int16_t> UIMiniMap::panel_marker(Point<int16_t> on_canvas) const
 	{
-		// Already relative to the canvas, unlike the static markers - so this
-		// only has to scale, and put the canvas corner back when not on the
-		// panel.
+		// Already relative to the canvas corner, unlike the static markers, so
+		// this only has to scale it.
 		if (!panel)
 			return on_canvas + Point<int16_t>(map_draw_origin_x, map_draw_origin_y);
 
-		return Point<int16_t>(
-			static_cast<int16_t>(on_canvas.x() * panel_scale_x),
-			static_cast<int16_t>(on_canvas.y() * panel_scale_y));
+		return panel_offset + Point<int16_t>(
+			static_cast<int16_t>(on_canvas.x() * panel_zoom),
+			static_cast<int16_t>(on_canvas.y() * panel_zoom));
 	}
 
 	Point<int16_t> UIMiniMap::panel_point(Point<int16_t> spot) const
 	{
-		// Marker positions are given from the canvas's own corner, so the
-		// corner is taken off, the rest scaled, and the screen's corner used
-		// instead.
-		Point<int16_t> from_canvas = spot - Point<int16_t>(map_draw_origin_x, map_draw_origin_y);
-
-		return Point<int16_t>(
-			static_cast<int16_t>(from_canvas.x() * panel_scale_x),
-			static_cast<int16_t>(from_canvas.y() * panel_scale_y));
+		// Static markers are given from the window's corner, so the canvas
+		// corner comes off before the same scaling is applied. Everything on
+		// the map goes through one of these two, with one scale between them -
+		// two scales is how the map ended up bigger and the dots did not.
+		return panel_marker(spot - Point<int16_t>(map_draw_origin_x, map_draw_origin_y));
 	}
 
 	void UIMiniMap::update_canvas()

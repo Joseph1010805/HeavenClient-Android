@@ -131,8 +131,12 @@ namespace ms
 		// Set when this copy is the one on the lower panel.
 		bool panel;
 		Point<int16_t> panel_screen;
-		float panel_scale_x;
-		float panel_scale_y;
+
+		// One scale for the canvas and everything drawn on it, and where the
+		// scaled canvas sits.
+		float panel_zoom;
+		Point<int16_t> panel_size;
+		Point<int16_t> panel_offset;
 		Point<int16_t> center_offset;
 		Point<int16_t> min_dimensions;
 		Point<int16_t> normal_dimensions;
