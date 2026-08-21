@@ -39,7 +39,10 @@ namespace ms
 
 		// How far in the arrows sit, and how far around them a touch counts.
 		constexpr int16_t ARROW_INSET = 4;
-		constexpr int16_t ARROW_REACH = 60;
+		// How far around an arrow a touch still counts. This was two thirds of
+		// the way to the middle from each side, so taps meant for the map kept
+		// turning pages instead.
+		constexpr int16_t ARROW_REACH = 34;
 
 		// The pages fill the panel, so there is no strip above them any more.
 		constexpr int16_t CONTENT_TOP = 0;
@@ -232,14 +235,22 @@ namespace ms
 
 		// A mark at each side saying there is more that way. Small, yellow and
 		// out of the way - the page itself is what matters.
-		// An arrow is drawn from its top-left corner, so half its size comes
-		// off to sit it on the middle of the side rather than below and right
-		// of where it was asked for.
-		Point<int16_t> size = arrow_left.get_dimensions();
-		int16_t mid = screen.y() / 2 - size.y() / 2;
+		// Half the artwork's size. At full size on a panel laid out this large
+		// they were a third of the screen apart and covered the map.
+		//
+		// Drawn from the top-left corner, so half the drawn size comes off to
+		// sit them on the middle of the side.
+		Point<int16_t> full = arrow_left.get_dimensions();
+		Point<int16_t> size = Point<int16_t>(full.x() / 2, full.y() / 2);
 
-		arrow_left.draw(Point<int16_t>(ARROW_INSET, mid));
-		arrow_right.draw(Point<int16_t>(screen.x() - ARROW_INSET - size.x(), mid));
+		int16_t mid = screen.y() / 2 - size.y() / 2;
+		int16_t right = screen.x() - ARROW_INSET - size.x();
+
+		Point<int16_t> at_left = Point<int16_t>(ARROW_INSET, mid);
+		Point<int16_t> at_right = Point<int16_t>(right, mid);
+
+		arrow_left.draw(DrawArgument(at_left, at_left, size, 1.0f, 1.0f, 1.0f, 0.0f));
+		arrow_right.draw(DrawArgument(at_right, at_right, size, 1.0f, 1.0f, 1.0f, 0.0f));
 	}
 
 	void SecondScreenPanel::draw(Point<int16_t> screen) const

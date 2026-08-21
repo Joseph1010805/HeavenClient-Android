@@ -1111,6 +1111,13 @@ namespace ms
 			quads.pop_back();
 	}
 
+	Point<int16_t> GraphicsGL::atlas_size_of(const nl::bitmap& bmp)
+	{
+		const Offset& o = getoffset(bmp);
+
+		return Point<int16_t>(o.right - o.left, o.bottom - o.top);
+	}
+
 	void GraphicsGL::set_clearcolour(float red, float green, float blue)
 	{
 		clear_red = red;

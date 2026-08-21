@@ -86,6 +86,11 @@ namespace ms
 		// certainly not a white flash every time a map loads.
 		void set_clearcolour(float red, float green, float blue);
 
+		// The atlas rectangle a bitmap currently occupies, for diagnosis.
+		// A sprite drawn as a magnified piece of some other picture is
+		// sampling a rectangle that is not its own size.
+		Point<int16_t> atlas_size_of(const nl::bitmap& bmp);
+
 	private:
 		void clearinternal();
 		// How much of the atlas is spoken for, 0 to 1.

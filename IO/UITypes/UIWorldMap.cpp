@@ -27,6 +27,10 @@
 
 #include <nlnx/nx.hpp>
 
+// Temporary, while the map is being drawn as pieces of other pictures.
+#define LOG_MAP_RECT(w, h, aw, ah) \
+	printf("[*] worldmap draw: bitmap %dx%d | atlas rect %dx%d\n", (w), (h), (aw), (ah))
+
 namespace ms
 {
 	UIWorldMap::UIWorldMap() : UIDragElement<PosMAP>(), panel(false), panel_scale_x(1.0f), panel_scale_y(1.0f)
@@ -179,6 +183,23 @@ namespace ms
 			Point<int16_t> topleft = position + base_position
 				- Point<int16_t>(panel_map_size.x() / 2, panel_map_size.y() / 2)
 				+ base_img.get_origin();
+
+			// Temporary: what the atlas says this bitmap occupies, against what
+			// the bitmap says it is. A magnified piece of some other picture
+			// means these disagree.
+			{
+				static int32_t reported = 0;
+
+				if (reported < 8)
+				{
+					reported++;
+
+					Point<int16_t> want = base_img.get_dimensions();
+					Point<int16_t> got = GraphicsGL::get().atlas_size_of(base_img.get_bitmap());
+
+					LOG_MAP_RECT(want.x(), want.y(), got.x(), got.y());
+				}
+			}
 
 			base_img.draw(DrawArgument(topleft, topleft, panel_map_size, 1.0f, 1.0f, 1.0f, 0.0f));
 
@@ -395,6 +416,21 @@ namespace ms
 
 		base_img = WorldMap["BaseImg"][0];
 		parent_map = std::string(WorldMap["info"]["parentMap"]);
+
+		// Temporary: the map has twice been drawn as the Nexon loading screen,
+		// and the atlas has been ruled out - so this reports what the node
+		// actually resolved to, rather than it being inferred from the picture.
+		{
+			Point<int16_t> size = base_img.get_dimensions();
+
+			printf("%s %s | BaseImg %s %dx%d | parent '%s' | asked '%s'\n",
+				"[*] worldmap:",
+				WorldMap ? "node found" : "node MISSING",
+				base_img.is_valid() ? "valid" : "INVALID",
+				size.x(), size.y(),
+				parent_map.c_str(),
+				map.c_str());
+		}
 
 		// Each region's picture is its own size, so the scale that covers the
 		// panel is not the same one as the last region's.

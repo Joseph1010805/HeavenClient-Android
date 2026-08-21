@@ -39,6 +39,10 @@ namespace ms
 		int16_t width() const;
 		int16_t height() const;
 		Point<int16_t> get_origin() const;
+
+		// The underlying bitmap, so the atlas can be asked what rectangle it
+		// has been given. Diagnostic.
+		const nl::bitmap& get_bitmap() const { return bitmap; }
 		Point<int16_t> get_dimensions() const;
 
 	private:
