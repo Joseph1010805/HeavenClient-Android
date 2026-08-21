@@ -29,34 +29,28 @@ namespace ms
 {
 	namespace
 	{
-		const char* PAGE_NAMES[SecondScreenPanel::NUM_PAGES] = {
-			"World Map",
-			"Mini Map",
-			"Inventory",
-			"Equipment",
-			"Stats",
-			"Quests",
-			"Hotkeys",
-			"Chat"
-		};
-
 		// How far a finger has to travel before it counts as a swipe rather
 		// than a tap that wandered, or a drag meant for the page itself.
 		constexpr int16_t SWIPE_THRESHOLD = 120;
 
-		// The heading strip along the top, and the dots under it.
-		constexpr int16_t HEADER_HEIGHT = 52;
+		// The dots sit along the bottom. There is no heading: which page this
+		// is, is obvious from what is on it.
 		constexpr int16_t DOT = 10;
 		constexpr int16_t DOT_SPACING = 26;
-		constexpr int16_t DOT_Y = HEADER_HEIGHT + 10;
-		constexpr int16_t CONTENT_TOP = DOT_Y + DOT + 12;
+		constexpr int16_t DOT_BOTTOM = 22;
+
+		// The pages fill the panel, so there is no strip above them any more.
+		constexpr int16_t CONTENT_TOP = 0;
 	}
 
 	SecondScreenPanel::SecondScreenPanel()
 		: current(WORLDMAP), touching(false), swiping(false), slide(0)
 	{
-		title = OutlinedText(Text::Font::A15B, Text::Alignment::CENTER, Color::Name::WHITE, Color::Name::TUNA);
-		title.change_text(PAGE_NAMES[current]);
+		arrow_left = OutlinedText(Text::Font::A15B, Text::Alignment::LEFT, Color::Name::YELLOW, Color::Name::TUNA);
+		arrow_left.change_text("<");
+
+		arrow_right = OutlinedText(Text::Font::A15B, Text::Alignment::RIGHT, Color::Name::YELLOW, Color::Name::TUNA);
+		arrow_right.change_text(">");
 	}
 
 	SecondScreenPanel::~SecondScreenPanel() {}
@@ -82,11 +76,19 @@ namespace ms
 		switch (current)
 		{
 		case WORLDMAP:
-			slot = std::make_unique<UIWorldMap>();
+		{
+			auto map = std::make_unique<UIWorldMap>();
+			map->set_panel(panel_screen);
+			slot = std::move(map);
 			break;
+		}
 		case MINIMAP:
-			slot = std::make_unique<UIMiniMap>(Stage::get().get_player().get_stats());
+		{
+			auto map = std::make_unique<UIMiniMap>(Stage::get().get_player().get_stats());
+			map->set_panel(panel_screen);
+			slot = std::move(map);
 			break;
+		}
 		default:
 			// The remaining pages are not hosted here yet.
 			break;
@@ -103,6 +105,12 @@ namespace ms
 			return Point<int16_t>(0, CONTENT_TOP);
 
 		Point<int16_t> size = element->get_dimension();
+
+		// A page that already fills the panel wants the corner, not centring -
+		// centring something the size of the screen only moves it off it.
+		if (size.x() >= screen.x() && size.y() >= screen.y())
+			return Point<int16_t>(0, 0);
+
 		int16_t room = screen.y() - CONTENT_TOP;
 
 		return Point<int16_t>(
@@ -112,15 +120,14 @@ namespace ms
 
 	void SecondScreenPanel::turn_to(int16_t next)
 	{
-		// The deck does not wrap. Running off either end should feel like the
-		// end, not like being thrown back to the other side.
+		// The deck wraps, so the last page is one swipe from the first either
+		// way round rather than seven.
 		if (next < 0)
-			next = 0;
-		else if (next >= NUM_PAGES)
 			next = NUM_PAGES - 1;
+		else if (next >= NUM_PAGES)
+			next = 0;
 
 		current = static_cast<Page>(next);
-		title.change_text(PAGE_NAMES[current]);
 	}
 
 	void SecondScreenPanel::update()
@@ -143,6 +150,8 @@ namespace ms
 
 	void SecondScreenPanel::send_touch(Point<int16_t> position, Point<int16_t> screen, bool down, bool up)
 	{
+		panel_screen = screen;
+
 		UIElement* element = window();
 		Point<int16_t> origin = window_position(screen);
 
@@ -204,15 +213,10 @@ namespace ms
 
 	void SecondScreenPanel::draw_chrome(Point<int16_t> screen) const
 	{
-		GraphicsGL::get().drawrectangle(
-			0, 0, screen.x(), HEADER_HEIGHT, 0.0f, 0.0f, 0.0f, 0.5f);
-
-		title.draw(Point<int16_t>(screen.x() / 2, 12));
-
-		// One dot per page, the current one filled. It is the quickest way to
-		// see both where you are and that there is more either side.
+		// One dot per page, the current one filled, along the bottom.
 		int16_t total = DOT_SPACING * (NUM_PAGES - 1);
 		int16_t left = (screen.x() - total) / 2;
+		int16_t y = screen.y() - DOT_BOTTOM;
 
 		for (int16_t i = 0; i < NUM_PAGES; i++)
 		{
@@ -220,13 +224,20 @@ namespace ms
 			float shade = here ? 1.0f : 0.45f;
 
 			GraphicsGL::get().drawrectangle(
-				left + i * DOT_SPACING - DOT / 2, DOT_Y, DOT, DOT,
+				left + i * DOT_SPACING - DOT / 2, y, DOT, DOT,
 				shade, shade, shade, here ? 0.95f : 0.6f);
 		}
+
+		// A mark at each side saying there is more that way. Small, yellow and
+		// out of the way - the page itself is what matters.
+		arrow_left.draw(Point<int16_t>(14, screen.y() / 2));
+		arrow_right.draw(Point<int16_t>(screen.x() - 14, screen.y() / 2));
 	}
 
 	void SecondScreenPanel::draw(Point<int16_t> screen) const
 	{
+		panel_screen = screen;
+
 		UIElement* element = window();
 
 		if (element)

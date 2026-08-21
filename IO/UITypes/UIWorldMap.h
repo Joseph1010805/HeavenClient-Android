@@ -44,6 +44,15 @@ namespace ms
 
 		UIElement::Type get_type() const override;
 
+		// Fill a screen of this size instead of sitting in its own frame.
+		//
+		// The handheld's lower panel shows this map full-bleed - no window
+		// border, no separate search panel down the side, the map itself scaled
+		// up until it covers the screen. Opened over the game on the main screen
+		// it is left exactly as it was, which is why this is a mode rather than a
+		// change to the window.
+		void set_panel(Point<int16_t> screen);
+
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
 
@@ -51,6 +60,15 @@ namespace ms
 		static constexpr uint8_t MAPSPOT_TYPE_MAX = 4u;
 
 		void set_search(bool enable);
+
+		// Work out the scale that covers the panel and put the controls in a row
+		// inside the top of the map. Re-run whenever the map image changes, since
+		// each region's picture is a different size.
+		void layout_panel();
+
+		// A point on the map image, in screen terms. Spots are given relative to
+		// the image's middle, so scaling the map has to scale them too.
+		Point<int16_t> map_point(Point<int16_t> spot) const;
 		void update_world(std::string parent_map);
 
 		enum Buttons
@@ -111,5 +129,11 @@ namespace ms
 		Point<int16_t> bg_search_dimensions;
 		Point<int16_t> background_dimensions;
 		Point<int16_t> base_position;
+
+		// Set when this copy is the one on the lower panel.
+		bool panel;
+		Point<int16_t> panel_screen;
+		Point<int16_t> panel_map_size;
+		float panel_scale;
 	};
 }

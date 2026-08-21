@@ -48,6 +48,14 @@ namespace ms
 
 		UIElement::Type get_type() const override;
 
+		// Show this copy fully opened, for the handheld's lower panel.
+		//
+		// The mini map remembers how the player last left it - shrunk to a corner
+		// more often than not - and a whole screen given over to a shrunken map
+		// would be odd. Opened over the game it still remembers, which is why
+		// this is a mode rather than a change to the window.
+		void set_panel(Point<int16_t> screen);
+
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
 

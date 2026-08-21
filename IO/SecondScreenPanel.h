@@ -93,6 +93,13 @@ namespace ms
 		// gesture is visible rather than the page simply changing on release.
 		int16_t slide;
 
-		OutlinedText title;
+		// How big the panel is, remembered so a page can be told at the moment
+		// it is built rather than only when it is drawn. Mutable because
+		// drawing is where the size arrives and drawing is const.
+		mutable Point<int16_t> panel_screen;
+
+		// The marks either side saying there is more that way.
+		OutlinedText arrow_left;
+		OutlinedText arrow_right;
 	};
 }

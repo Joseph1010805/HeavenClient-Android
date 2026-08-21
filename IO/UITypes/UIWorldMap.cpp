@@ -28,7 +28,7 @@
 
 namespace ms
 {
-	UIWorldMap::UIWorldMap() : UIDragElement<PosMAP>()
+	UIWorldMap::UIWorldMap() : UIDragElement<PosMAP>(), panel(false), panel_scale(1.0f)
 	{
 		nl::node close = nl::nx::ui["Basic.img"]["BtClose3"];
 		nl::node WorldMap = nl::nx::ui["UIWindow2.img"]["WorldMap"];
@@ -77,9 +77,94 @@ namespace ms
 		dragarea = Point<int16_t>(bg_dimension_x, 20);
 	}
 
+	void UIWorldMap::set_panel(Point<int16_t> screen)
+	{
+		panel = true;
+		panel_screen = screen;
+
+		// The side panel is what the extra width was for, and it is gone here.
+		search = false;
+		dimension = screen;
+
+		// The results list and the frame's own close buttons have nothing to
+		// close or sit in any more.
+		buttons[Buttons::BT_CLOSE]->set_active(false);
+		buttons[Buttons::BT_SEARCH_CLOSE]->set_active(false);
+
+		layout_panel();
+	}
+
+	void UIWorldMap::layout_panel()
+	{
+		if (!panel)
+			return;
+
+		Point<int16_t> image = base_img.get_dimensions();
+
+		if (image.x() > 0 && image.y() > 0)
+		{
+			// Cover rather than fit: the map reaches every edge and whatever
+			// will not fit goes off the side, which is better than a band of
+			// window behind it.
+			float across = static_cast<float>(panel_screen.x()) / image.x();
+			float down = static_cast<float>(panel_screen.y()) / image.y();
+
+			panel_scale = across > down ? across : down;
+
+			panel_map_size = Point<int16_t>(
+				static_cast<int16_t>(image.x() * panel_scale),
+				static_cast<int16_t>(image.y() * panel_scale));
+
+			// Spots are given from the middle of the picture, so this has to
+			// stay the middle of it.
+			base_position = Point<int16_t>(panel_screen.x() / 2, panel_screen.y() / 2);
+		}
+
+		// The controls in one row just inside the top, in place of the strip
+		// they had along the frame and the panel down the side.
+		constexpr int16_t ROW_Y = 22;
+		constexpr int16_t GAP = 8;
+
+		int16_t x = 24;
+
+		buttons[Buttons::BT_NAVIREG]->set_position(Point<int16_t>(x, ROW_Y));
+		x += 99 + GAP;
+
+		buttons[Buttons::BT_AUTOFLY]->set_position(Point<int16_t>(x, ROW_Y));
+		x += 99 + GAP;
+
+		buttons[Buttons::BT_SEARCH]->set_active(false);
+
+		// The search box and its button, kept from the panel that was removed.
+		Point<int16_t> box = Point<int16_t>(x, ROW_Y);
+		Point<int16_t> box_size = Point<int16_t>(150, 16);
+
+		search_text = Textfield(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::BLACK,
+			Rectangle<int16_t>(box, box + box_size), 12);
+		search_text.set_state(Textfield::State::NORMAL);
+
+		x += box_size.x() + GAP;
+
+		buttons[Buttons::BT_ALLSEARCH]->set_position(Point<int16_t>(x, ROW_Y));
+		buttons[Buttons::BT_ALLSEARCH]->set_active(true);
+	}
+
+	Point<int16_t> UIWorldMap::map_point(Point<int16_t> spot) const
+	{
+		if (!panel)
+			return spot + position + base_position;
+
+		return position + base_position + Point<int16_t>(
+			static_cast<int16_t>(spot.x() * panel_scale),
+			static_cast<int16_t>(spot.y() * panel_scale));
+	}
+
 	void UIWorldMap::draw(float alpha) const
 	{
-		UIElement::draw_sprites(alpha);
+		// The frame is what makes the white border, and on the panel the map
+		// is meant to reach every edge.
+		if (!panel)
+			UIElement::draw_sprites(alpha);
 
 		if (search)
 		{
@@ -88,7 +173,22 @@ namespace ms
 			search_text.draw(position + Point<int16_t>(1, -5));
 		}
 
-		base_img.draw(position + base_position);
+		if (panel)
+		{
+			// Scaled up to cover the screen. An icon is placed by its origin,
+			// so the origin is added back to put the corner where it is wanted.
+			Point<int16_t> topleft = position + base_position
+				- Point<int16_t>(panel_map_size.x() / 2, panel_map_size.y() / 2)
+				+ base_img.get_origin();
+
+			base_img.draw(DrawArgument(topleft, topleft, panel_map_size, 1.0f, 1.0f, 1.0f, 0.0f));
+
+			search_text.draw(position);
+		}
+		else
+		{
+			base_img.draw(position + base_position);
+		}
 
 		if (link_images.size() > 0)
 		{
@@ -100,7 +200,7 @@ namespace ms
 					{
 						if (link_images.find(iter.first) != link_images.end())
 						{
-							link_images.at(iter.first).draw(position + base_position);
+							link_images.at(iter.first).draw(map_point(Point<int16_t>(0, 0)));
 							break;
 						}
 					}
@@ -109,10 +209,10 @@ namespace ms
 		}
 
 		if (show_path_img)
-			path_img.draw(position + base_position);
+			path_img.draw(map_point(Point<int16_t>(0, 0)));
 
 		for (auto spot : map_spots)
-			spot.second.marker.draw(spot.first + position + base_position);
+			spot.second.marker.draw(map_point(spot.first));
 
 		bool found = false;
 
@@ -125,8 +225,8 @@ namespace ms
 					if (map_id == mapid)
 					{
 						found = true;
-						npc_pos[spot.second.type].draw(spot.first + position + base_position, alpha);
-						cur_pos.draw(spot.first + position + base_position, alpha);
+						npc_pos[spot.second.type].draw(map_point(spot.first), alpha);
+						cur_pos.draw(map_point(spot.first), alpha);
 						break;
 					}
 				}
@@ -296,6 +396,10 @@ namespace ms
 
 		base_img = WorldMap["BaseImg"][0];
 		parent_map = std::string(WorldMap["info"]["parentMap"]);
+
+		// Each region's picture is its own size, so the scale that covers the
+		// panel is not the same one as the last region's.
+		layout_panel();
 
 		link_images.clear();
 		link_maps.clear();

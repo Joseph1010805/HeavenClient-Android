@@ -433,6 +433,17 @@ namespace ms
 		town_text.change_text(map_info.street_name);
 	}
 
+	void UIMiniMap::set_panel(Point<int16_t> screen)
+	{
+		// Largest of the three sizes, and the big rather than the simple
+		// drawing, so the panel shows as much of the map as there is.
+		type = Type::MAX;
+		user_type = Type::MAX;
+		big_map = true;
+
+		update_canvas();
+	}
+
 	void UIMiniMap::update_canvas()
 	{
 		min_sprites.clear();
