@@ -540,6 +540,36 @@ namespace ms
         Joystick_RT() : KeyEntry("Joystick_RT", "J") {}
     };
 
+    // The remaining buttons on a handheld pad. A single character is read as
+    // that key; anything longer is read as a raw GLFW key code, which is how
+    // the keys with no printable character are named here.
+    //
+    // These four default to the quickslot keys, which MapleStory leaves free
+    // for exactly this - somewhere to hang a skill or a potion - so they can be
+    // bound in the Key Bindings window without displacing anything.
+    struct Joystick_L3 : public Configuration::KeyEntry
+    {
+        Joystick_L3() : KeyEntry("Joystick_L3", "260") {}   // Insert
+    };
+
+    struct Joystick_R3 : public Configuration::KeyEntry
+    {
+        Joystick_R3() : KeyEntry("Joystick_R3", "268") {}   // Home
+    };
+
+    struct Joystick_START : public Configuration::KeyEntry
+    {
+        Joystick_START() : KeyEntry("Joystick_START", "256") {}   // Escape
+    };
+
+    // Select is the quit button and is handled before this map is consulted,
+    // so it has no key of its own. The entry exists so the overlay has a name
+    // to show for it.
+    struct Joystick_SELECT : public Configuration::KeyEntry
+    {
+        Joystick_SELECT() : KeyEntry("Joystick_SELECT", "-1") {}
+    };
+
 	template <typename T>
 	// Can be used to access settings.
 	struct Setting

@@ -68,6 +68,7 @@ namespace ms
 			void set_count(int16_t) override {}
 			void set_state(StatefulIcon::State) override {}
 			Icon::IconType get_type() override;
+			Keyboard::Mapping get_mapping() const override { return Keyboard::Mapping(KeyType::Id::SKILL, skill_id); }
 
 		private:
 			int32_t skill_id;

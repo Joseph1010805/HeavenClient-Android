@@ -71,6 +71,10 @@ namespace ms
 		settings.emplace<Joystick_LT>();
 		settings.emplace<Joystick_RB>();
 		settings.emplace<Joystick_RT>();
+		settings.emplace<Joystick_L3>();
+		settings.emplace<Joystick_R3>();
+		settings.emplace<Joystick_START>();
+		settings.emplace<Joystick_SELECT>();
 
 		load();
 	}

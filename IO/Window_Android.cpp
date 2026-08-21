@@ -187,6 +187,12 @@ namespace ms
 		// SDL_CONTROLLER_BUTTON_MAX is small, so a flat array beats a map here.
 		int16_t padmap[SDL_CONTROLLER_BUTTON_MAX];
 
+		// The two triggers, which arrive as axes rather than buttons: [0] is
+		// left, [1] is right. trigdown remembers whether each is currently held
+		// so an axis that keeps reporting the same position does not re-fire.
+		int16_t trigmap[2];
+		bool trigdown[2];
+
 		std::chrono::time_point<std::chrono::steady_clock> click_start =
 			ContinuousTimer::get().start();
 
@@ -256,6 +262,8 @@ namespace ms
 			padmap[SDL_CONTROLLER_BUTTON_Y]             = Setting<Joystick_Y>::get().load();
 			padmap[SDL_CONTROLLER_BUTTON_LEFTSHOULDER]  = Setting<Joystick_LB>::get().load();
 			padmap[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER] = Setting<Joystick_RB>::get().load();
+			padmap[SDL_CONTROLLER_BUTTON_LEFTSTICK]     = Setting<Joystick_L3>::get().load();
+			padmap[SDL_CONTROLLER_BUTTON_RIGHTSTICK]    = Setting<Joystick_R3>::get().load();
 
 			// The d-pad drives movement, which the game already reads as arrows.
 			padmap[SDL_CONTROLLER_BUTTON_DPAD_UP]    = GLFW_KEY_UP;
@@ -263,8 +271,44 @@ namespace ms
 			padmap[SDL_CONTROLLER_BUTTON_DPAD_LEFT]  = GLFW_KEY_LEFT;
 			padmap[SDL_CONTROLLER_BUTTON_DPAD_RIGHT] = GLFW_KEY_RIGHT;
 
-			padmap[SDL_CONTROLLER_BUTTON_START] = GLFW_KEY_ESCAPE;
-			padmap[SDL_CONTROLLER_BUTTON_BACK]  = GLFW_KEY_ENTER;
+			padmap[SDL_CONTROLLER_BUTTON_START] = Setting<Joystick_START>::get().load();
+
+			// Back is the quit button and is intercepted before this map is
+			// read, so whatever sits here is never used.
+			padmap[SDL_CONTROLLER_BUTTON_BACK] = GLFW_KEY_UNKNOWN;
+
+			// The triggers are not buttons. SDL reports them as axes, which is
+			// why L2 and R2 did nothing at all even though their settings have
+			// existed all along - nothing ever read them.
+			trigmap[0] = Setting<Joystick_LT>::get().load();
+			trigmap[1] = Setting<Joystick_RT>::get().load();
+
+			trigdown[0] = false;
+			trigdown[1] = false;
+		}
+
+		// An analogue trigger pressed far enough counts as a button press, and
+		// released far enough counts as a release. The two thresholds are
+		// deliberately apart: with a single one, a trigger resting on the line
+		// chatters between down and up and fires the bound skill repeatedly.
+		void handle_trigger(int side, Sint16 value)
+		{
+			constexpr Sint16 PRESS = 20000;
+			constexpr Sint16 RELEASE = 12000;
+
+			bool down = trigdown[side];
+
+			if (!down && value >= PRESS)
+				down = true;
+			else if (down && value < RELEASE)
+				down = false;
+			else
+				return;
+
+			trigdown[side] = down;
+
+			if (trigmap[side] != GLFW_KEY_UNKNOWN)
+				UI::get().send_key(trigmap[side], down);
 		}
 
 		void open_gamepad()
@@ -532,6 +576,16 @@ namespace ms
 					if (key != GLFW_KEY_UNKNOWN)
 						UI::get().send_key(key, ev.type == SDL_CONTROLLERBUTTONDOWN);
 				}
+
+				break;
+			}
+
+			case SDL_CONTROLLERAXISMOTION:
+			{
+				if (ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT)
+					handle_trigger(0, ev.caxis.value);
+				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
+					handle_trigger(1, ev.caxis.value);
 
 				break;
 			}

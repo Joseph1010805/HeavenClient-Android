@@ -19,6 +19,7 @@
 
 #include "../Character/Inventory/Inventory.h"
 #include "../Graphics/Texture.h"
+#include "../Keyboard.h"
 #include "../Template/EnumMap.h"
 
 #include <memory>
@@ -49,6 +50,11 @@ namespace ms
 			virtual void drop_on_bindings(Point<int16_t> cursorposition, bool remove) const = 0;
 			virtual void set_count(int16_t) = 0;
 			virtual IconType get_type() = 0;
+
+			// What binding this icon stands for, so a drop target can act on
+			// it without knowing which window the icon came from. Icons that
+			// are not bindable - an equip, say - keep the empty default.
+			virtual Keyboard::Mapping get_mapping() const { return Keyboard::Mapping(); }
 		};
 
 		class NullType : public Type
@@ -70,6 +76,7 @@ namespace ms
 		void drop_on_bindings(Point<int16_t> cursorposition, bool remove) const;
 		void set_count(int16_t count);
 		IconType get_type();
+		Keyboard::Mapping get_mapping() const;
 
 		void draw(Point<int16_t> position) const;
 		void dragdraw(Point<int16_t> cursorpos) const;

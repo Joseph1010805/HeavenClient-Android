@@ -49,6 +49,10 @@ namespace ms
 		Keyboard();
 
 		void assign(uint8_t key, uint8_t type, int32_t action);
+
+		// The MapleStory key number for a GLFW key code, or 0 if that key
+		// is not one the server can store a binding for.
+		static uint8_t maple_key(int32_t keycode);
 		void remove(uint8_t key);
 
 		int32_t leftshiftcode() const;

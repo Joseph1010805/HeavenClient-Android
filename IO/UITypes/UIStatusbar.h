@@ -76,6 +76,42 @@ namespace ms
 
 		Point<int16_t> get_quickslot_pos();
 
+		// The quickslot bar has twelve empty cells and nothing has ever put
+		// anything in them - it is drawn as two flat textures. On a handheld
+		// they line up with the twelve pad buttons, so each cell is labelled
+		// with its button and shows whatever that button's key is bound to in
+		// the Key Bindings window.
+		//
+		// The cells hold no bindings of their own - they are a view onto the
+		// keymap, and dropping on one writes to that same keymap. So the bar
+		// and the Key Bindings window can never disagree, and a binding made
+		// either way is the one the server stores.
+		static constexpr size_t QUICKSLOT_COLS = 6;
+		static constexpr size_t QUICKSLOT_ROWS = 2;
+		static constexpr size_t QUICKSLOT_COUNT = QUICKSLOT_COLS * QUICKSLOT_ROWS;
+
+		void load_padslots();
+		void draw_padslots(Point<int16_t> bar_pos) const;
+		void draw_padslot_icon(const Texture& icon, Point<int16_t> cell) const;
+
+		// Where the bar is drawn right now, which moves as it slides open and
+		// shut. Both drawing and dropping measure from here.
+		Point<int16_t> quickslot_bar_pos() const;
+
+		// Which cell a point falls in, or -1. Only answers while the bar is
+		// open, so a drop cannot land on cells that are slid off-screen.
+		int16_t padslot_by_position(Point<int16_t> cursorpos) const;
+
+		bool send_icon(const Icon& icon, Point<int16_t> cursorpos) override;
+
+		struct PadSlot
+		{
+			OutlinedText label;
+			int16_t keycode = -1;
+		};
+
+		PadSlot padslots[QUICKSLOT_COUNT];
+
 		enum Buttons : uint16_t
 		{
 			BT_CASHSHOP,

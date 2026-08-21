@@ -19,3 +19,7 @@ android/local.properties
 build/
 build-android/
 local.properties
+
+# Python bytecode from the asset tools.
+__pycache__/
+*.pyc

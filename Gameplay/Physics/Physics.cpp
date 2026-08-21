@@ -114,7 +114,7 @@ namespace ms
 		}
 		else if (phobj.is_flag_not_set(PhysicsObject::Flag::NOGRAVITY))
 		{
-			phobj.vacc += GRAVFORCE;
+			phobj.vacc += GRAVFORCE * phobj.gravityscale;
 		}
 
 		phobj.hforce = 0.0;
@@ -126,8 +126,10 @@ namespace ms
 		// Nexon's fallSpeed. Without it a long fall keeps accelerating, so
 		// dropped items and falling characters outrun the real game the
 		// further they go.
-		if (phobj.vspeed > FALLSPEED)
-			phobj.vspeed = FALLSPEED;
+		double fallspeed = FALLSPEED * phobj.gravityscale;
+
+		if (phobj.vspeed > fallspeed)
+			phobj.vspeed = fallspeed;
 	}
 
 	void Physics::move_flying(PhysicsObject& phobj) const

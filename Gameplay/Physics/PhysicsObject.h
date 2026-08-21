@@ -193,6 +193,12 @@ namespace ms
 		};
 
 		Type type = NORMAL;
+
+		// Scales gravity and the terminal fall speed for this object alone.
+		// Dropped items use less than one so they settle instead of snapping to
+		// the floor; everything else leaves it at one and is unaffected.
+		double gravityscale = 1.0;
+
 		int32_t flags = 0;
 		uint16_t fhid = 0;
 		double fhslope = 0.0;

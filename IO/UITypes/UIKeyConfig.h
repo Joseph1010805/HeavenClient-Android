@@ -28,6 +28,9 @@
 
 #include "../Character/Inventory/Inventory.h"
 
+#include <utility>
+#include <vector>
+
 namespace ms
 {
 	class UIKeyConfig : public UIDragElement<PosKEYCONFIG>
@@ -53,6 +56,11 @@ namespace ms
 		void unstage_mapping(Keyboard::Mapping mapping);
 
 		void update_item_count(InventoryType::Id type, int16_t slot, int16_t change);
+
+		// The artwork for an action, shared with the quickslot bar so the
+		// action-to-icon table exists in exactly one place.
+		static Texture get_action_icon(KeyAction::Id action);
+		static const std::vector<std::pair<KeyAction::Id, int32_t>>& action_icon_indices();
 
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
@@ -107,6 +115,7 @@ namespace ms
 			void drop_on_bindings(Point<int16_t> cursorposition, bool remove) const override;
 			void set_count(int16_t) override {}
 			Icon::IconType get_type() override;
+			Keyboard::Mapping get_mapping() const override { return mapping; }
 
 		private:
 			Keyboard::Mapping mapping;

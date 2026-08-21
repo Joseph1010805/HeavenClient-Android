@@ -147,6 +147,18 @@ namespace ms
 		drops.update(physics);
 		player.update(physics);
 
+		// Grabbing a rope was only ever tested at the instant up was pressed.
+		// Jump up-and-right and the key goes down before the rope is reached,
+		// so the one check happened too early and nothing looked again while
+		// passing it - the grab was simply missed. Holding up now keeps
+		// checking, which is what holding the key already means to a player.
+		//
+		// Safe to repeat: findladder only answers while actually overlapping a
+		// rope, set_ladder(nullptr) does nothing, and check_ladders returns
+		// early once climbing has started.
+		if (player.is_key_down(KeyAction::Id::UP))
+			check_ladders(true);
+
 		portals.update(player.get_position());
 		camera.update(player.get_position());
 

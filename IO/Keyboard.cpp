@@ -143,6 +143,22 @@ namespace ms
 		}
 	}
 
+	// Keytable runs the other way - MapleStory's key number to the GLFW code -
+	// and binding something needs the reverse, because the pad is configured in
+	// GLFW codes while the keymap the server stores is numbered MapleStory's
+	// way. The table is 90 entries, so a scan is cheaper than a second copy.
+	uint8_t Keyboard::maple_key(int32_t keycode)
+	{
+		if (keycode <= 0)
+			return 0;
+
+		for (uint8_t i = 0; i < 90; i++)
+			if (Keytable[i] == keycode)
+				return i;
+
+		return 0;
+	}
+
 	void Keyboard::assign(uint8_t key, uint8_t tid, int32_t action)
 	{
 		if (KeyType::Id type = KeyType::typebyid(tid))

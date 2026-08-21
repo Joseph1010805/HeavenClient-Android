@@ -1086,6 +1086,84 @@ namespace ms
 
 	// Helpers
 
+	// Which artwork represents an action. The key config builds its draggable
+	// icons from this, and the quickslot bar reads it to show what a pad button
+	// is bound to - so it lives here, in one copy, rather than being written
+	// out twice and drifting.
+	const std::vector<std::pair<KeyAction::Id, int32_t>>& UIKeyConfig::action_icon_indices()
+	{
+		static const std::vector<std::pair<KeyAction::Id, int32_t>> indices = {
+			{ KeyAction::Id::EQUIPMENT, 0 },
+			{ KeyAction::Id::ITEMS, 1 },
+			{ KeyAction::Id::STATS, 2 },
+			{ KeyAction::Id::SKILLS, 3 },
+			{ KeyAction::Id::FRIENDS, 4 },
+			{ KeyAction::Id::WORLDMAP, 5 },
+			{ KeyAction::Id::MAPLECHAT, 6 },
+			{ KeyAction::Id::MINIMAP, 7 },
+			{ KeyAction::Id::QUESTLOG, 8 },
+			{ KeyAction::Id::KEYBINDINGS, 9 },
+			{ KeyAction::Id::SAY, 10 },
+			{ KeyAction::Id::WHISPER, 11 },
+			{ KeyAction::Id::PARTYCHAT, 12 },
+			{ KeyAction::Id::FRIENDSCHAT, 13 },
+			{ KeyAction::Id::MENU, 14 },
+			{ KeyAction::Id::QUICKSLOTS, 15 },
+			{ KeyAction::Id::TOGGLECHAT, 16 },
+			{ KeyAction::Id::GUILD, 17 },
+			{ KeyAction::Id::GUILDCHAT, 18 },
+			{ KeyAction::Id::PARTY, 19 },
+			{ KeyAction::Id::NOTIFIER, 20 },
+			{ KeyAction::Id::MAPLENEWS, 21 },
+			{ KeyAction::Id::CASHSHOP, 22 },
+			{ KeyAction::Id::ALLIANCECHAT, 23 },
+			{ KeyAction::Id::MANAGELEGION, 25 },
+			{ KeyAction::Id::MEDALS, 26 },
+			{ KeyAction::Id::BOSSPARTY, 27 },
+			{ KeyAction::Id::PROFESSION, 29 },
+			{ KeyAction::Id::ITEMPOT, 30 },
+			{ KeyAction::Id::EVENT, 31 },
+			{ KeyAction::Id::SILENTCRUSADE, 33 },
+			{ KeyAction::Id::BATTLEANALYSIS, 35 },
+			{ KeyAction::Id::GUIDE, 39 },
+			{ KeyAction::Id::ENHANCEEQUIP, 41 },
+			{ KeyAction::Id::MONSTERCOLLECTION, 42 },
+			{ KeyAction::Id::SOULWEAPON, 43 },
+			{ KeyAction::Id::CHARINFO, 44 },
+			{ KeyAction::Id::CHANGECHANNEL, 45 },
+			{ KeyAction::Id::MAINMENU, 46 },
+			{ KeyAction::Id::SCREENSHOT, 47 },
+			{ KeyAction::Id::PICTUREMODE, 48 },
+			{ KeyAction::Id::MAPLEACHIEVEMENT, 49 },
+			{ KeyAction::Id::PICKUP, 50 },
+			{ KeyAction::Id::SIT, 51 },
+			{ KeyAction::Id::ATTACK, 52 },
+			{ KeyAction::Id::JUMP, 53 },
+			{ KeyAction::Id::INTERACT_HARVEST, 54 },
+			{ KeyAction::Id::FACE1, 100 },
+			{ KeyAction::Id::FACE2, 101 },
+			{ KeyAction::Id::FACE3, 102 },
+			{ KeyAction::Id::FACE4, 103 },
+			{ KeyAction::Id::FACE5, 104 },
+			{ KeyAction::Id::FACE6, 105 },
+			{ KeyAction::Id::FACE7, 106 },
+			{ KeyAction::Id::MUTE, 202 },
+			{ KeyAction::Id::MONSTERBOOK, 1000 },
+			{ KeyAction::Id::TOSPOUSE, 1001 },
+		};
+
+		return indices;
+	}
+
+	Texture UIKeyConfig::get_action_icon(KeyAction::Id action)
+	{
+		for (auto& entry : action_icon_indices())
+			if (entry.first == action)
+				return nl::nx::ui["StatusBar3.img"]["KeyConfig"]["icon"][entry.second];
+
+		return Texture();
+	}
+
 	Texture UIKeyConfig::get_item_texture(int32_t item_id) const
 	{
 		const ItemData& data = ItemData::get(item_id);

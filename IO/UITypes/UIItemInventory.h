@@ -81,6 +81,7 @@ namespace ms
 			void drop_on_bindings(Point<int16_t> cursorposition, bool remove) const override;
 			void set_count(int16_t count) override;
 			Icon::IconType get_type() override;
+			Keyboard::Mapping get_mapping() const override { return Keyboard::Mapping(KeyType::Id::ITEM, item_id); }
 
 		private:
 			InventoryType::Id sourcetab;

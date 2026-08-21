@@ -17,8 +17,14 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "Drop.h"
 
+#include <cmath>
+
 namespace ms
 {
+	// How heavily dropped items fall, against everything else's 1.0. Lower is
+	// slower; 0.5 halves both the acceleration and the terminal speed.
+	constexpr double DROP_GRAVITY = 0.5;
+
 	Drop::Drop(int32_t id, int32_t own, Point<int16_t> start, Point<int16_t> dst, int8_t type, int8_t mode, bool pldrp) : MapObject(id)
 	{
 		owner = own;
@@ -32,13 +38,23 @@ namespace ms
 		moved = 0.0f;
 		looter = nullptr;
 
+		// Items fell at a falling character's rate, which reads far too brisk
+		// for something tumbling out of a monster. Weakening gravity for drops
+		// alone stretches the whole arc out; the launch is eased by the square
+		// root of the same figure so the pop stays the height it was and only
+		// the timing changes. One number to tune, here.
+		phobj.gravityscale = DROP_GRAVITY;
+
+		constexpr float LAUNCH = -5.0f;
+		const float launch = LAUNCH * std::sqrt(static_cast<float>(DROP_GRAVITY));
+
 		switch (mode)
 		{
 		case 0:
 		case 1:
 			state = Drop::State::DROPPED;
 			basey = static_cast<double>(dest.y() - 4);
-			phobj.vspeed = -5.0f;
+			phobj.vspeed = launch;
 			phobj.hspeed = static_cast<double>(dest.x() - start.x()) / 48;
 			break;
 		case 2:
@@ -48,7 +64,7 @@ namespace ms
 			break;
 		case 3:
 			state = Drop::State::PICKEDUP;
-			phobj.vspeed = -5.0f;
+			phobj.vspeed = launch;
 			break;
 		}
 	}

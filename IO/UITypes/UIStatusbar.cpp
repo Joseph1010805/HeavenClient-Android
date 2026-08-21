@@ -31,6 +31,12 @@
 #include "../UITypes/UIJoypad.h"
 #include "../UITypes/UIEvent.h"
 #include "../UITypes/UIKeyConfig.h"
+#include "../Data/ItemData.h"
+#include "../Data/SkillData.h"
+#include "../Net/Packets/PlayerPackets.h"
+#include "../KeyConfig.h"
+
+#include <tuple>
 #include "../UITypes/UIChat.h"
 #include "../UITypes/UIOptionMenu.h"
 #include "../UITypes/UIQuit.h"
@@ -188,6 +194,8 @@ namespace ms
 
 		quickslot[0] = quickSlot["backgrnd"];
 		quickslot[1] = quickSlot["layer:cover"];
+
+		load_padslots();
 
 		Point<int16_t> buttonPos = Point<int16_t>(591 + pos_adj, 73);
 
@@ -425,16 +433,14 @@ namespace ms
 		buttons.at(Buttons::BT_FOLD_QS)->draw(position + quickslot_adj);
 		buttons.at(Buttons::BT_EXTEND_QS)->draw(position + quickslot_adj - quickslot_qs_adj);
 
-		if (VWIDTH > 800 && VWIDTH < 1366)
-		{
-			quickslot[0].draw(position + quickslot_pos + Point<int16_t>(-1, 0) + quickslot_adj);
-			quickslot[1].draw(position + quickslot_pos + Point<int16_t>(-1, 0) + quickslot_adj);
-		}
-		else
-		{
-			quickslot[0].draw(position + quickslot_pos + quickslot_adj);
-			quickslot[1].draw(position + quickslot_pos + quickslot_adj);
-		}
+		Point<int16_t> quickslot_bar = quickslot_bar_pos();
+
+		quickslot[0].draw(quickslot_bar);
+		quickslot[1].draw(quickslot_bar);
+
+		// After the cover, so the labels are not drawn over by the bar's own
+		// frame - they are the point of the thing.
+		draw_padslots(quickslot_bar);
 
 #pragma region Menu
 		Point<int16_t> pos_adj = Point<int16_t>(0, 0);
@@ -1043,6 +1049,179 @@ namespace ms
 		}
 
 		return Point<int16_t>(0, 0);
+	}
+
+	void UIStatusbar::load_padslots()
+	{
+		// Laid out as the buttons sit on the handheld: the top row of the bar
+		// is the top row of the pad. Select has no key of its own - it is the
+		// quit button, intercepted before the pad map is read - so its cell is
+		// labelled but never shows a binding.
+		struct Entry { const char* label; int16_t key; };
+
+		const Entry entries[QUICKSLOT_COUNT] = {
+			{ "Y",  Setting<Joystick_Y>::get().load() },
+			{ "X",  Setting<Joystick_X>::get().load() },
+			{ "L2", Setting<Joystick_LT>::get().load() },
+			{ "R2", Setting<Joystick_RT>::get().load() },
+			{ "ST", Setting<Joystick_START>::get().load() },
+			{ "SE", Setting<Joystick_SELECT>::get().load() },
+			{ "B",  Setting<Joystick_B>::get().load() },
+			{ "A",  Setting<Joystick_A>::get().load() },
+			{ "L1", Setting<Joystick_LB>::get().load() },
+			{ "R1", Setting<Joystick_RB>::get().load() },
+			{ "L3", Setting<Joystick_L3>::get().load() },
+			{ "R3", Setting<Joystick_R3>::get().load() },
+		};
+
+		for (size_t i = 0; i < QUICKSLOT_COUNT; i++)
+		{
+			padslots[i].keycode = entries[i].key;
+			padslots[i].label = OutlinedText(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE, Color::Name::TUNA);
+			padslots[i].label.change_text(entries[i].label);
+		}
+	}
+
+	// Measured off the running client rather than guessed: the bar's texture
+	// puts its first cell at +12,+2 from where it is drawn, and the cells step
+	// 35 in both directions. A pitch one pixel out is invisible in the first
+	// cell and five pixels out by the last, which is exactly how it looked.
+	namespace
+	{
+		constexpr int16_t CELL_X = 35;
+		constexpr int16_t CELL_Y = 35;
+		constexpr int16_t CELL_ORIGIN_X = 12;
+		constexpr int16_t CELL_ORIGIN_Y = 2;
+
+		// Inset by a pixel so the artwork sits inside the cell's raised border.
+		constexpr int16_t ICON_SIZE = 30;
+		constexpr int16_t ICON_INSET = 1;
+
+		// Faded, because the button letter is drawn over it and both have to
+		// stay readable.
+		constexpr float ICON_OPACITY = 0.55f;
+	}
+
+	Point<int16_t> UIStatusbar::quickslot_bar_pos() const
+	{
+		Point<int16_t> bar = position + quickslot_pos + quickslot_adj;
+
+		if (VWIDTH > 800 && VWIDTH < 1366)
+			bar += Point<int16_t>(-1, 0);
+
+		return bar;
+	}
+
+	int16_t UIStatusbar::padslot_by_position(Point<int16_t> cursorpos) const
+	{
+		// Shut, the cells are slid off the side of the screen; a drop there is
+		// aimed at whatever is underneath, not at a cell.
+		if (!quickslot_active)
+			return -1;
+
+		Point<int16_t> first = quickslot_bar_pos() + Point<int16_t>(CELL_ORIGIN_X, CELL_ORIGIN_Y);
+		Point<int16_t> offset = cursorpos - first;
+
+		if (offset.x() < 0 || offset.y() < 0)
+			return -1;
+
+		int16_t col = offset.x() / CELL_X;
+		int16_t row = offset.y() / CELL_Y;
+
+		if (col >= static_cast<int16_t>(QUICKSLOT_COLS) || row >= static_cast<int16_t>(QUICKSLOT_ROWS))
+			return -1;
+
+		// Reject the gap between cells rather than snapping to a neighbour.
+		if (offset.x() % CELL_X >= ICON_SIZE + 2 || offset.y() % CELL_Y >= ICON_SIZE + 2)
+			return -1;
+
+		return row * static_cast<int16_t>(QUICKSLOT_COLS) + col;
+	}
+
+	bool UIStatusbar::send_icon(const Icon& icon, Point<int16_t> cursorpos)
+	{
+		int16_t slot = padslot_by_position(cursorpos);
+
+		if (slot < 0)
+			return true;
+
+		int16_t keycode = padslots[slot].keycode;
+
+		// Select has no key of its own - it is the quit button - so nothing can
+		// be bound to it.
+		if (keycode <= 0)
+			return true;
+
+		Keyboard::Mapping mapping = icon.get_mapping();
+
+		if (mapping.type == KeyType::Id::NONE)
+			return true;
+
+		uint8_t maplekey = Keyboard::maple_key(keycode);
+
+		if (maplekey == 0)
+			return true;
+
+		// Tell the server first, then apply locally, which is the order the Key
+		// Bindings window uses when it saves.
+		std::vector<std::tuple<KeyConfig::Key, KeyType::Id, int32_t>> updated;
+		updated.emplace_back(std::make_tuple(KeyConfig::actionbyid(maplekey), mapping.type, mapping.action));
+
+		ChangeKeyMapPacket(updated).dispatch();
+
+		UI::get().get_keyboard().assign(maplekey, mapping.type, mapping.action);
+
+		return true;
+	}
+
+	void UIStatusbar::draw_padslot_icon(const Texture& icon, Point<int16_t> cell) const
+	{
+		// An icon is placed by its origin, and these are not all anchored the
+		// same way - the action artwork carries origin (0,32), so drawing it at
+		// the cell put it a full icon height too high. Adding the origin back
+		// pins the top-left corner where it is wanted whatever the anchor.
+		Point<int16_t> at = cell + Point<int16_t>(ICON_INSET, ICON_INSET) + icon.get_origin();
+
+		icon.draw(DrawArgument(at, at, Point<int16_t>(ICON_SIZE, ICON_SIZE), 1.0f, 1.0f, ICON_OPACITY, 0.0f));
+	}
+
+	void UIStatusbar::draw_padslots(Point<int16_t> bar_pos) const
+	{
+
+		const Keyboard& keyboard = UI::get().get_keyboard();
+
+		for (size_t i = 0; i < QUICKSLOT_COUNT; i++)
+		{
+			Point<int16_t> cell = bar_pos + Point<int16_t>(
+				12 + static_cast<int16_t>(i % QUICKSLOT_COLS) * CELL_X,
+				3 + static_cast<int16_t>(i / QUICKSLOT_COLS) * CELL_Y);
+
+			// Whatever the key config has on this button's key. Reading it
+			// every frame keeps the bar honest the moment a binding changes,
+			// which matters because the two windows can be open together.
+			if (padslots[i].keycode > 0)
+			{
+				Keyboard::Mapping mapping = keyboard.get_mapping(padslots[i].keycode);
+				Texture icon;
+
+				if (mapping.type == KeyType::Id::SKILL)
+					icon = SkillData::get(mapping.action).get_icon(SkillData::Icon::NORMAL);
+				else if (mapping.type == KeyType::Id::ITEM)
+					icon = ItemData::get(mapping.action).get_icon(false);
+				else if (mapping.type != KeyType::Id::NONE)
+					// Everything else - attack, jump, pick up, the windows - is
+					// an action, and those are most of what ends up on a pad
+					// button.
+					icon = UIKeyConfig::get_action_icon(static_cast<KeyAction::Id>(mapping.action));
+
+				if (icon.is_valid())
+					draw_padslot_icon(icon, cell);
+			}
+
+			// Last, and in the corner: the letter has to stay readable on top
+			// of whatever artwork is behind it.
+			padslots[i].label.draw(cell + Point<int16_t>(2, -1));
+		}
 	}
 
 	bool UIStatusbar::is_menu_active()
