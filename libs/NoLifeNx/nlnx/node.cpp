@@ -361,15 +361,39 @@ namespace nl {
             //printf("hit bitmap_cache %d\n", m_data->bitmap.index);
             return {reinterpret_cast<const char*>(bitmap_cache[idx]), m_data->bitmap.width, m_data->bitmap.height};
         }
-        size_t bm_size = (4u * m_data->bitmap.width * m_data->bitmap.height);
-        //size_t bm_size = sizeof(nl::bitmap);
-        char* bm = (char*) malloc(bm_size);
-        //::fseek(m_file->file_handle, m_file->header->bitmap_offset + m_data->bitmap.index, SEEK_SET);
-        //printf("seeking\n");
+        // A bitmap is stored as a uint32 compressed length followed by that
+        // many bytes of LZ4. Read the length first and take exactly the blob,
+        // rather than reading 4*width*height and hoping the blob is somewhere
+        // inside it.
+        //
+        // That guess is 1.2MB for a 640x470 picture while the blob may be a
+        // tenth of it, so it runs on into whichever bitmaps happen to follow -
+        // harmless mid-file, but at the end of the file the read comes up
+        // short and the tail of the buffer is uninitialised malloc memory,
+        // which LZ4 then decodes into whatever the heap was holding. A picture
+        // built that way looks like pieces of other pictures.
         ::fseek(m_file->file_handle, m_file->bitmap_table[m_data->bitmap.index], SEEK_SET);
-        //printf("reading index %d\n", m_data->bitmap.index);
-        ::fread(bm, 1, bm_size, m_file->file_handle);
-        //printf("finish reading\n");
+
+        uint32_t compressed = 0;
+
+        if (::fread(&compressed, sizeof(compressed), 1, m_file->file_handle) != 1)
+            return {nullptr, m_data->bitmap.width, m_data->bitmap.height};
+
+        size_t bm_size = sizeof(compressed) + compressed;
+        char* bm = (char*) malloc(bm_size);
+
+        if (!bm)
+            return {nullptr, m_data->bitmap.width, m_data->bitmap.height};
+
+        // The length is put back at the front because everything downstream
+        // expects to skip over it before the LZ4 stream begins.
+        *reinterpret_cast<uint32_t*>(bm) = compressed;
+
+        if (::fread(bm + sizeof(compressed), 1, compressed, m_file->file_handle) != compressed)
+        {
+            free(bm);
+            return {nullptr, m_data->bitmap.width, m_data->bitmap.height};
+        }
         bitmap_cache[idx] = bm;
         return {reinterpret_cast<const char*>(bm), m_data->bitmap.width, m_data->bitmap.height};
     }

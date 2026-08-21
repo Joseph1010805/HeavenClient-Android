@@ -28,8 +28,8 @@
 #include <nlnx/nx.hpp>
 
 // Temporary, while the map is being drawn as pieces of other pictures.
-#define LOG_MAP_RECT(w, h, aw, ah) \
-	printf("[*] worldmap draw: bitmap %dx%d | atlas rect %dx%d\n", (w), (h), (aw), (ah))
+#define LOG_MAP_RECT(w, h, aw, ah, id) \
+	printf("[*] worldmap draw: bitmap %dx%d | atlas rect %dx%d | id %llu\n", (w), (h), (aw), (ah), (id))
 
 namespace ms
 {
@@ -195,7 +195,7 @@ namespace ms
 					Point<int16_t> want = base_img.get_dimensions();
 					Point<int16_t> got = GraphicsGL::get().atlas_size_of(base_img.get_bitmap());
 
-					LOG_MAP_RECT(want.x(), want.y(), got.x(), got.y());
+					LOG_MAP_RECT(want.x(), want.y(), got.x(), got.y(), (unsigned long long)base_img.get_bitmap().id());
 				}
 			}
 
