@@ -535,6 +535,7 @@ if(ANDROID)
     # The lower panel on a handheld that has one. Android only - it needs a
     # Surface handed down from Java.
     list(APPEND HEAVEN_SOURCES IO/SecondScreen_Android.cpp)
+    list(APPEND HEAVEN_SOURCES IO/SecondScreenPanel.cpp)
 
     # mbedtls backend is Switch-only - see USE_ASIO above.
     list(REMOVE_ITEM HEAVEN_SOURCES Net/SocketMbedtls.cpp)

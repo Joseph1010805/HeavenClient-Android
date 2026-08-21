@@ -14,6 +14,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "SecondScreen.h"
 
+#include "SecondScreenPanel.h"
+#include "UI.h"
+
 #include "../Graphics/GraphicsGL.h"
 #include "../Graphics/Texture.h"
 
@@ -70,7 +73,8 @@ namespace ms
 			// The last place the panel was touched, in its own pixels.
 			float touch_x = 0.0f;
 			float touch_y = 0.0f;
-			bool touch_down = false;
+
+			SecondScreenPanel panel;
 
 			void destroy_surface()
 			{
@@ -200,6 +204,9 @@ namespace ms
 			if (backdrop.is_valid())
 				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(WIDTH, HEIGHT)));
 
+			panel.update();
+			panel.draw();
+
 			GraphicsGL::get().flush(1.0f);
 		}
 
@@ -208,10 +215,12 @@ namespace ms
 			touch_x = x;
 			touch_y = y;
 
-			if (down)
-				touch_down = true;
-			else if (up)
-				touch_down = false;
+			// While the keyboard is up it covers the panel, so a touch that
+			// lands on it is meant for the keyboard and nothing here.
+			if (UI::get().has_focused_textfield())
+				return;
+
+			panel.send_touch(cursor(), down, up);
 		}
 
 		Point<int16_t> cursor()
