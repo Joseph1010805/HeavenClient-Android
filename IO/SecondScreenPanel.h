@@ -19,19 +19,14 @@
 
 #include "UIElement.h"
 
-#include <string>
-
 #include "../Graphics/SpecialText.h"
 #include "../Graphics/Texture.h"
 #include "../Template/Point.h"
-#include "../Template/Rectangle.h"
 
 #include <memory>
 
 namespace ms
 {
-	class UIWorldMap;
-
 	// What the lower panel shows.
 	//
 	// Not a menu of buttons but a deck of pages, swiped between the way a
@@ -71,17 +66,11 @@ namespace ms
 		// this is and how many there are.
 		void draw_chrome(Point<int16_t> screen) const;
 
-		// The back box and the place readout, on the world map page.
-		void draw_map_extras(Point<int16_t> screen) const;
-
 		// Which arrow a point is on: -1 back, 1 forward, 0 neither.
 		int16_t arrow_at(Point<int16_t> position, Point<int16_t> screen) const;
 
 		// Take back any tooltip a page asked the main UI to show.
 		void clear_leaked_tooltips() const;
-
-		// A tap on the world map: back, read a place out, or travel.
-		void handle_map_tap(UIWorldMap& map, Point<int16_t> position, Point<int16_t> origin, Point<int16_t> screen);
 
 		// The page's window, built the first time that page is shown. They are
 		// the game's own windows, but owned here rather than by UI - a window
@@ -106,21 +95,6 @@ namespace ms
 		// none. The arrows turn pages now; a drag belongs entirely to the page
 		// under it, which is what scrolling a long map needs.
 		int16_t pressed_arrow;
-
-		// A tap on a place shows what is there; a second tap on the same place
-		// goes into it. One tap used to go straight in, which made every
-		// attempt to read a name a journey.
-		Point<int16_t> last_tap;
-		int64_t last_tap_at = 0;
-
-		// What the last tap found, shown along the bottom until the next one.
-		OutlinedText place_title;
-		OutlinedText place_detail;
-		bool place_shown = false;
-
-		// The "back" box, when the page offers one.
-		mutable Rectangle<int16_t> back_box;
-		OutlinedText back_label;
 
 		// How big the panel is, remembered so a page can be told at the moment
 		// it is built rather than only when it is drawn. Mutable because
