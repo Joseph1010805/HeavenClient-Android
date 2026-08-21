@@ -27,6 +27,8 @@
 #include <cstdlib>
 #include "../Graphics/GraphicsGL.h"
 
+#include "../Timer.h"
+
 #include <nlnx/nx.hpp>
 
 namespace ms
@@ -59,6 +61,11 @@ namespace ms
 
 		arrow_left = CharSelect["pageL"]["normal"]["0"];
 		arrow_right = CharSelect["pageR"]["normal"]["0"];
+
+		place_title = OutlinedText(Text::Font::A12B, Text::Alignment::LEFT, Color::Name::WHITE, Color::Name::TUNA);
+		place_detail = OutlinedText(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LEMONGRASS, Color::Name::TUNA);
+		back_label = OutlinedText(Text::Font::A12B, Text::Alignment::LEFT, Color::Name::WHITE, Color::Name::TUNA);
+		back_label.change_text("< Back");
 
 		loading = OutlinedText(Text::Font::A12B, Text::Alignment::LEFT, Color::Name::WHITE, Color::Name::TUNA);
 		loading.change_text("Welcome to MapleStory DS");
@@ -165,6 +172,55 @@ namespace ms
 		return 0;
 	}
 
+	void SecondScreenPanel::handle_map_tap(UIWorldMap& map, Point<int16_t> position, Point<int16_t> origin, Point<int16_t> screen)
+	{
+		// Back first, if the map is showing one.
+		if (map.panel_can_go_back() && back_box.contains(position))
+		{
+			map.panel_go_back();
+
+			place_shown = false;
+
+			return;
+		}
+
+		int64_t now = ContinuousTimer::get().stop(std::chrono::time_point<std::chrono::steady_clock>()) / 1000;
+
+		int16_t dx = position.x() - last_tap.x();
+		int16_t dy = position.y() - last_tap.y();
+		bool same_place = dx * dx + dy * dy < 20 * 20;
+		bool soon = now - last_tap_at < 500;
+
+		last_tap = position;
+		last_tap_at = now;
+
+		if (same_place && soon)
+		{
+			// The second tap travels. This is the click the map itself expects.
+			map.send_cursor(true, position - origin);
+			map.send_cursor(false, position - origin);
+
+			clear_leaked_tooltips();
+
+			place_shown = false;
+			last_tap_at = 0;
+
+			return;
+		}
+
+		// The first tap reads the place out instead.
+		std::string title;
+		std::string description;
+
+		place_shown = map.panel_place_at(position - origin, title, description);
+
+		if (place_shown)
+		{
+			place_title.change_text(title);
+			place_detail.change_text(description);
+		}
+	}
+
 	void SecondScreenPanel::clear_leaked_tooltips() const
 	{
 		// A page here is one of the game's own windows, and those ask the main
@@ -187,6 +243,8 @@ namespace ms
 		UIElement* element = window();
 		Point<int16_t> origin = window_position(screen);
 
+		auto* worldmap = current == WORLDMAP ? static_cast<UIWorldMap*>(element) : nullptr;
+
 		if (down)
 		{
 			touch_start = position;
@@ -198,7 +256,15 @@ namespace ms
 			// now that the arrows do the turning.
 			pressed_arrow = arrow_at(position, screen);
 
-			if (pressed_arrow == 0 && element)
+			if (pressed_arrow != 0)
+				return;
+
+			// On the world map a press is held back until the finger lifts, so
+			// a first tap can read a place out instead of travelling to it.
+			if (worldmap)
+				return;
+
+			if (element)
 			{
 				element->send_cursor(true, position - origin);
 				clear_leaked_tooltips();
@@ -220,6 +286,13 @@ namespace ms
 					turn_to(current + pressed_arrow);
 
 				pressed_arrow = 0;
+
+				return;
+			}
+
+			if (worldmap)
+			{
+				handle_map_tap(*worldmap, position, origin, screen);
 
 				return;
 			}
@@ -310,6 +383,51 @@ namespace ms
 				0.0f, 0.0f, 0.0f, 0.35f);
 		}
 
+		draw_map_extras(screen);
 		draw_chrome(screen);
+	}
+
+	void SecondScreenPanel::draw_map_extras(Point<int16_t> screen) const
+	{
+		if (current != WORLDMAP)
+			return;
+
+		auto* map = static_cast<UIWorldMap*>(window());
+
+		if (!map)
+			return;
+
+		// Back, when this region sits inside another one.
+		if (map->panel_can_go_back())
+		{
+			back_box = Rectangle<int16_t>(
+				Point<int16_t>(screen.x() - 74, 8),
+				Point<int16_t>(screen.x() - 8, 30));
+
+			GraphicsGL::get().drawrectangle(
+				back_box.left(), back_box.top(),
+				back_box.right() - back_box.left(),
+				back_box.bottom() - back_box.top(),
+				0.0f, 0.0f, 0.0f, 0.6f);
+
+			back_label.draw(Point<int16_t>(back_box.left() + 8, back_box.top() + 4));
+		}
+		else
+		{
+			back_box = Rectangle<int16_t>(Point<int16_t>(0, 0), Point<int16_t>(0, 0));
+		}
+
+		// What the last tap found, along the bottom out of the map's way.
+		if (place_shown)
+		{
+			constexpr int16_t HEIGHT = 40;
+			int16_t top = screen.y() - HEIGHT - 20;
+
+			GraphicsGL::get().drawrectangle(
+				8, top, screen.x() - 16, HEIGHT, 0.0f, 0.0f, 0.0f, 0.65f);
+
+			place_title.draw(Point<int16_t>(16, top + 4));
+			place_detail.draw(Point<int16_t>(16, top + 20));
+		}
 	}
 }

@@ -53,6 +53,18 @@ namespace ms
 		// change to the window.
 		void set_panel(Point<int16_t> screen);
 
+		// The place under a point on the panel, if there is one - what it is
+		// called and what lives there. The panel shows this itself rather than
+		// letting the window ask the main UI for a tooltip, which would put it
+		// on the other screen.
+		bool panel_place_at(Point<int16_t> at, std::string& title, std::string& description) const;
+
+		// Up to whatever region contains this one. False if already at the top.
+		bool panel_go_back();
+
+		// Whether there is anywhere to go back to.
+		bool panel_can_go_back() const;
+
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
 

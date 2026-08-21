@@ -152,6 +152,54 @@ namespace ms
 		search_text.set_state(Textfield::State::DISABLED);
 	}
 
+	bool UIWorldMap::panel_place_at(Point<int16_t> at, std::string& title, std::string& description) const
+	{
+		// Nearest marker within a thumb's reach. A finger is nowhere near as
+		// precise as the cursor these spots were placed for, so this takes the
+		// closest rather than demanding a hit.
+		constexpr int16_t REACH = 26;
+
+		int32_t best = REACH * REACH + 1;
+		const MapSpot* found = nullptr;
+
+		for (auto& spot : map_spots)
+		{
+			Point<int16_t> screen_at = map_point(spot.first) - position;
+			int32_t dx = at.x() - screen_at.x();
+			int32_t dy = at.y() - screen_at.y();
+			int32_t distance = dx * dx + dy * dy;
+
+			if (distance < best)
+			{
+				best = distance;
+				found = &spot.second;
+			}
+		}
+
+		if (!found)
+			return false;
+
+		title = found->title;
+		description = found->description;
+
+		return true;
+	}
+
+	bool UIWorldMap::panel_can_go_back() const
+	{
+		return !parent_map.empty();
+	}
+
+	bool UIWorldMap::panel_go_back()
+	{
+		if (parent_map.empty())
+			return false;
+
+		update_world(parent_map);
+
+		return true;
+	}
+
 	Point<int16_t> UIWorldMap::map_point(Point<int16_t> spot) const
 	{
 		if (!panel)
