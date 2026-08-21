@@ -66,9 +66,20 @@ namespace ms
 		// each region's picture is a different size.
 		void layout_panel();
 
+		// An offset measured on the map picture, in panel terms. Everything the
+		// map places - spots, link areas, the path overlay - is measured against
+		// the picture, so stretching the picture has to stretch these by the
+		// same amount or they sit where the map used to be.
+		Point<int16_t> scaled(Point<int16_t> offset) const;
+
 		// A point on the map image, in screen terms. Spots are given relative to
 		// the image's middle, so scaling the map has to scale them too.
 		Point<int16_t> map_point(Point<int16_t> spot) const;
+
+		// A picture laid over the whole map - a region highlight or a path -
+		// placed by its own origin and stretched with the map beneath it.
+		void draw_overlay(const Texture& overlay) const;
+
 		void update_world(std::string parent_map);
 
 		enum Buttons
@@ -79,6 +90,7 @@ namespace ms
 			BT_NAVIREG,
 			BT_ALLSEARCH,
 			BT_SEARCH_CLOSE,
+			BT_BACK,
 			BT_LINK0,
 			BT_LINK1,
 			BT_LINK2,

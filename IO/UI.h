@@ -59,6 +59,16 @@ namespace ms
 		// There is one cursor between two screens, and it is wherever it was
 		// last touched. Showing it on both at once would say there are two.
 		void set_cursor_visible(bool visible);
+		bool is_cursor_visible() const;
+
+		// Draw the one cursor on the lower panel instead, at a point given in
+		// that panel's own coordinates.
+		void draw_cursor_at(Point<int16_t> pos, float alpha) const;
+
+		// What the pointer should look like - a hand over something clickable,
+		// an arrow otherwise. The panel's pages answer this the same way the
+		// main screen's windows do.
+		void set_cursor_state(Cursor::State state);
 
 		void send_cursor(Point<int16_t> pos);
 		void send_cursor(bool pressed);

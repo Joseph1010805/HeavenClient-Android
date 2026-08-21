@@ -69,6 +69,12 @@ namespace ms
 		buttons[Buttons::BT_AUTOFLY] = std::make_unique<MapleButton>(WorldMap["BtAutoFly_1"]);
 		buttons[Buttons::BT_NAVIREG] = std::make_unique<MapleButton>(WorldMap["BtNaviRegister"]);
 		buttons[Buttons::BT_SEARCH_CLOSE] = std::make_unique<MapleButton>(close, close_dimensions + Point<int16_t>(bg_search_dimensions.x(), 0));
+
+		// The map's own back button. Escape does this on a keyboard, and the
+		// panel has no keyboard.
+		buttons[Buttons::BT_BACK] = std::make_unique<MapleButton>(WorldMap["BtBefore"]);
+		buttons[Buttons::BT_BACK]->set_active(false);
+
 		buttons[Buttons::BT_ALLSEARCH] = std::make_unique<MapleButton>(WorldMapSearch["BtAllsearch"], background_dimensions);
 
 		Point<int16_t> search_text_pos = Point<int16_t>(bg_dimension_x + 14, 25);
@@ -142,6 +148,12 @@ namespace ms
 		buttons[Buttons::BT_AUTOFLY]->set_position(Point<int16_t>(x - 468, ROW_Y - 25));
 		x += 99 + GAP;
 
+		// Back sits at the end of the row, and only when there is somewhere to
+		// go back TO - on the top-level world map there is not. Its artwork's
+		// origin is -515,-510, so that comes off like the others'.
+		buttons[Buttons::BT_BACK]->set_position(Point<int16_t>(x - 515, ROW_Y - 510));
+		buttons[Buttons::BT_BACK]->set_active(!parent_map.empty());
+
 		// Search is off for now. Tapping into the box brought the keyboard up
 		// over the panel with no way back out of it, which is worse than not
 		// having search at all until it works properly.
@@ -152,14 +164,43 @@ namespace ms
 		search_text.set_state(Textfield::State::DISABLED);
 	}
 
-	Point<int16_t> UIWorldMap::map_point(Point<int16_t> spot) const
+	Point<int16_t> UIWorldMap::scaled(Point<int16_t> offset) const
 	{
 		if (!panel)
-			return spot + position + base_position;
+			return offset;
 
-		return position + base_position + Point<int16_t>(
-			static_cast<int16_t>(spot.x() * panel_scale_x),
-			static_cast<int16_t>(spot.y() * panel_scale_y));
+		return Point<int16_t>(
+			static_cast<int16_t>(offset.x() * panel_scale_x),
+			static_cast<int16_t>(offset.y() * panel_scale_y));
+	}
+
+	Point<int16_t> UIWorldMap::map_point(Point<int16_t> spot) const
+	{
+		return position + base_position + scaled(spot);
+	}
+
+	void UIWorldMap::draw_overlay(const Texture& overlay) const
+	{
+		Point<int16_t> origin = overlay.get_origin();
+
+		if (!panel)
+		{
+			overlay.draw(map_point(Point<int16_t>(0, 0)));
+
+			return;
+		}
+
+		// The overlay is measured against the unstretched picture, so it has to
+		// be stretched by the same amount and put back where the piece of map
+		// it belongs to has moved to. Drawn at its natural size it covered the
+		// wrong part of the map - which is what made the highlight land away
+		// from the place under the finger.
+		//
+		// A texture draws at its position MINUS its origin, so the origin goes
+		// back on to put the corner where it is wanted.
+		Point<int16_t> corner = map_point(Point<int16_t>(-origin.x(), -origin.y())) + origin;
+
+		overlay.draw(DrawArgument(corner, corner, scaled(overlay.get_dimensions()), 1.0f, 1.0f, 1.0f, 0.0f));
 	}
 
 	void UIWorldMap::draw(float alpha) const
@@ -223,7 +264,7 @@ namespace ms
 					{
 						if (link_images.find(iter.first) != link_images.end())
 						{
-							link_images.at(iter.first).draw(map_point(Point<int16_t>(0, 0)));
+							draw_overlay(link_images.at(iter.first));
 							break;
 						}
 					}
@@ -232,7 +273,7 @@ namespace ms
 		}
 
 		if (show_path_img)
-			path_img.draw(map_point(Point<int16_t>(0, 0)));
+			draw_overlay(path_img);
 
 		for (auto spot : map_spots)
 			spot.second.marker.draw(map_point(spot.first));
@@ -342,6 +383,16 @@ namespace ms
 		case Buttons::BT_SEARCH_CLOSE:
 			set_search(false);
 			break;
+		case Buttons::BT_BACK:
+			// The same step Escape takes: up to the region this one sits in.
+			if (!parent_map.empty())
+			{
+				Sound(Sound::Name::SELECTMAP).play();
+
+				update_world(parent_map);
+			}
+
+			return Button::State::NORMAL;
 		default:
 			break;
 		}
@@ -374,7 +425,10 @@ namespace ms
 
 		for (auto path : map_spots)
 		{
-			Point<int16_t> p = path.first + position + base_position - 10;
+			// Where the marker was DRAWN, not where it would sit on an
+			// unstretched map. These two had drifted apart on the panel, so a
+			// place answered to the cursor well away from its own dot.
+			Point<int16_t> p = map_point(path.first) - 10;
 			Point<int16_t> d = p + path.second.marker.get_dimensions();
 			Rectangle<int16_t> abs_bounds = Rectangle<int16_t>(p, d);
 
@@ -459,7 +513,15 @@ namespace ms
 			link_images[i] = link_image;
 			link_maps[i] = std::string(l["linkMap"]);
 
-			buttons[i] = std::make_unique<AreaButton>(base_position - link_image.get_origin(), link_image.get_dimensions());
+			// The region's touchable area has to follow the picture. Left at the
+			// unstretched size it answered where the region used to be, which
+			// is why the highlight appeared away from the finger.
+			Point<int16_t> origin = link_image.get_origin();
+
+			buttons[i] = std::make_unique<AreaButton>(
+				base_position + scaled(Point<int16_t>(-origin.x(), -origin.y())),
+				scaled(link_image.get_dimensions()));
+
 			buttons[i]->set_active(true);
 
 			i++;

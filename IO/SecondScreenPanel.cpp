@@ -191,6 +191,9 @@ namespace ms
 		// The pointer is here now, so it is not on the other screen.
 		UI::get().set_cursor_visible(false);
 
+		cursor_at = position;
+		cursor_here = true;
+
 		if (down)
 		{
 			touch_start = position;
@@ -245,7 +248,8 @@ namespace ms
 			if (same_place)
 			{
 				element->send_cursor(true, at);
-				element->send_cursor(false, at);
+
+				UI::get().set_cursor_state(element->send_cursor(false, at));
 
 				highlighted = false;
 			}
@@ -253,13 +257,17 @@ namespace ms
 			{
 				highlight_at = position;
 				highlighted = true;
+
+				// Still a hover, so the place under the finger stays lit and
+				// the pointer keeps saying it can be clicked.
+				UI::get().set_cursor_state(element->send_cursor(false, at));
 			}
 		}
 		else
 		{
 			// Moving, pressed or not, is a hover as far as the page is
 			// concerned - which is what makes a region light up.
-			element->send_cursor(false, at);
+			UI::get().set_cursor_state(element->send_cursor(false, at));
 		}
 
 		clear_leaked_tooltips();
@@ -337,5 +345,13 @@ namespace ms
 		}
 
 		draw_chrome(screen);
+
+		// Over everything else, because it is the thing being aimed with.
+		//
+		// There is one cursor between the two screens. If the main screen has
+		// taken it back - it does that the moment it is touched - then it is
+		// not here any more.
+		if (cursor_here && !UI::get().is_cursor_visible())
+			UI::get().draw_cursor_at(cursor_at, 1.0f);
 	}
 }

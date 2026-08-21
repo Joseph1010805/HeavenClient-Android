@@ -57,6 +57,13 @@ namespace ms
 		void init();
 
 		void draw(float alpha) const;
+
+		// Draw at somewhere other than where the cursor thinks it is, and
+		// without the idle fade. The lower panel is touched rather than
+		// pointed at, so the cursor is drawn where the finger is and only for
+		// as long as a finger has been there.
+		void draw_at(Point<int16_t> pos, float alpha) const;
+
 		void update();
 		void set_state(State state);
 		void set_position(Point<int16_t> position);

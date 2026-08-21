@@ -101,6 +101,13 @@ namespace ms
 		Point<int16_t> highlight_at;
 		bool highlighted = false;
 
+		// Where the pointer is on this panel, and whether it has been put here
+		// at all yet. The pages are the game's own windows and expect a cursor
+		// to aim with - picking a dot out of a crowded map needs to show which
+		// one is about to be picked.
+		Point<int16_t> cursor_at;
+		bool cursor_here = false;
+
 		// How big the panel is, remembered so a page can be told at the moment
 		// it is built rather than only when it is drawn. Mutable because
 		// drawing is where the size arrives and drawing is const.

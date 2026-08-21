@@ -48,6 +48,11 @@ namespace ms
 			animations[state].draw(position, alpha);
 	}
 
+	void Cursor::draw_at(Point<int16_t> pos, float alpha) const
+	{
+		animations[state].draw(pos, alpha);
+	}
+
 	void Cursor::update()
 	{
 		animations[state].update();

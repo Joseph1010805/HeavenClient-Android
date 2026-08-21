@@ -170,6 +170,21 @@ namespace ms
 		cursor_visible = visible;
 	}
 
+	bool UI::is_cursor_visible() const
+	{
+		return cursor_visible;
+	}
+
+	void UI::draw_cursor_at(Point<int16_t> pos, float alpha) const
+	{
+		cursor.draw_at(pos, alpha);
+	}
+
+	void UI::set_cursor_state(Cursor::State state)
+	{
+		cursor.set_state(state);
+	}
+
 	void UI::send_cursor(Point<int16_t> pos)
 	{
 		send_cursor(pos, cursor.get_state());
