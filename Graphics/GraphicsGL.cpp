@@ -618,26 +618,34 @@ namespace ms
 		{
 			if (border.x() + width > ATLASW)
 			{
-				border.set_x(0);
-				border.shift_y(yrange.second());
+				// Whether the next row down has room is decided BEFORE the
+				// cursor is moved there. Moving it first and then bailing out
+				// left it parked past the bottom of the atlas, and every
+				// allocation after that was handed a rectangle outside the
+				// texture - uploads went nowhere and the sprites sampled
+				// whatever the edge clamped to. That is what drew the world map
+				// as the Nexon loading screen, and it only started once the
+				// atlas had filled a single time, which is why it looked like
+				// clicking around caused it.
+				GLshort next_row = border.y() + yrange.second();
 
-				if (border.y() + height > ATLASH)
+				if (next_row + height > ATLASH)
 				{
 					// Out of room. Emptying the atlas here would invalidate
 					// every offset the quads already queued this frame are
-					// pointing at, and they would then be drawn with whatever
-					// texture landed in those slots next - which is how the
-					// world map came to be drawn as the Nexon loading screen.
-					//
-					// So the reset is asked for and happens at the start of the
-					// next frame, where nothing is queued. This one sprite is
-					// missing for a frame, which is a far better failure.
+					// pointing at, so the reset is asked for and happens at the
+					// start of the next frame, where nothing is queued. This
+					// one sprite is missing until then, which is a far better
+					// failure than drawing it as something else.
 					reset_pending = true;
 
 					LOG_ATLAS_FULL(border.x(), border.y(), width, height);
 
 					return nulloffset;
 				}
+
+				border.set_x(0);
+				border.set_y(next_row);
 
 				yrange = Range<GLshort>();
 			}

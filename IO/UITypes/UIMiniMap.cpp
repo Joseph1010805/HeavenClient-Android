@@ -536,6 +536,12 @@ namespace ms
 
 	Point<int16_t> UIMiniMap::panel_marker(Point<int16_t> on_canvas) const
 	{
+		// Note what is NOT passed in here: a marker's own half-size, which
+		// centres the picture on the spot. That is a size on the screen, not a
+		// distance on the map, so scaling it with the map pushed every marker
+		// off by its own size times the zoom. It is taken off after this
+		// returns.
+
 		// Already relative to the canvas corner, unlike the static markers, so
 		// this only has to scale it.
 		if (!panel)
@@ -693,7 +699,7 @@ namespace ms
 		for (auto npc = npcs->begin(); npc != npcs->end(); ++npc)
 		{
 			Point<int16_t> npc_pos = npc->second.get()->get_position();
-			marker_sprite.draw(init_pos + panel_marker((npc_pos + center_offset) / scale - sprite_offset), alpha);
+			marker_sprite.draw(init_pos + panel_marker((npc_pos + center_offset) / scale) - sprite_offset, alpha);
 		}
 
 		// other characters
@@ -704,13 +710,13 @@ namespace ms
 		for (auto chr = chars->begin(); chr != chars->end(); ++chr)
 		{
 			Point<int16_t> chr_pos = chr->second.get()->get_position();
-			marker_sprite.draw(init_pos + panel_marker((chr_pos + center_offset) / scale - sprite_offset), alpha);
+			marker_sprite.draw(init_pos + panel_marker((chr_pos + center_offset) / scale) - sprite_offset, alpha);
 		}
 
 		// Player
 		Point<int16_t> player_pos = Stage::get().get_player().get_position();
 		sprite_offset = player_marker.get_dimensions() / Point<int16_t>(2, 0);
-		player_marker.draw(init_pos + panel_marker((player_pos + center_offset) / scale - sprite_offset), alpha);
+		player_marker.draw(init_pos + panel_marker((player_pos + center_offset) / scale) - sprite_offset, alpha);
 	}
 
 	void UIMiniMap::update_static_markers()
