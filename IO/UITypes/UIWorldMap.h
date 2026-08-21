@@ -73,6 +73,11 @@ namespace ms
 		// each region's picture is a different size.
 		void layout_panel();
 
+		// Put the tray's two buttons where the slide has got to. Called every
+		// frame while it is moving, which is what makes it a slide rather than
+		// a jump.
+		void layout_tray();
+
 		// An offset measured on the map picture, in panel terms. Everything the
 		// map places - spots, link areas, the path overlay - is measured against
 		// the picture, so stretching the picture has to stretch these by the
@@ -98,6 +103,7 @@ namespace ms
 			BT_ALLSEARCH,
 			BT_SEARCH_CLOSE,
 			BT_BACK,
+			BT_TRAY,
 			BT_LINK0,
 			BT_LINK1,
 			BT_LINK2,
@@ -148,6 +154,11 @@ namespace ms
 		Point<int16_t> bg_search_dimensions;
 		Point<int16_t> background_dimensions;
 		Point<int16_t> base_position;
+
+		// The bottom-left tray. Navigation and auto-pilot live in here rather
+		// than across the top of the map, where they sat over it.
+		bool tray_open = false;
+		float tray_slide = 0.0f;
 
 		// Set when this copy is the one on the lower panel.
 		bool panel;
