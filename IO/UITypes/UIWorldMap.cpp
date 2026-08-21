@@ -199,6 +199,11 @@ namespace ms
 				}
 			}
 
+			// Uploaded afresh each frame. See GraphicsGL::forget - this is a
+			// test of whether the pixels are being trampled after upload, and
+			// meanwhile keeps the map readable.
+			GraphicsGL::get().forget(base_img.get_bitmap());
+
 			base_img.draw(DrawArgument(topleft, topleft, panel_map_size, 1.0f, 1.0f, 1.0f, 0.0f));
 
 

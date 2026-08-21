@@ -1122,6 +1122,11 @@ namespace ms
 			quads.pop_back();
 	}
 
+	void GraphicsGL::forget(const nl::bitmap& bmp)
+	{
+		offsets.erase(bmp.id());
+	}
+
 	Point<int16_t> GraphicsGL::atlas_size_of(const nl::bitmap& bmp)
 	{
 		const Offset& o = getoffset(bmp);

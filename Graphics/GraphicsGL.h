@@ -91,6 +91,15 @@ namespace ms
 		// sampling a rectangle that is not its own size.
 		Point<int16_t> atlas_size_of(const nl::bitmap& bmp);
 
+		// Forget where a bitmap lives, so the next draw uploads it again.
+		//
+		// For a sprite whose pixels are found to have been trampled after
+		// they were uploaded. Re-uploading every frame is wasteful and is
+		// not a fix; it is a way to tell being overwritten apart from being
+		// uploaded wrong, and a way for one picture to survive while that is
+		// settled.
+		void forget(const nl::bitmap& bmp);
+
 	private:
 		void clearinternal();
 		// How much of the atlas is spoken for, 0 to 1.
