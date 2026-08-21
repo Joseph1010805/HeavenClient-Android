@@ -36,6 +36,7 @@
 #include <nlnx/nx.hpp>
 
 #include <atomic>
+#include <memory>
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "HeavenClient", __VA_ARGS__)
 
@@ -74,7 +75,21 @@ namespace ms
 			float touch_x = 0.0f;
 			float touch_y = 0.0f;
 
-			SecondScreenPanel panel;
+			// Built on first use, not at load time.
+			//
+			// A namespace-scope object here would be constructed during static
+			// initialisation, before the NX data is open - so every texture it
+			// looked up would be null and stay null, which is exactly why the
+			// page arrows never appeared.
+			std::unique_ptr<SecondScreenPanel> panel_ptr;
+
+			SecondScreenPanel& get_panel()
+			{
+				if (!panel_ptr)
+					panel_ptr = std::make_unique<SecondScreenPanel>();
+
+				return *panel_ptr;
+			}
 
 			// The space the panel is laid out in.
 			//
@@ -226,17 +241,18 @@ namespace ms
 
 			Point<int16_t> space = layout_size();
 
-			// Not white. A map loading used to flash the panel white, which is
-			// the harshest thing a screen this close to the eye can do.
-			GraphicsGL::get().set_clearcolour(0.18f, 0.12f, 0.08f);
+			// Black behind everything. A map loading used to flash the panel
+			// white, which is the harshest thing a screen this close to the eye
+			// can do.
+			GraphicsGL::get().set_clearcolour(0.0f, 0.0f, 0.0f);
 
 			GraphicsGL::get().begin_screen(space.x(), space.y());
 
 			if (backdrop.is_valid())
 				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), space));
 
-			panel.update();
-			panel.draw(space);
+			get_panel().update();
+			get_panel().draw(space);
 
 			GraphicsGL::get().flush(1.0f);
 
@@ -255,7 +271,7 @@ namespace ms
 			if (UI::get().has_focused_textfield())
 				return;
 
-			panel.send_touch(cursor(), layout_size(), down, up);
+			get_panel().send_touch(cursor(), layout_size(), down, up);
 		}
 
 		Point<int16_t> cursor()

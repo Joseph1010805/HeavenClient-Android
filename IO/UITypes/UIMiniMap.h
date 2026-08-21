@@ -75,6 +75,11 @@ namespace ms
 		void update_text();
 		void update_canvas();
 		void draw_movable_markers(Point<int16_t> init_pos, float alpha) const;
+
+		// A point on the map canvas, in screen terms. On the panel the canvas
+		// is scaled to fill, so everything drawn on it scales with it.
+		Point<int16_t> panel_point(Point<int16_t> spot) const;
+		Point<int16_t> panel_marker(Point<int16_t> on_canvas) const;
 		void update_static_markers();
 		void set_npclist_active(bool active);
 		void update_dimensions();
@@ -122,6 +127,12 @@ namespace ms
 		std::vector<Sprite> max_sprites;
 		std::vector<std::pair<std::string, Point<int16_t>>> static_marker_info;
 		int16_t map_draw_origin_x, map_draw_origin_y;
+
+		// Set when this copy is the one on the lower panel.
+		bool panel;
+		Point<int16_t> panel_screen;
+		float panel_scale_x;
+		float panel_scale_y;
 		Point<int16_t> center_offset;
 		Point<int16_t> min_dimensions;
 		Point<int16_t> normal_dimensions;

@@ -29,7 +29,7 @@
 namespace ms
 {
 	UIMiniMap::UIMiniMap(const CharStats& st) : UIDragElement<PosMINIMAP>(Point<int16_t>(128, 20)),
-		stats(st), big_map(true), has_map(false), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
+		stats(st), big_map(true), has_map(false), panel(false), panel_scale_x(1.0f), panel_scale_y(1.0f), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
 	{
 		type = Setting<MiniMapType>::get().load();
 		user_type = type;
@@ -81,6 +81,25 @@ namespace ms
 
 				if (listNpc_enabled)
 					draw_npclist(normal_dimensions, alpha);
+			}
+		}
+		else if (panel)
+		{
+			// The canvas alone, filling the screen. None of the window around
+			// it is drawn: on the panel the map IS the page, and a frame, a
+			// title bar and a pair of resize buttons are all furniture for a
+			// window that is not there.
+			if (has_map && map_sprite.is_valid())
+				map_sprite.draw(DrawArgument(position, position, panel_screen, 1.0f, 1.0f, 1.0f, 0.0f));
+
+			if (has_map)
+			{
+				Animation portal_marker(marker["portal"]);
+
+				for (auto sprite : static_marker_info)
+					portal_marker.draw(position + panel_point(sprite.second), alpha);
+
+				draw_movable_markers(position, alpha);
 			}
 		}
 		else
@@ -435,6 +454,10 @@ namespace ms
 
 	void UIMiniMap::set_panel(Point<int16_t> screen)
 	{
+		panel = true;
+		panel_screen = screen;
+		dimension = screen;
+
 		// Largest of the three sizes, and the big rather than the simple
 		// drawing, so the panel shows as much of the map as there is.
 		type = Type::MAX;
@@ -442,6 +465,42 @@ namespace ms
 		big_map = true;
 
 		update_canvas();
+
+		Point<int16_t> canvas = map_sprite.get_dimensions();
+
+		if (canvas.x() > 0 && canvas.y() > 0)
+		{
+			// Stretched to the whole panel, both ways. A mini map is a scrap
+			// of a picture, and shown at its own size on a screen this large
+			// it is a stamp in the middle of nothing.
+			panel_scale_x = static_cast<float>(screen.x()) / canvas.x();
+			panel_scale_y = static_cast<float>(screen.y()) / canvas.y();
+		}
+	}
+
+	Point<int16_t> UIMiniMap::panel_marker(Point<int16_t> on_canvas) const
+	{
+		// Already relative to the canvas, unlike the static markers - so this
+		// only has to scale, and put the canvas corner back when not on the
+		// panel.
+		if (!panel)
+			return on_canvas + Point<int16_t>(map_draw_origin_x, map_draw_origin_y);
+
+		return Point<int16_t>(
+			static_cast<int16_t>(on_canvas.x() * panel_scale_x),
+			static_cast<int16_t>(on_canvas.y() * panel_scale_y));
+	}
+
+	Point<int16_t> UIMiniMap::panel_point(Point<int16_t> spot) const
+	{
+		// Marker positions are given from the canvas's own corner, so the
+		// corner is taken off, the rest scaled, and the screen's corner used
+		// instead.
+		Point<int16_t> from_canvas = spot - Point<int16_t>(map_draw_origin_x, map_draw_origin_y);
+
+		return Point<int16_t>(
+			static_cast<int16_t>(from_canvas.x() * panel_scale_x),
+			static_cast<int16_t>(from_canvas.y() * panel_scale_y));
 	}
 
 	void UIMiniMap::update_canvas()
@@ -573,7 +632,7 @@ namespace ms
 		for (auto npc = npcs->begin(); npc != npcs->end(); ++npc)
 		{
 			Point<int16_t> npc_pos = npc->second.get()->get_position();
-			marker_sprite.draw((npc_pos + center_offset) / scale - sprite_offset + Point<int16_t>(map_draw_origin_x, map_draw_origin_y) + init_pos, alpha);
+			marker_sprite.draw(init_pos + panel_marker((npc_pos + center_offset) / scale - sprite_offset), alpha);
 		}
 
 		// other characters
@@ -584,13 +643,13 @@ namespace ms
 		for (auto chr = chars->begin(); chr != chars->end(); ++chr)
 		{
 			Point<int16_t> chr_pos = chr->second.get()->get_position();
-			marker_sprite.draw((chr_pos + center_offset) / scale - sprite_offset + Point<int16_t>(map_draw_origin_x, map_draw_origin_y) + init_pos, alpha);
+			marker_sprite.draw(init_pos + panel_marker((chr_pos + center_offset) / scale - sprite_offset), alpha);
 		}
 
 		// Player
 		Point<int16_t> player_pos = Stage::get().get_player().get_position();
 		sprite_offset = player_marker.get_dimensions() / Point<int16_t>(2, 0);
-		player_marker.draw((player_pos + center_offset) / scale - sprite_offset + Point<int16_t>(map_draw_origin_x, map_draw_origin_y) + init_pos, alpha);
+		player_marker.draw(init_pos + panel_marker((player_pos + center_offset) / scale - sprite_offset), alpha);
 	}
 
 	void UIMiniMap::update_static_markers()

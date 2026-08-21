@@ -210,16 +210,21 @@ def main():
     # generator's watermark, so it is cut before the frame is squared off to
     # 4:3 - cropping rather than squashing, which would narrow the faces.
     login = frames(os.path.join(SRC, LOGIN_VIDEO),
-                   'crop=1024:585:0:55,crop=780:585:122:0', fps=10)
+                   'crop=1024:585:0:55,crop=780:585:122:0', fps=4)
 
     # Near-static: a fixed scene with clouds drifting. Six frames a second is
     # plenty and costs a third of what ten would.
     charsel = frames(os.path.join(SRC, CHARSEL_VIDEO),
-                     'crop=1440:1080:240:0', fps=6, start=2, duration=8)
+                     'crop=1440:1080:240:0', fps=3, start=2, duration=8)
 
+    # Every frame of these sits in the sprite atlas for as long as the screen
+    # is up, and they were holding about a quarter of it - which a full-screen
+    # world map on the lower panel then tipped over, so the map was drawn with
+    # whatever texture landed in the slots it had been using. Fewer frames,
+    # each held longer.
     print('building nodes...')
-    animation(builder, custom, 'LoginBg', login, delay=100)
-    animation(builder, custom, 'CharBg', charsel, delay=167)
+    animation(builder, custom, 'LoginBg', login, delay=250)
+    animation(builder, custom, 'CharBg', charsel, delay=333)
 
     # World select gets a still from the same scene, so the two screens match.
     builder.bitmap(custom, 'WorldBg', charsel[0], W, H, origin=(0, 0))
