@@ -37,6 +37,8 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
+#include <vector>
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "HeavenClient", __VA_ARGS__)
 
@@ -74,6 +76,34 @@ namespace ms
 			// The last place the panel was touched, in its own pixels.
 			float touch_x = 0.0f;
 			float touch_y = 0.0f;
+
+			// Touches waiting to be handled on the game thread.
+			//
+			// Android delivers them on ITS ui thread, and the game - including
+			// every NX read and every atlas upload - runs on the SDL thread,
+			// which is the only thread the GL context is current on. Handling a
+			// touch where it arrives meant that tapping a region of the world
+			// map ran update_world() on the wrong thread: the NX read raced the
+			// renderer's own reads on one shared FILE handle, and the texture
+			// upload called into GL with no context, which quietly does nothing
+			// while still recording where the picture was meant to have gone.
+			// The region then drew as an empty rectangle - unless the top
+			// screen had already loaded that same region properly, which is
+			// exactly the shape of the bug that was reported.
+			//
+			// So a touch is only recorded here and acted on in draw().
+			struct PendingTouch
+			{
+				float x;
+				float y;
+				bool down;
+				bool up;
+			};
+
+			std::mutex touch_lock;
+			std::vector<PendingTouch> pending_touches;
+
+			void deliver_touches();
 
 			// Built on first use, not at load time.
 			//
@@ -251,6 +281,10 @@ namespace ms
 			if (backdrop.is_valid())
 				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), space));
 
+			// On the game thread, with the GL context current - which is the
+			// whole point of queueing them.
+			deliver_touches();
+
 			get_panel().update();
 			get_panel().draw(space);
 
@@ -263,15 +297,41 @@ namespace ms
 
 		void touch(float x, float y, bool down, bool up)
 		{
-			touch_x = x;
-			touch_y = y;
+			// Called on Android's ui thread. Record it and get out - see
+			// pending_touches. Nothing here may read or write game state.
+			std::lock_guard<std::mutex> guard(touch_lock);
 
-			// While the keyboard is up it covers the panel, so a touch that
-			// lands on it is meant for the keyboard and nothing here.
-			if (UI::get().has_focused_textfield())
-				return;
+			pending_touches.push_back({ x, y, down, up });
+		}
 
-			get_panel().send_touch(cursor(), layout_size(), down, up);
+		namespace
+		{
+			// Hand the touches that have arrived since the last frame to the
+			// panel, on the game thread.
+			void deliver_touches()
+			{
+				std::vector<PendingTouch> touches;
+
+				{
+					std::lock_guard<std::mutex> guard(touch_lock);
+
+					touches.swap(pending_touches);
+				}
+
+				for (const PendingTouch& t : touches)
+				{
+					touch_x = t.x;
+					touch_y = t.y;
+
+					// While the keyboard is up it covers the panel, so a touch
+					// that lands on it is meant for the keyboard and nothing
+					// here.
+					if (UI::get().has_focused_textfield())
+						continue;
+
+					get_panel().send_touch(cursor(), layout_size(), t.down, t.up);
+				}
+			}
 		}
 
 		Point<int16_t> cursor()

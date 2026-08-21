@@ -76,7 +76,11 @@ namespace ms
 				element->draw(inter);
 		}
 
-		if (tooltip)
+		// Only when the pointer is on THIS screen. When it is on the lower
+		// panel the tooltip belongs there, drawn by the panel - otherwise the
+		// map's place names appear over the game, at coordinates that mean
+		// nothing there.
+		if (tooltip && UI::get().is_cursor_visible())
 			tooltip->draw(cursor + Point<int16_t>(0, 22));
 
 		if (draggedicon)
@@ -438,6 +442,12 @@ namespace ms
 	void UIStateGame::drag_icon(Icon* drgic)
 	{
 		draggedicon = drgic;
+	}
+
+	void UIStateGame::draw_tooltip(Point<int16_t> pos, Point<int16_t> bounds) const
+	{
+		if (tooltip)
+			tooltip->draw_within(pos, bounds);
 	}
 
 	void UIStateGame::clear_tooltip(Tooltip::Parent parent)

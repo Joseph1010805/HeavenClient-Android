@@ -180,6 +180,11 @@ namespace ms
 		cursor.draw_at(pos, alpha);
 	}
 
+	void UI::draw_tooltip_at(Point<int16_t> pos, Point<int16_t> bounds) const
+	{
+		state->draw_tooltip(pos, bounds);
+	}
+
 	void UI::set_cursor_state(Cursor::State state)
 	{
 		cursor.set_state(state);

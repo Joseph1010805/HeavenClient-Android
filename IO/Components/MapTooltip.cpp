@@ -37,13 +37,26 @@ namespace ms
 		Party = WorldMap["Party"];
 	}
 
+	void MapTooltip::draw_within(Point<int16_t> pos, Point<int16_t> bounds) const
+	{
+		draw_bounds = bounds;
+
+		draw(pos);
+
+		draw_bounds = Point<int16_t>(0, 0);
+	}
+
 	void MapTooltip::draw(Point<int16_t> pos) const
 	{
 		if (name_label.empty())
 			return;
 
-		int16_t max_width = Constants::Constants::get().get_viewwidth();
-		int16_t max_height = Constants::Constants::get().get_viewheight();
+		int16_t max_width = draw_bounds.x() > 0
+			? draw_bounds.x()
+			: Constants::Constants::get().get_viewwidth();
+		int16_t max_height = draw_bounds.y() > 0
+			? draw_bounds.y()
+			: Constants::Constants::get().get_viewheight();
 
 		if (parent == Tooltip::Parent::MINIMAP && mob_labels->empty() && npc_labels->empty())
 		{

@@ -33,6 +33,7 @@ namespace ms
 		MapTooltip();
 
 		void draw(Point<int16_t> position) const override;
+		void draw_within(Point<int16_t> position, Point<int16_t> bounds) const override;
 
 		void set_name(Tooltip::Parent parent, std::string name, bool bolded);
 		void set_desc(std::string description);
@@ -66,6 +67,11 @@ namespace ms
 		Text desc_simple;
 		Text mob_labels[MAX_LIFE];
 		Text npc_labels[MAX_LIFE];
+
+		// The screen this must stay inside, when it is not the main one.
+		// Zero means the main screen. Mutable because draw() is const and this
+		// is only ever set for the duration of one draw.
+		mutable Point<int16_t> draw_bounds;
 
 		int16_t fillwidth;
 		int16_t fillheight;

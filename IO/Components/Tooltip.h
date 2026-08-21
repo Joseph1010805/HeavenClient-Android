@@ -46,5 +46,17 @@ namespace ms
 		virtual ~Tooltip() {}
 
 		virtual void draw(Point<int16_t> cursorpos) const = 0;
+
+		// Draw kept inside a screen of this size rather than the main one.
+		//
+		// A tooltip nudges itself back on-screen when it would overhang, and it
+		// measures that against the main screen. On the lower panel - a
+		// different size entirely - that clamp is against the wrong edges, so
+		// the box runs off the bottom. Tooltips with no reason to care are
+		// unaffected.
+		virtual void draw_within(Point<int16_t> cursorpos, Point<int16_t>) const
+		{
+			draw(cursorpos);
+		}
 	};
 }

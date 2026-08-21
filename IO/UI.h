@@ -65,6 +65,9 @@ namespace ms
 		// that panel's own coordinates.
 		void draw_cursor_at(Point<int16_t> pos, float alpha) const;
 
+		// Draw the pending tooltip on the lower panel instead of over the game.
+		void draw_tooltip_at(Point<int16_t> pos, Point<int16_t> bounds) const;
+
 		// What the pointer should look like - a hand over something clickable,
 		// an arrow otherwise. The panel's pages answer this the same way the
 		// main screen's windows do.
