@@ -33,6 +33,12 @@ OUT = os.environ.get('MAKE_ASSETS_OUT', os.path.join(
 LOGIN_VIDEO = 'login.mp4'
 CHARSEL_VIDEO = 'character selection.mp4'
 LOGO_IMAGE = 'LoginIcon.jpg'
+BOTTOM_IMAGE = 'bottomscreenbackground.jpg'
+
+# The handheld's lower panel is 1240x1080. The client draws it in a design
+# space of half that, which has the same shape, so a layout written once is
+# right on any second screen of that proportion.
+BOTTOM_W, BOTTOM_H = 620, 540
 
 # Authoring size. Stretched to 800x600 by the client, so this trades sharpness
 # against atlas space and the decompressed cache nlnx keeps per bitmap.
@@ -151,6 +157,36 @@ def logo_bgra(path, target_width):
     return Image.merge('RGBA', (b, g, r, a)).tobytes(), img.width, img.height
 
 
+def bottom_bgra(path):
+    """The lower panel's backdrop, cropped to the panel's shape.
+
+    The artwork is taller than it is wide and the panel is wider than it is
+    tall, so a band is taken out of the middle - which is where the branch and
+    the creatures on it sit.
+    """
+    img = Image.open(path).convert('RGB')
+    w, h = img.size
+
+    band = round(w * BOTTOM_H / BOTTOM_W)
+
+    if band < h:
+        top = (h - band) // 2
+        img = img.crop((0, top, w, top + band))
+    else:
+        # Wider than the panel instead: take a band out of the middle the
+        # other way round.
+        band = round(h * BOTTOM_W / BOTTOM_H)
+        left = (w - band) // 2
+        img = img.crop((left, 0, left + band, h))
+
+    img = img.resize((BOTTOM_W, BOTTOM_H), Image.LANCZOS)
+
+    r, g, b = img.split()
+    a = Image.new('L', img.size, 255)
+
+    return Image.merge('RGBA', (b, g, r, a)).tobytes()
+
+
 def animation(builder, parent, name, data, delay, zigzag=True):
     node = parent.child(name)
 
@@ -188,6 +224,10 @@ def main():
     # World select gets a still from the same scene, so the two screens match.
     builder.bitmap(custom, 'WorldBg', charsel[0], W, H, origin=(0, 0))
     print('  %-9s 1 still' % 'WorldBg')
+
+    bottom = bottom_bgra(os.path.join(SRC, BOTTOM_IMAGE))
+    builder.bitmap(custom, 'BottomBg', bottom, BOTTOM_W, BOTTOM_H, origin=(0, 0))
+    print('  %-9s %dx%d' % ('BottomBg', BOTTOM_W, BOTTOM_H))
 
     logo, lw, lh = logo_bgra(os.path.join(SRC, LOGO_IMAGE), 240)
     builder.bitmap(custom, 'Logo', logo, lw, lh, origin=(0, 0))

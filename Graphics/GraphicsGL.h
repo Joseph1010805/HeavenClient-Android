@@ -72,6 +72,15 @@ namespace ms
 		// Clear the buffer contents.
 		void clearscene();
 
+		// Begin drawing to a surface of this size, for a second pass in the same
+		// frame - the handheld's lower panel. Queued quads are dropped and the
+		// shader is pointed at the new coordinate space.
+		//
+		// Deliberately not clearscene(): that also empties the sprite atlas, and
+		// doing so between passes would throw away positions the quads of the
+		// pass just flushed still refer to. Both screens draw from the one atlas.
+		void begin_screen(int16_t width, int16_t height);
+
 	private:
 		void clearinternal();
 		// How much of the atlas is spoken for, 0 to 1.

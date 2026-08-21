@@ -1050,6 +1050,15 @@ namespace ms
 			quads.pop_back();
 	}
 
+	void GraphicsGL::begin_screen(int16_t width, int16_t height)
+	{
+		quads.clear();
+
+		SCREEN = Rectangle<int16_t>(0, width, 0, height);
+
+		glUniform2f(uniform_screensize, width, height);
+	}
+
 	void GraphicsGL::clearscene()
 	{
 		if (!locked)

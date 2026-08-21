@@ -48,5 +48,22 @@ namespace ms
 		// Show what was drawn and put the main screen back. Must be paired
 		// with a begin() that returned true.
 		void end();
+
+		// The coordinate space the panel is drawn in - half its pixel size,
+		// same shape. Layouts are written here rather than in pixels so one
+		// set of positions is right on any second screen of that proportion.
+		constexpr int16_t WIDTH = 620;
+		constexpr int16_t HEIGHT = 540;
+
+		// Everything the panel shows. Draws in the space above.
+		void draw();
+
+		// A touch on the panel, in its own pixels - Java hands them over
+		// separately because Android delivers them to the Presentation rather
+		// than to SDL.
+		void touch(float x, float y, bool down, bool up);
+
+		// Where the last touch was, in the design space above.
+		Point<int16_t> cursor();
 	}
 }

@@ -127,9 +127,7 @@ namespace ms
 		// before anything is built on top of it.
 		if (SecondScreen::begin())
 		{
-			glClearColor(0.09f, 0.16f, 0.24f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT);
-
+			SecondScreen::draw();
 			SecondScreen::end();
 		}
 #endif

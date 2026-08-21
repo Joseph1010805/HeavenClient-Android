@@ -14,6 +14,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "SecondScreen.h"
 
+#include "../Graphics/GraphicsGL.h"
+#include "../Graphics/Texture.h"
+
 #if defined(PLATFORM_ANDROID)
 
 #include <EGL/egl.h>
@@ -24,6 +27,10 @@
 #include <android/native_window_jni.h>
 
 #include <jni.h>
+
+#include "../Constants.h"
+
+#include <nlnx/nx.hpp>
 
 #include <atomic>
 
@@ -54,6 +61,16 @@ namespace ms
 
 			int16_t width = 0;
 			int16_t height = 0;
+
+			// The backdrop, loaded the first time it is wanted. It lives in
+			// Map001.nx beside the login artwork - see tools/make_assets.py.
+			Texture backdrop;
+			bool backdrop_tried = false;
+
+			// The last place the panel was touched, in its own pixels.
+			float touch_x = 0.0f;
+			float touch_y = 0.0f;
+			bool touch_down = false;
 
 			void destroy_surface()
 			{
@@ -170,13 +187,56 @@ namespace ms
 			return true;
 		}
 
+		void draw()
+		{
+			if (!backdrop_tried)
+			{
+				backdrop_tried = true;
+				backdrop = nl::nx::map001["Custom"]["BottomBg"];
+			}
+
+			GraphicsGL::get().begin_screen(WIDTH, HEIGHT);
+
+			if (backdrop.is_valid())
+				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(WIDTH, HEIGHT)));
+
+			GraphicsGL::get().flush(1.0f);
+		}
+
+		void touch(float x, float y, bool down, bool up)
+		{
+			touch_x = x;
+			touch_y = y;
+
+			if (down)
+				touch_down = true;
+			else if (up)
+				touch_down = false;
+		}
+
+		Point<int16_t> cursor()
+		{
+			if (width <= 0 || height <= 0)
+				return Point<int16_t>(0, 0);
+
+			// The panel's own pixels into the space everything is laid out in.
+			return Point<int16_t>(
+				static_cast<int16_t>(touch_x * WIDTH / width),
+				static_cast<int16_t>(touch_y * HEIGHT / height));
+		}
+
 		void end()
 		{
 			eglSwapBuffers(display, surface);
 
 			// Back to the main screen, or everything after this frame draws
-			// into the wrong panel.
+			// into the wrong panel - and the shader still has to be pointed at
+			// the main screen's coordinate space again.
 			eglMakeCurrent(display, main_draw, main_read, context);
+
+			GraphicsGL::get().begin_screen(
+				Constants::Constants::get().get_viewwidth(),
+				Constants::Constants::get().get_viewheight());
 		}
 	}
 }
@@ -206,9 +266,7 @@ extern "C"
 	Java_org_heavenclient_android_SecondScreen_nativeTouch(
 		JNIEnv*, jclass, jfloat x, jfloat y, jboolean down, jboolean up)
 	{
-		// Routed in a later step - the surface has to be drawing before there
-		// is anything on it worth touching.
-		(void)x; (void)y; (void)down; (void)up;
+		ms::SecondScreen::touch(x, y, down == JNI_TRUE, up == JNI_TRUE);
 	}
 }
 
