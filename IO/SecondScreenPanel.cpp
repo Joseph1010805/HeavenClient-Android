@@ -46,11 +46,13 @@ namespace ms
 	SecondScreenPanel::SecondScreenPanel()
 		: current(WORLDMAP), touching(false), pressed_arrow(0)
 	{
-		arrow_left = OutlinedText(Text::Font::A15B, Text::Alignment::LEFT, Color::Name::YELLOW, Color::Name::TUNA);
-		arrow_left.change_text("<");
+		// Doubled up, because one chevron in the largest font available is
+		// still a small thing to aim a thumb at on a panel this size.
+		arrow_left = OutlinedText(Text::Font::A18M, Text::Alignment::LEFT, Color::Name::YELLOW, Color::Name::TUNA);
+		arrow_left.change_text("<<");
 
-		arrow_right = OutlinedText(Text::Font::A15B, Text::Alignment::RIGHT, Color::Name::YELLOW, Color::Name::TUNA);
-		arrow_right.change_text(">");
+		arrow_right = OutlinedText(Text::Font::A18M, Text::Alignment::RIGHT, Color::Name::YELLOW, Color::Name::TUNA);
+		arrow_right.change_text(">>");
 	}
 
 	SecondScreenPanel::~SecondScreenPanel() {}
@@ -201,11 +203,10 @@ namespace ms
 			return;
 		}
 
-		// A move. Tooltips are deliberately not fed: a page here asks the main
-		// UI to show them, and they would appear over the game on the other
-		// screen. There is no hovering on a touchscreen anyway.
-		if (pressed_arrow == 0 && element && touching)
-			element->send_cursor(true, position - origin);
+		// A move is deliberately not passed on. A page here asks the main UI to
+		// show its tooltips, and those then appear over the game on the other
+		// screen - which is where that white list of NPC names was coming
+		// from. There is no hovering on a touchscreen anyway.
 	}
 
 	void SecondScreenPanel::draw_chrome(Point<int16_t> screen) const
@@ -227,8 +228,13 @@ namespace ms
 
 		// A mark at each side saying there is more that way. Small, yellow and
 		// out of the way - the page itself is what matters.
-		arrow_left.draw(Point<int16_t>(ARROW_INSET, screen.y() / 2 - 12));
-		arrow_right.draw(Point<int16_t>(screen.x() - ARROW_INSET, screen.y() / 2 - 12));
+		int16_t mid = screen.y() / 2;
+
+		GraphicsGL::get().drawrectangle(0, mid - 30, 44, 60, 0.0f, 0.0f, 0.0f, 0.45f);
+		GraphicsGL::get().drawrectangle(screen.x() - 44, mid - 30, 44, 60, 0.0f, 0.0f, 0.0f, 0.45f);
+
+		arrow_left.draw(Point<int16_t>(ARROW_INSET - 8, mid - 14));
+		arrow_right.draw(Point<int16_t>(screen.x() - ARROW_INSET + 8, mid - 14));
 	}
 
 	void SecondScreenPanel::draw(Point<int16_t> screen) const

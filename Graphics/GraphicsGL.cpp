@@ -705,7 +705,16 @@ namespace ms
 		if (!rect.overlaps(SCREEN))
 			return;
 
-		quads.emplace_back(rect.left(), rect.right(), rect.top(), rect.bottom(), getoffset(bmp), color, angle);
+		const Offset& offset = getoffset(bmp);
+
+		// No room in the atlas for this one. Queueing it anyway would draw
+		// whatever happens to sit at the atlas origin - which is how a map
+		// came to be drawn as a login video frame. Better to draw nothing for
+		// the frame or two until the atlas is emptied and it fits.
+		if (offset.right == offset.left || offset.bottom == offset.top)
+			return;
+
+		quads.emplace_back(rect.left(), rect.right(), rect.top(), rect.bottom(), offset, color, angle);
 	}
 
 	Text::Layout GraphicsGL::createlayout(const std::string& text, Text::Font id, Text::Alignment alignment, int16_t maxwidth, bool formatted, int16_t line_adj)

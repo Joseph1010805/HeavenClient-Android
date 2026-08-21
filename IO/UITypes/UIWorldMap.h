@@ -134,6 +134,10 @@ namespace ms
 		bool panel;
 		Point<int16_t> panel_screen;
 		Point<int16_t> panel_map_size;
-		float panel_scale;
+		float panel_scale_x;
+		float panel_scale_y;
+
+		// Where the search box sits, so a plate can be drawn behind it.
+		Rectangle<int16_t> search_box;
 	};
 }

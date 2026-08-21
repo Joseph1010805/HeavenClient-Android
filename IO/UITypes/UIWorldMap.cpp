@@ -20,6 +20,7 @@
 #include "../UI.h"
 
 #include "../Gameplay/Stage.h"
+#include "../Graphics/GraphicsGL.h"
 #include "../Util/Misc.h"
 
 #include "../IO/Components/MapleButton.h"
@@ -28,7 +29,7 @@
 
 namespace ms
 {
-	UIWorldMap::UIWorldMap() : UIDragElement<PosMAP>(), panel(false), panel_scale(1.0f)
+	UIWorldMap::UIWorldMap() : UIDragElement<PosMAP>(), panel(false), panel_scale_x(1.0f), panel_scale_y(1.0f)
 	{
 		nl::node close = nl::nx::ui["Basic.img"]["BtClose3"];
 		nl::node WorldMap = nl::nx::ui["UIWindow2.img"]["WorldMap"];
@@ -103,16 +104,15 @@ namespace ms
 
 		if (image.x() > 0 && image.y() > 0)
 		{
-			// Fit the width, not cover the screen. Covering scaled up until
-			// the shorter side filled and cut the map off east and west, which
-			// is where the interesting parts of a world map are. Anything left
-			// over above and below shows the panel's own backdrop, which is
-			// better than losing the edges of the map.
-			panel_scale = static_cast<float>(panel_screen.x()) / image.x();
+			// Stretched to the panel exactly, both ways. Fitting the width left
+			// a band of backdrop above and below; covering cut the map off east
+			// and west, where a world map's content is. Filling it outright
+			// changes the proportions a little, which is the least of the three
+			// costs and the one that was asked for.
+			panel_scale_x = static_cast<float>(panel_screen.x()) / image.x();
+			panel_scale_y = static_cast<float>(panel_screen.y()) / image.y();
 
-			panel_map_size = Point<int16_t>(
-				static_cast<int16_t>(image.x() * panel_scale),
-				static_cast<int16_t>(image.y() * panel_scale));
+			panel_map_size = panel_screen;
 
 			// Spots are given from the middle of the picture, so this has to
 			// stay the middle of it.
@@ -121,30 +121,37 @@ namespace ms
 
 		// The controls in one row just inside the top, in place of the strip
 		// they had along the frame and the panel down the side.
-		constexpr int16_t ROW_Y = 22;
+		//
+		// A button is drawn at its position MINUS its artwork's origin, and
+		// this artwork carries big negative origins - BtNaviRegister's is
+		// -365,-25 - which is how it sat in the frame that is no longer drawn.
+		// So each position has that origin taken back off, or the row lands
+		// hundreds of pixels to the right and runs off the panel.
+		constexpr int16_t ROW_Y = 14;
 		constexpr int16_t GAP = 8;
 
-		int16_t x = 24;
+		int16_t x = 16;
 
-		buttons[Buttons::BT_NAVIREG]->set_position(Point<int16_t>(x, ROW_Y));
+		buttons[Buttons::BT_NAVIREG]->set_position(Point<int16_t>(x - 365, ROW_Y - 25));
 		x += 99 + GAP;
 
-		buttons[Buttons::BT_AUTOFLY]->set_position(Point<int16_t>(x, ROW_Y));
+		buttons[Buttons::BT_AUTOFLY]->set_position(Point<int16_t>(x - 468, ROW_Y - 25));
 		x += 99 + GAP;
 
 		buttons[Buttons::BT_SEARCH]->set_active(false);
 
 		// The search box and its button, kept from the panel that was removed.
-		Point<int16_t> box = Point<int16_t>(x, ROW_Y);
-		Point<int16_t> box_size = Point<int16_t>(150, 16);
+		search_box = Rectangle<int16_t>(
+			Point<int16_t>(x, ROW_Y),
+			Point<int16_t>(x + 150, ROW_Y + 16));
 
 		search_text = Textfield(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::BLACK,
-			Rectangle<int16_t>(box, box + box_size), 12);
+			search_box, 12);
 		search_text.set_state(Textfield::State::NORMAL);
 
-		x += box_size.x() + GAP;
+		x += 150 + GAP;
 
-		buttons[Buttons::BT_ALLSEARCH]->set_position(Point<int16_t>(x, ROW_Y));
+		buttons[Buttons::BT_ALLSEARCH]->set_position(Point<int16_t>(x - 99, ROW_Y - 24));
 		buttons[Buttons::BT_ALLSEARCH]->set_active(true);
 	}
 
@@ -154,8 +161,8 @@ namespace ms
 			return spot + position + base_position;
 
 		return position + base_position + Point<int16_t>(
-			static_cast<int16_t>(spot.x() * panel_scale),
-			static_cast<int16_t>(spot.y() * panel_scale));
+			static_cast<int16_t>(spot.x() * panel_scale_x),
+			static_cast<int16_t>(spot.y() * panel_scale_y));
 	}
 
 	void UIWorldMap::draw(float alpha) const
@@ -181,6 +188,12 @@ namespace ms
 				+ base_img.get_origin();
 
 			base_img.draw(DrawArgument(topleft, topleft, panel_map_size, 1.0f, 1.0f, 1.0f, 0.0f));
+
+			GraphicsGL::get().drawrectangle(
+				position.x() + search_box.left() - 3, position.y() + search_box.top() - 2,
+				search_box.right() - search_box.left() + 6,
+				search_box.bottom() - search_box.top() + 4,
+				1.0f, 1.0f, 1.0f, 0.85f);
 
 			search_text.draw(position);
 		}
