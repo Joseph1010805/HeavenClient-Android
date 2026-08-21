@@ -25,6 +25,10 @@ namespace ms
 	// slower; 0.5 halves both the acceleration and the terminal speed.
 	constexpr double DROP_GRAVITY = 0.5;
 
+	// How long an item takes to fly to whoever picked it up, in ticks. It sets
+	// the fade and the drift together, so raising it slows the whole animation.
+	constexpr uint16_t PICKUP_TIME = 96;
+
 	Drop::Drop(int32_t id, int32_t own, Point<int16_t> start, Point<int16_t> dst, int8_t type, int8_t mode, bool pldrp) : MapObject(id)
 	{
 		owner = own;
@@ -98,13 +102,12 @@ namespace ms
 
 		if (state == Drop::State::PICKEDUP)
 		{
-			static const uint16_t PICKUPTIME = 48;
-			static const float OPCSTEP = 1.0f / PICKUPTIME;
+			constexpr float OPCSTEP = 1.0f / PICKUP_TIME;
 
 			if (looter)
 			{
 				double hdelta = looter->x - phobj.x;
-				phobj.hspeed = looter->hspeed / 2.0 + (hdelta - 16.0) / PICKUPTIME;
+				phobj.hspeed = looter->hspeed / 2.0 + (hdelta - 16.0) / PICKUP_TIME;
 			}
 
 			opacity -= OPCSTEP;
@@ -135,7 +138,7 @@ namespace ms
 			angle.set(0.0f);
 			state = Drop::State::PICKEDUP;
 			looter = lt;
-			phobj.vspeed = -4.5f;
+			phobj.vspeed = -4.5f * std::sqrt(static_cast<float>(DROP_GRAVITY));
 			phobj.type = PhysicsObject::Type::NORMAL;
 			break;
 		}

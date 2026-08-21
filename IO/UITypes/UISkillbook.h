@@ -146,10 +146,20 @@ namespace ms
 			BT_SPUP11
 		};
 
-		static constexpr int16_t ROWS = 12;
-		static constexpr int16_t ROW_HEIGHT = 40;
-		static constexpr int16_t ROW_WIDTH = 143;
-		static constexpr Point<int16_t> SKILL_OFFSET = Point<int16_t>(11, 93);
+		// One skill per row, scrolled. Upstream lays these out in two columns
+		// of six against a much larger window - which is why half the skills
+		// had their spend-point arrow at x 278, outside a window 174 wide, and
+		// could not be clicked at all.
+		//
+		// Measured from the artwork rather than carried over: the window is
+		// 174x299, its inner list panel is 160x224 at (7,47), and a row is
+		// 140x35. Six rows of 37 fill that panel with a pixel to spare, and
+		// 140 centred in 160 puts the row at x 17.
+		static constexpr int16_t ROWS = 6;
+		static constexpr int16_t ROW_HEIGHT = 37;
+		static constexpr Point<int16_t> SKILL_OFFSET = Point<int16_t>(17, 47);
+		static constexpr int16_t LIST_HEIGHT = ROWS * ROW_HEIGHT;
+		static constexpr int16_t ROW_ART_WIDTH = 140;
 		static constexpr Point<int16_t> SKILL_META_OFFSET = Point<int16_t>(2, 2);
 		static constexpr Point<int16_t> LINE_OFFSET = Point<int16_t>(0, 37);
 

@@ -110,12 +110,6 @@ namespace ms
 
 		bg_dimensions = Texture(ui_backgrnd).get_dimensions();
 
-		// Temporary: the layout below assumes a window wide enough for two
-		// columns of ROW_WIDTH, which the artwork in some UI versions is not.
-		printf("[*] skillbook backgrnd %dx%d, needs %d for two columns\n",
-			bg_dimensions.x(), bg_dimensions.y(),
-			SKILL_OFFSET.x() + 2 * ROW_WIDTH);
-
 		skilld = main["skill0"];
 		skille = main["skill1"];
 		skillb = main["skillBlank"];
@@ -178,33 +172,35 @@ namespace ms
 			buttons[i] = std::make_unique<TwoSpriteButton>(disabled[tabid], enabled[tabid]);
 		}
 
-		uint16_t y_adj = 0;
-
-		for (uint16_t i = Buttons::BT_SPUP0; i <= Buttons::BT_SPUP11; ++i)
+		for (uint16_t i = Buttons::BT_SPUP0; i < Buttons::BT_SPUP0 + ROWS; ++i)
 		{
-			uint16_t x_adj = 0;
-			uint16_t spupid = i - Buttons::BT_SPUP0;
+			uint16_t row = i - Buttons::BT_SPUP0;
+			Point<int16_t> spup_position = SKILL_OFFSET + Point<int16_t>(124, 20 + row * ROW_HEIGHT);
 
-			if (spupid % 2)
-				x_adj = ROW_WIDTH;
-
-			Point<int16_t> spup_position = SKILL_OFFSET + Point<int16_t>(124 + x_adj, 20 + y_adj);
 			buttons[i] = std::make_unique<MapleButton>(main["BtSpUp"], spup_position);
+		}
 
-			if (spupid % 2)
-				y_adj += ROW_HEIGHT;
+		// The rows past the sixth belong to the two-column layout this window has
+		// no room for. They exist so the button ids stay contiguous, and are left
+		// inactive rather than sitting off the edge where they cannot be clicked.
+		for (uint16_t i = Buttons::BT_SPUP0 + ROWS; i <= Buttons::BT_SPUP11; ++i)
+		{
+			buttons[i] = std::make_unique<MapleButton>(main["BtSpUp"], Point<int16_t>(0, 0));
+			buttons[i]->set_active(false);
 		}
 
 		booktext = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::WHITE, "", 150);
 		splabel = Text(Text::Font::A12M, Text::Alignment::RIGHT, Color::Name::BLACK);
 
 		slider = Slider(
-			Slider::Type::DEFAULT, Range<int16_t>(93, 317), 295, ROWS, 1,
+			Slider::Type::DEFAULT,
+			Range<int16_t>(SKILL_OFFSET.y(), SKILL_OFFSET.y() + LIST_HEIGHT),
+			SKILL_OFFSET.x() + 145, ROWS, 1,
 			[&](bool upwards)
 			{
 				int16_t shift = upwards ? -1 : 1;
 				bool above = offset + shift >= 0;
-				bool below = offset + 4 + shift <= skillcount;
+				bool below = offset + ROWS + shift <= skillcount;
 
 				if (above && below)
 					change_offset(offset + shift);
@@ -224,60 +220,56 @@ namespace ms
 	{
 		UIElement::draw_sprites(alpha);
 
-		bookicon.draw(position + Point<int16_t>(11, 85));
-		booktext.draw(position + Point<int16_t>(173, 59));
-		splabel.draw(position + Point<int16_t>(304, 23));
+		// These three were placed against the wider window too - the book name
+		// at x 173 and the SP count at x 304, both outside a window 174 across,
+		// so neither was ever visible.
+		bookicon.draw(position + Point<int16_t>(11, 26));
+		booktext.draw(position + Point<int16_t>(87, 30));
+		splabel.draw(position + Point<int16_t>(165, 248));
 
-		Point<int16_t> skill_position_l = position + SKILL_OFFSET + Point<int16_t>(-1, 0);
-		Point<int16_t> skill_position_r = position + SKILL_OFFSET + Point<int16_t>(-1 + ROW_WIDTH, 0);
+		Point<int16_t> pos = position + SKILL_OFFSET + Point<int16_t>(-1, 0);
 
 		for (size_t i = 0; i < ROWS; i++)
 		{
-			Point<int16_t> pos = skill_position_l;
+			// The list shows a window onto the skills, so a row draws whichever
+			// skill the scroll offset puts there - not the i'th one, which is why
+			// scrolling used to move the bar without moving the contents.
+			size_t index = offset + i;
 
-			if (i % 2)
-				pos = skill_position_r;
-
-			if (i < skills.size())
+			if (index < skills.size())
 			{
-				if (check_required(skills[i].get_id()))
+				if (check_required(skills[index].get_id()))
 				{
 					skille.draw(pos);
 				}
 				else
 				{
 					skilld.draw(pos);
-					skills[i].get_icon()->set_state(StatefulIcon::State::DISABLED);
+					skills[index].get_icon()->set_state(StatefulIcon::State::DISABLED);
 				}
 
-				skills[i].draw(pos + SKILL_META_OFFSET);
+				skills[index].draw(pos + SKILL_META_OFFSET);
 			}
 			else
 			{
 				skillb.draw(pos);
 			}
 
-			if (i < ROWS - 2)
+			if (i < ROWS - 1)
 				line.draw(pos + LINE_OFFSET);
 
-			if (i % 2)
-			{
-				skill_position_l.shift_y(ROW_HEIGHT);
-				skill_position_r.shift_y(ROW_HEIGHT);
-			}
+			pos.shift_y(ROW_HEIGHT);
 		}
 
-		slider.draw(position);
-
-		if (macro_enabled)
-		{
-			Point<int16_t> macro_pos = position + Point<int16_t>(bg_dimensions.x(), 0);
-
-			macro_backgrnd.draw(macro_pos + Point<int16_t>(1, 0));
-			macro_backgrnd2.draw(macro_pos);
-			macro_backgrnd3.draw(macro_pos);
-		}
-
+		// The spend-a-point panel. Its three layers were loaded and measured -
+		// set_skillpoint widens the window by them - but never actually painted,
+		// so the panel was invisible and only its buttons showed, floating over
+		// the map. Nothing reached it before because the arrow that opens it was
+		// the one sitting outside the window.
+		//
+		// It sits to the right of the skill list, which is where the buttons were
+		// already placed. backgrnd2 and backgrnd3 carry their own offsets as
+		// origins, so all three draw from the same corner.
 		if (sp_enabled)
 		{
 			Point<int16_t> sp_pos = position + Point<int16_t>(bg_dimensions.x(), 0);
@@ -286,14 +278,19 @@ namespace ms
 			sp_backgrnd2.draw(sp_pos);
 			sp_backgrnd3.draw(sp_pos);
 
-			Point<int16_t> sp_level_pos = sp_pos + Point<int16_t>(78, 149);
+			// The artwork supplies the labels and the empty boxes; these are
+			// the values that go in them, measured against it.
+			sp_skill.draw(sp_pos + Point<int16_t>(23, 39));
+			sp_name.draw(sp_pos + Point<int16_t>(87, 46));
 
-			sp_before.draw(sp_before_text, 12, sp_level_pos);
-			sp_after.draw(sp_after_text, 11, sp_level_pos + Point<int16_t>(78, 0));
-			sp_used.draw(sp_pos + Point<int16_t>(82, 87));
-			sp_remaining.draw(sp_pos + Point<int16_t>(76, 65));
-			sp_name.draw(sp_pos + Point<int16_t>(97, 35));
-			sp_skill.draw(sp_pos + Point<int16_t>(13, 31));
+			// After "REMAINING SP :" and between "SP TO USE :" and the + button.
+			sp_remaining.draw(sp_pos + Point<int16_t>(74, 67));
+			sp_used.draw(sp_pos + Point<int16_t>(86, 88));
+
+			// The two white boxes either side of the arrow. Both charsets are
+			// right aligned, so these are the right-hand edges.
+			sp_before.draw(sp_before_text, sp_pos + Point<int16_t>(74, 151));
+			sp_after.draw(sp_after_text, sp_pos + Point<int16_t>(151, 151));
 		}
 
 		UIElement::draw_buttons(alpha);
@@ -473,35 +470,32 @@ namespace ms
 			}
 		}
 
-		Point<int16_t> skill_position_l = position + SKILL_OFFSET + Point<int16_t>(-1, 0);
-		Point<int16_t> skill_position_r = position + SKILL_OFFSET + Point<int16_t>(-1 + ROW_WIDTH, 0);
-
 		if (!grabbing)
 		{
-			for (size_t i = 0; i < skills.size(); i++)
+			for (size_t i = 0; i < ROWS && offset + i < skills.size(); i++)
 			{
-				Point<int16_t> skill_position = skill_position_l;
-
-				if (i % 2)
-					skill_position = skill_position_r;
+				Point<int16_t> skill_position = position + SKILL_OFFSET
+					+ Point<int16_t>(-1, static_cast<int16_t>(i * ROW_HEIGHT));
 
 				constexpr Rectangle<int16_t> bounds = Rectangle<int16_t>(0, 32, 0, 32);
 				bool inrange = bounds.contains(cursorpos - skill_position);
 
 				if (inrange)
 				{
+					size_t index = offset + i;
+
 					if (clicked)
 					{
 						clear_tooltip();
 						grabbing = true;
 
-						int32_t skill_id = skills[i].get_id();
+						int32_t skill_id = skills[index].get_id();
 						int32_t skill_level = skillbook.get_level(skill_id);
 
 						if (skill_level > 0 && !SkillData::get(skill_id).is_passive())
 						{
-							skills[i].get_icon()->start_drag(cursorpos - skill_position);
-							UI::get().drag_icon(skills[i].get_icon());
+							skills[index].get_icon()->start_drag(cursorpos - skill_position);
+							UI::get().drag_icon(skills[index].get_icon());
 
 							return Cursor::State::GRABBING;
 						}
@@ -512,17 +506,11 @@ namespace ms
 					}
 					else
 					{
-						skills[i].get_icon()->set_state(StatefulIcon::State::MOUSEOVER);
-						show_skill(skills[i].get_id());
+						skills[index].get_icon()->set_state(StatefulIcon::State::MOUSEOVER);
+						show_skill(skills[index].get_id());
 
 						return Cursor::State::IDLE;
 					}
-				}
-
-				if (i % 2)
-				{
-					skill_position_l.shift_y(ROW_HEIGHT);
-					skill_position_r.shift_y(ROW_HEIGHT);
 				}
 			}
 
@@ -811,7 +799,8 @@ namespace ms
 	{
 		int16_t x = cursorpos.x();
 
-		if (x < SKILL_OFFSET.x() || x > SKILL_OFFSET.x() + 2 * ROW_WIDTH)
+		// A row is the width of the artwork, 140.
+		if (x < SKILL_OFFSET.x() || x > SKILL_OFFSET.x() + ROW_ART_WIDTH)
 			return nullptr;
 
 		int16_t y = cursorpos.y();
@@ -819,19 +808,15 @@ namespace ms
 		if (y < SKILL_OFFSET.y())
 			return nullptr;
 
-		uint16_t row = (y - SKILL_OFFSET.y()) / ROW_HEIGHT;
+		int16_t row = (y - SKILL_OFFSET.y()) / ROW_HEIGHT;
 
 		if (row < 0 || row >= ROWS)
 			return nullptr;
 
-		uint16_t offset_row = offset + row;
-
-		if (offset_row >= ROWS)
-			return nullptr;
-
-		uint16_t col = (x - SKILL_OFFSET.x()) / ROW_WIDTH;
-
-		uint16_t skill_idx = 2 * offset_row + col;
+		// The row is a position in the list, so the scroll offset decides which
+		// skill it actually is. Comparing that against ROWS rather than against
+		// how many skills there are is what hid everything past the sixth.
+		size_t skill_idx = static_cast<size_t>(offset) + row;
 
 		if (skill_idx >= skills.size())
 			return nullptr;
