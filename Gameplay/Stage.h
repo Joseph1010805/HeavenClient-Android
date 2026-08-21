@@ -71,6 +71,11 @@ namespace ms
 		// Check if the specified id is the player's id.
 		bool is_player(int32_t cid) const;
 
+		// Whether a map is loaded and being played. The lower panel asks
+		// before building any of its pages, because most of them read the
+		// player and at the login screen there is no player to read.
+		bool is_active() const;
+
 		// Returns a reference to the NPCs on the current map.
 		MapNpcs& get_npcs();
 		// Returns a reference to the other characters on the current map.

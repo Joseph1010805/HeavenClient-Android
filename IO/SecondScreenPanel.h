@@ -17,8 +17,12 @@
 //////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#include "UIElement.h"
+
 #include "../Graphics/SpecialText.h"
 #include "../Template/Point.h"
+
+#include <memory>
 
 namespace ms
 {
@@ -44,12 +48,13 @@ namespace ms
 		};
 
 		SecondScreenPanel();
+		~SecondScreenPanel();
 
-		void draw() const;
+		void draw(Point<int16_t> screen) const;
 		void update();
 
-		// A touch in the panel's own layout space.
-		void send_touch(Point<int16_t> position, bool down, bool up);
+		// A touch in panel pixels.
+		void send_touch(Point<int16_t> position, Point<int16_t> screen, bool down, bool up);
 
 		Page page() const;
 
@@ -58,15 +63,31 @@ namespace ms
 
 		// The heading and the row of dots, so it is always clear which page
 		// this is and how many there are.
-		void draw_chrome() const;
+		void draw_chrome(Point<int16_t> screen) const;
+
+		// The page's window, built the first time that page is shown. They are
+		// the game's own windows, but owned here rather than by UI - a window
+		// in UI's list is drawn over the game, which is the thing this panel
+		// exists to avoid.
+		UIElement* window() const;
+
+		// Where that window sits: centred in the room below the heading.
+		Point<int16_t> window_position(Point<int16_t> screen) const;
 
 		Page current;
+
+		std::unique_ptr<UIElement> pages[NUM_PAGES];
 
 		// Where a drag started and whether one is in progress, which is all a
 		// swipe is until the finger lifts.
 		Point<int16_t> touch_start;
 		Point<int16_t> touch_now;
 		bool touching;
+
+		// Whether this drag has already been decided to be a swipe. Once it
+		// has, the page under it stops seeing the movement, so dragging across
+		// a map cannot both scroll it and turn the page.
+		bool swiping;
 
 		// How far the page is slid across while a swipe is under way, so the
 		// gesture is visible rather than the page simply changing on release.

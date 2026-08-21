@@ -50,6 +50,16 @@ public class HeavenClientActivity extends SDLActivity
         Log.i(TAG, "second display: " + display.getName() + " id " + display.getDisplayId());
 
         secondscreen = new SecondScreen(this, display);
+
+        // If it does go away for any reason - the display sleeping, the system
+        // taking it - put it back rather than leaving Android showing where
+        // the game's lower half should be.
+        secondscreen.setOnDismissListener(dialog ->
+        {
+            if (secondscreen != null)
+                secondscreen.show();
+        });
+
         secondscreen.show();
     }
 

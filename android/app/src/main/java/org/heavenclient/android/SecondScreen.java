@@ -2,6 +2,8 @@ package org.heavenclient.android;
 
 import android.app.Presentation;
 import android.content.Context;
+import android.graphics.Rect;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Display;
 import android.view.MotionEvent;
@@ -33,9 +35,22 @@ public class SecondScreen extends Presentation
     }
 
     @Override
+    public void onBackPressed()
+    {
+        // A Presentation is a Dialog, and a Dialog closes on Back. On a device
+        // with gesture navigation a swipe near the edge IS Back, so swiping
+        // between pages was dismissing the whole panel and leaving Android
+        // showing through. The panel is not something to be dismissed.
+    }
+
+    @Override
     protected void onCreate(Bundle state)
     {
         super.onCreate(state);
+
+        // Same reason - nothing should be able to cancel this out from under
+        // the game.
+        setCancelable(false);
 
         view = new SurfaceView(getContext());
         view.getHolder().addCallback(new SurfaceHolder.Callback()
@@ -63,6 +78,32 @@ public class SecondScreen extends Presentation
         setContentView(view, new ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT));
+
+        excludeSystemGestures();
+    }
+
+    /**
+     * Ask the system to leave this surface's edges alone.
+     *
+     * Without this, a swipe that starts near the left or right edge is taken
+     * as a navigation gesture before the app ever sees it - so a page swipe
+     * would sometimes turn a page and sometimes go Back. The system caps how
+     * much of an edge an app may claim, so this reduces the problem rather
+     * than removing it, and is why Back is refused above as well.
+     */
+    private void excludeSystemGestures()
+    {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q)
+            return;
+
+        view.addOnLayoutChangeListener((v, left, top, right, bottom,
+                                        oldLeft, oldTop, oldRight, oldBottom) ->
+        {
+            java.util.List<Rect> rects = new java.util.ArrayList<>();
+            rects.add(new Rect(0, 0, right - left, bottom - top));
+
+            v.setSystemGestureExclusionRects(rects);
+        });
     }
 
     @Override

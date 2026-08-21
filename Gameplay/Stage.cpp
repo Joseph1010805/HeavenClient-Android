@@ -235,6 +235,11 @@ namespace ms
 			PickupItemPacket(loot.first, loot.second).dispatch();
 	}
 
+	bool Stage::is_active() const
+	{
+		return state == State::ACTIVE;
+	}
+
 	void Stage::send_key(KeyType::Id type, int32_t action, bool down)
 	{
 		if (state != State::ACTIVE || !playable)

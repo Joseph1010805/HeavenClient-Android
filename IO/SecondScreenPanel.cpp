@@ -17,8 +17,12 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "SecondScreenPanel.h"
 
-#include "SecondScreen.h"
+#include "UITypes/UIMiniMap.h"
+#include "UITypes/UIWorldMap.h"
 
+#include "../Gameplay/Stage.h"
+
+#include <cstdlib>
 #include "../Graphics/GraphicsGL.h"
 
 namespace ms
@@ -37,26 +41,73 @@ namespace ms
 		};
 
 		// How far a finger has to travel before it counts as a swipe rather
-		// than a tap that wandered.
-		constexpr int16_t SWIPE_THRESHOLD = 70;
+		// than a tap that wandered, or a drag meant for the page itself.
+		constexpr int16_t SWIPE_THRESHOLD = 120;
 
 		// The heading strip along the top, and the dots under it.
-		constexpr int16_t HEADER_HEIGHT = 34;
-		constexpr int16_t DOT = 6;
-		constexpr int16_t DOT_SPACING = 16;
-		constexpr int16_t DOT_Y = HEADER_HEIGHT + 8;
+		constexpr int16_t HEADER_HEIGHT = 52;
+		constexpr int16_t DOT = 10;
+		constexpr int16_t DOT_SPACING = 26;
+		constexpr int16_t DOT_Y = HEADER_HEIGHT + 10;
+		constexpr int16_t CONTENT_TOP = DOT_Y + DOT + 12;
 	}
 
 	SecondScreenPanel::SecondScreenPanel()
-		: current(WORLDMAP), touching(false), slide(0)
+		: current(WORLDMAP), touching(false), swiping(false), slide(0)
 	{
-		title = OutlinedText(Text::Font::A12B, Text::Alignment::CENTER, Color::Name::WHITE, Color::Name::TUNA);
+		title = OutlinedText(Text::Font::A15B, Text::Alignment::CENTER, Color::Name::WHITE, Color::Name::TUNA);
 		title.change_text(PAGE_NAMES[current]);
 	}
+
+	SecondScreenPanel::~SecondScreenPanel() {}
 
 	SecondScreenPanel::Page SecondScreenPanel::page() const
 	{
 		return current;
+	}
+
+	UIElement* SecondScreenPanel::window() const
+	{
+		auto& slot = const_cast<std::unique_ptr<UIElement>&>(pages[current]);
+
+		if (slot)
+			return slot.get();
+
+		// Built on first sight rather than up front, and not at all until a map
+		// is loaded: most of these read the player, and at the login screen
+		// there is no player to read.
+		if (!Stage::get().is_active())
+			return nullptr;
+
+		switch (current)
+		{
+		case WORLDMAP:
+			slot = std::make_unique<UIWorldMap>();
+			break;
+		case MINIMAP:
+			slot = std::make_unique<UIMiniMap>(Stage::get().get_player().get_stats());
+			break;
+		default:
+			// The remaining pages are not hosted here yet.
+			break;
+		}
+
+		return slot.get();
+	}
+
+	Point<int16_t> SecondScreenPanel::window_position(Point<int16_t> screen) const
+	{
+		UIElement* element = window();
+
+		if (!element)
+			return Point<int16_t>(0, CONTENT_TOP);
+
+		Point<int16_t> size = element->get_dimension();
+		int16_t room = screen.y() - CONTENT_TOP;
+
+		return Point<int16_t>(
+			(screen.x() - size.x()) / 2,
+			CONTENT_TOP + (room - size.y()) / 2);
 	}
 
 	void SecondScreenPanel::turn_to(int16_t next)
@@ -74,6 +125,9 @@ namespace ms
 
 	void SecondScreenPanel::update()
 	{
+		if (UIElement* element = window())
+			element->update();
+
 		// Ease the slide back to nothing once the finger is gone, so a swipe
 		// that did not travel far enough springs back instead of sticking.
 		if (!touching && slide != 0)
@@ -87,14 +141,21 @@ namespace ms
 		}
 	}
 
-	void SecondScreenPanel::send_touch(Point<int16_t> position, bool down, bool up)
+	void SecondScreenPanel::send_touch(Point<int16_t> position, Point<int16_t> screen, bool down, bool up)
 	{
+		UIElement* element = window();
+		Point<int16_t> origin = window_position(screen);
+
 		if (down)
 		{
 			touch_start = position;
 			touch_now = position;
 			touching = true;
+			swiping = false;
 			slide = 0;
+
+			if (element)
+				element->send_cursor(true, position - origin);
 
 			return;
 		}
@@ -102,7 +163,27 @@ namespace ms
 		touch_now = position;
 
 		if (touching)
-			slide = touch_now.x() - touch_start.x();
+		{
+			int16_t travelled = touch_now.x() - touch_start.x();
+
+			// Once it is a swipe it stays a swipe, so a finger dragged across
+			// a map does not both scroll it and turn the page.
+			if (!swiping && std::abs(travelled) >= SWIPE_THRESHOLD)
+			{
+				swiping = true;
+
+				// Take the press back off the page it started on, or it is
+				// left thinking a button is still held.
+				if (element)
+					element->send_cursor(false, touch_start - origin);
+			}
+
+			if (swiping)
+				slide = travelled;
+		}
+
+		if (!swiping && element)
+			element->send_cursor(!up, position - origin);
 
 		if (up)
 		{
@@ -116,20 +197,22 @@ namespace ms
 				turn_to(current + 1);
 			else if (travelled >= SWIPE_THRESHOLD)
 				turn_to(current - 1);
+
+			swiping = false;
 		}
 	}
 
-	void SecondScreenPanel::draw_chrome() const
+	void SecondScreenPanel::draw_chrome(Point<int16_t> screen) const
 	{
 		GraphicsGL::get().drawrectangle(
-			0, 0, SecondScreen::WIDTH, HEADER_HEIGHT, 0.0f, 0.0f, 0.0f, 0.5f);
+			0, 0, screen.x(), HEADER_HEIGHT, 0.0f, 0.0f, 0.0f, 0.5f);
 
-		title.draw(Point<int16_t>(SecondScreen::WIDTH / 2, 7));
+		title.draw(Point<int16_t>(screen.x() / 2, 12));
 
 		// One dot per page, the current one filled. It is the quickest way to
 		// see both where you are and that there is more either side.
 		int16_t total = DOT_SPACING * (NUM_PAGES - 1);
-		int16_t left = (SecondScreen::WIDTH - total) / 2;
+		int16_t left = (screen.x() - total) / 2;
 
 		for (int16_t i = 0; i < NUM_PAGES; i++)
 		{
@@ -142,16 +225,27 @@ namespace ms
 		}
 	}
 
-	void SecondScreenPanel::draw() const
+	void SecondScreenPanel::draw(Point<int16_t> screen) const
 	{
-		// The page's own area, below the heading. Pages are given this space
-		// and nothing outside it.
-		constexpr int16_t top = DOT_Y + DOT + 8;
+		UIElement* element = window();
 
-		GraphicsGL::get().drawrectangle(
-			8 + slide, top, SecondScreen::WIDTH - 16, SecondScreen::HEIGHT - top - 8,
-			0.0f, 0.0f, 0.0f, 0.35f);
+		if (element)
+		{
+			Point<int16_t> at = window_position(screen) + Point<int16_t>(slide, 0);
 
-		draw_chrome();
+			element->set_position(at);
+			element->draw(1.0f);
+		}
+		else
+		{
+			// A page with nothing behind it yet still shows its own space, so
+			// swiping onto it reads as arriving somewhere rather than as the
+			// panel having broken.
+			GraphicsGL::get().drawrectangle(
+				16 + slide, CONTENT_TOP, screen.x() - 32, screen.y() - CONTENT_TOP - 16,
+				0.0f, 0.0f, 0.0f, 0.35f);
+		}
+
+		draw_chrome(screen);
 	}
 }

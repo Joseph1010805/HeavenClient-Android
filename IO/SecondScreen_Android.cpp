@@ -199,13 +199,13 @@ namespace ms
 				backdrop = nl::nx::map001["Custom"]["BottomBg"];
 			}
 
-			GraphicsGL::get().begin_screen(WIDTH, HEIGHT);
+			GraphicsGL::get().begin_screen(width, height);
 
 			if (backdrop.is_valid())
-				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(WIDTH, HEIGHT)));
+				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(width, height)));
 
 			panel.update();
-			panel.draw();
+			panel.draw(Point<int16_t>(width, height));
 
 			GraphicsGL::get().flush(1.0f);
 		}
@@ -220,7 +220,7 @@ namespace ms
 			if (UI::get().has_focused_textfield())
 				return;
 
-			panel.send_touch(cursor(), down, up);
+			panel.send_touch(cursor(), Point<int16_t>(width, height), down, up);
 		}
 
 		Point<int16_t> cursor()
@@ -228,10 +228,9 @@ namespace ms
 			if (width <= 0 || height <= 0)
 				return Point<int16_t>(0, 0);
 
-			// The panel's own pixels into the space everything is laid out in.
 			return Point<int16_t>(
-				static_cast<int16_t>(touch_x * WIDTH / width),
-				static_cast<int16_t>(touch_y * HEIGHT / height));
+				static_cast<int16_t>(touch_x),
+				static_cast<int16_t>(touch_y));
 		}
 
 		void end()

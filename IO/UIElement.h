@@ -96,6 +96,15 @@ namespace ms
 
 		virtual UIElement::Type get_type() const = 0;
 
+		// Where this is drawn, and how big it is.
+		//
+		// The lower panel places its pages itself: a window shown there is
+		// centred in the room available rather than keeping wherever it was last
+		// dragged to on the main screen.
+		void set_position(Point<int16_t> pos) { position = pos; }
+		Point<int16_t> get_position() const { return position; }
+		Point<int16_t> get_dimension() const { return dimension; }
+
 	protected:
 		UIElement(Point<int16_t> position, Point<int16_t> dimension, bool active);
 		UIElement(Point<int16_t> position, Point<int16_t> dimension);

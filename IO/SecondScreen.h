@@ -49,11 +49,15 @@ namespace ms
 		// with a begin() that returned true.
 		void end();
 
-		// The coordinate space the panel is drawn in - half its pixel size,
-		// same shape. Layouts are written here rather than in pixels so one
-		// set of positions is right on any second screen of that proportion.
-		constexpr int16_t WIDTH = 620;
-		constexpr int16_t HEIGHT = 540;
+		// The panel is drawn in its own pixels, one to one.
+		//
+		// It was briefly laid out in a smaller space of the same shape, on the
+		// grounds that one set of positions would then suit any second screen.
+		// That was wrong: the pages are the game's own windows and those are
+		// drawn at fixed pixel sizes - the world map's frame alone is 654x537 -
+		// so a smaller space meant shrinking every one of them and losing the
+		// sharpness. Pages are centred in whatever room there is instead, which
+		// adapts to a different panel without touching the artwork.
 
 		// Everything the panel shows. Draws in the space above.
 		void draw();
@@ -63,7 +67,7 @@ namespace ms
 		// than to SDL.
 		void touch(float x, float y, bool down, bool up);
 
-		// Where the last touch was, in the design space above.
+		// Where the last touch was, in panel pixels.
 		Point<int16_t> cursor();
 	}
 }
