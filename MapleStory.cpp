@@ -32,6 +32,12 @@
 
 #include "Gameplay/Combat/DamageNumber.h"
 
+#if defined(PLATFORM_ANDROID)
+#include "IO/SecondScreen.h"
+
+#include <GLES2/gl2.h>
+#endif
+
 #include <iostream>
 #include <inttypes.h>
 
@@ -110,6 +116,23 @@ namespace ms
 		Stage::get().draw(alpha);
 		UI::get().draw(alpha);
 		Window::get().end();
+
+#if defined(PLATFORM_ANDROID)
+		// The lower panel, on a handheld that has one. Drawn after the main
+		// screen and with the same GL context, so anything already in the
+		// sprite atlas can be put on it without being uploaded twice.
+		//
+		// A proving colour for now: getting a frame onto this surface at all
+		// is the whole Java-to-EGL chain, and it is worth seeing that work
+		// before anything is built on top of it.
+		if (SecondScreen::begin())
+		{
+			glClearColor(0.09f, 0.16f, 0.24f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+
+			SecondScreen::end();
+		}
+#endif
 	}
 
 	bool running()

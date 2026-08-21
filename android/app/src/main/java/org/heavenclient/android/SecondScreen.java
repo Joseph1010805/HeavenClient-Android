@@ -1,0 +1,88 @@
+package org.heavenclient.android;
+
+import android.app.Presentation;
+import android.content.Context;
+import android.os.Bundle;
+import android.view.Display;
+import android.view.MotionEvent;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.ViewGroup;
+
+/**
+ * The second screen.
+ *
+ * SDL's Android backend owns exactly one window, so a second display cannot be
+ * asked of it. This puts a plain SurfaceView on the other display instead and
+ * hands the bare Surface down to the client, which draws to it with the GL
+ * context it already has - the same context, not a shared one, so the sprite
+ * atlas and every texture in it are usable from both screens with nothing
+ * duplicated.
+ *
+ * Nothing here is required. A device with one display never constructs this,
+ * and the client renders exactly as it did before.
+ */
+public class SecondScreen extends Presentation
+{
+    private SurfaceView view;
+
+    public SecondScreen(Context outer, Display display)
+    {
+        super(outer, display);
+    }
+
+    @Override
+    protected void onCreate(Bundle state)
+    {
+        super.onCreate(state);
+
+        view = new SurfaceView(getContext());
+        view.getHolder().addCallback(new SurfaceHolder.Callback()
+        {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder)
+            {
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
+            {
+                // The size arrives here rather than from the Display, because
+                // this is the surface actually being drawn to.
+                nativeSurfaceChanged(holder.getSurface(), width, height);
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder)
+            {
+                nativeSurfaceDestroyed();
+            }
+        });
+
+        setContentView(view, new ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event)
+    {
+        // Touches on this display are delivered here, not to SDL, so they are
+        // forwarded by hand and tagged as belonging to the second screen.
+        int action = event.getActionMasked();
+        boolean down = action == MotionEvent.ACTION_DOWN
+            || action == MotionEvent.ACTION_POINTER_DOWN;
+        boolean up = action == MotionEvent.ACTION_UP
+            || action == MotionEvent.ACTION_POINTER_UP
+            || action == MotionEvent.ACTION_CANCEL;
+
+        nativeTouch(event.getX(), event.getY(), down, up);
+
+        return true;
+    }
+
+    private static native void nativeSurfaceChanged(Surface surface, int width, int height);
+    private static native void nativeSurfaceDestroyed();
+    private static native void nativeTouch(float x, float y, boolean down, boolean up);
+}
