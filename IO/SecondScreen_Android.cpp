@@ -334,6 +334,15 @@ namespace ms
 			}
 		}
 
+		bool show_window(UIElement::Type type)
+		{
+			// Nothing to show it on, so the caller opens it the ordinary way.
+			if (!available())
+				return false;
+
+			return get_panel().show_window(type);
+		}
+
 		Point<int16_t> cursor()
 		{
 			if (width <= 0 || height <= 0)

@@ -19,6 +19,7 @@
 #include "UIWorldMap.h"
 
 #include "../UI.h"
+#include "../SecondScreen.h"
 
 #include "../Components/MapleButton.h"
 
@@ -333,7 +334,12 @@ namespace ms
 			toggle_buttons();
 			break;
 		case BT_MAP:
-			UI::get().emplace<UIWorldMap>();
+			// On the panel's page rather than over the game, when there is a
+			// panel to put it on. See SecondScreen::show_window.
+			if (SecondScreen::show_window(UIElement::Type::WORLDMAP))
+				UI::get().remove(UIElement::Type::WORLDMAP);
+			else
+				UI::get().emplace<UIWorldMap>();
 			break;
 		case BT_NPC:
 			set_npclist_active(!listNpc_enabled);

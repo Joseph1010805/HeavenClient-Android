@@ -72,6 +72,24 @@ namespace ms
 		return current;
 	}
 
+	bool SecondScreenPanel::show_window(UIElement::Type type)
+	{
+		// Only the pages that are actually built here. The rest still open on
+		// the main screen until they are hosted, which is why this answers
+		// rather than assuming.
+		switch (type)
+		{
+		case UIElement::Type::WORLDMAP:
+			current = WORLDMAP;
+			return true;
+		case UIElement::Type::MINIMAP:
+			current = MINIMAP;
+			return true;
+		default:
+			return false;
+		}
+	}
+
 	UIElement* SecondScreenPanel::window() const
 	{
 		auto& slot = const_cast<std::unique_ptr<UIElement>&>(pages[current]);

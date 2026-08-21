@@ -17,6 +17,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIStateGame.h"
 #include "UI.h"
+#include "SecondScreen.h"
 
 #include "UITypes/UIStatusMessenger.h"
 #include "UITypes/UIStatusbar.h"
@@ -249,7 +250,17 @@ namespace ms
 					}
 					break;
 					case KeyAction::Id::WORLDMAP:
-						emplace<UIWorldMap>();
+						// The lower panel shows this, so turn it to that page
+						// rather than opening a second copy over the game. Two
+						// copies share one cursor and one tooltip and fight
+						// over both, which is the pointer flicking between the
+						// screens. Falls back to the normal window on a device
+						// with no second screen.
+						if (SecondScreen::show_window(UIElement::Type::WORLDMAP))
+							remove(UIElement::Type::WORLDMAP);
+						else
+							emplace<UIWorldMap>();
+
 						break;
 					case KeyAction::Id::MAPLECHAT:
 					{

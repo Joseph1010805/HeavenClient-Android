@@ -59,6 +59,11 @@ namespace ms
 
 		Page page() const;
 
+		// Turn to the page that hosts this window, if there is one. Says
+		// whether it did, so the caller knows whether to open the window on the
+		// main screen instead.
+		bool show_window(UIElement::Type type);
+
 	private:
 		void turn_to(int16_t next);
 

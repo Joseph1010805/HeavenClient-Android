@@ -35,24 +35,19 @@ namespace ms
 {
 	namespace
 	{
-		// Every button in this artwork is 16 tall. The widths differ, and only
-		// the ones measured off the right edge need to be known.
+		// Every button in this artwork is 16 tall.
 		constexpr int16_t BUTTON_H = 16;
+		constexpr int16_t NAVI_W = 99;
 		constexpr int16_t BACK_W = 61;
-		constexpr int16_t TAB_W = 61;
 
-		// How far off the panel's edge anything sits. Small on purpose: the
-		// bottom corners are the least useful part of a map and the easiest
-		// part of the screen to reach.
+		// How far in from the sides the row starts and ends.
 		constexpr int16_t EDGE = 6;
+		constexpr int16_t GAP = 8;
 
-		// The gap between the tray's buttons and between them and the handle.
-		constexpr int16_t TRAY_GAP = 4;
-
-		// How much of the slide happens per frame. About eight frames end to
-		// end - long enough to read as movement, short enough that nobody
-		// waits for it.
-		constexpr float SLIDE_STEP = 0.13f;
+		// And how far up from the bottom. As low as the row can go while every
+		// button is still whole - which puts it over the border the map artwork
+		// draws around itself, and that border is only decoration.
+		constexpr int16_t EDGE_BOTTOM = 2;
 	}
 
 	UIWorldMap::UIWorldMap() : UIDragElement<PosMAP>(), panel(false), panel_scale_x(1.0f), panel_scale_y(1.0f)
@@ -96,11 +91,6 @@ namespace ms
 		// panel has no keyboard.
 		buttons[Buttons::BT_BACK] = std::make_unique<MapleButton>(WorldMap["BtBefore"]);
 		buttons[Buttons::BT_BACK]->set_active(false);
-
-		// The handle that pulls the tray out. The map's own forward arrow,
-		// which is the right shape for "there is more over here".
-		buttons[Buttons::BT_TRAY] = std::make_unique<MapleButton>(WorldMap["BtNext"]);
-		buttons[Buttons::BT_TRAY]->set_active(false);
 
 		buttons[Buttons::BT_ALLSEARCH] = std::make_unique<MapleButton>(WorldMapSearch["BtAllsearch"], background_dimensions);
 
@@ -169,16 +159,23 @@ namespace ms
 		// the map artwork draws around itself. That is the better trade: the
 		// border is decoration, and a control that is half off the screen is
 		// not a control.
-		int16_t bottom = panel_screen.y() - BUTTON_H - EDGE;
+		int16_t bottom = panel_screen.y() - BUTTON_H - EDGE_BOTTOM;
 
-		// The handle at the bottom-left. What it pulls out is laid out by
-		// layout_tray, which runs every frame while the tray is moving.
-		buttons[Buttons::BT_TRAY]->set_position(Point<int16_t>(EDGE - 580, bottom - 510));
-		buttons[Buttons::BT_TRAY]->set_active(true);
+		// Navigation and auto-pilot from the left, back at the right. The
+		// middle of this row is left empty on purpose - the panel's page dots
+		// sit there, and they belong to the panel rather than to the map, so
+		// the map's own controls keep out of their way.
+		int16_t x = EDGE;
 
-		layout_tray();
+		buttons[Buttons::BT_NAVIREG]->set_position(Point<int16_t>(x - 365, bottom - 25));
+		buttons[Buttons::BT_NAVIREG]->set_active(true);
 
-		// Back at the bottom-right, and only when there is somewhere to go back
+		x += NAVI_W + GAP;
+
+		buttons[Buttons::BT_AUTOFLY]->set_position(Point<int16_t>(x - 468, bottom - 25));
+		buttons[Buttons::BT_AUTOFLY]->set_active(true);
+
+		// Back at the far right, and only when there is somewhere to go back
 		// TO - on the top-level world map there is not.
 		buttons[Buttons::BT_BACK]->set_position(Point<int16_t>(
 			panel_screen.x() - EDGE - BACK_W - 515, bottom - 510));
@@ -193,38 +190,6 @@ namespace ms
 
 		search_box = Rectangle<int16_t>(Point<int16_t>(0, 0), Point<int16_t>(0, 0));
 		search_text.set_state(Textfield::State::DISABLED);
-	}
-
-	void UIWorldMap::layout_tray()
-	{
-		if (!panel)
-			return;
-
-		// The two buttons stack above the handle and slide up out of the bottom
-		// edge, so they are hidden by being off the panel rather than by being
-		// drawn somewhere they can still be clicked.
-		int16_t rest_top = panel_screen.y() - BUTTON_H - EDGE - TRAY_GAP - BUTTON_H;
-		int16_t rest_bottom = rest_top;
-
-		rest_top -= TRAY_GAP + BUTTON_H;
-
-		// Fully closed they sit a whole button below the bottom of the panel.
-		int16_t travel = panel_screen.y() + BUTTON_H;
-
-		int16_t drop = static_cast<int16_t>((1.0f - tray_slide) * travel);
-
-		buttons[Buttons::BT_AUTOFLY]->set_position(Point<int16_t>(
-			EDGE - 468, rest_bottom + drop - 25));
-
-		buttons[Buttons::BT_NAVIREG]->set_position(Point<int16_t>(
-			EDGE - 365, rest_top + drop - 25));
-
-		// Closed means gone, not merely off the bottom - otherwise a touch on
-		// the row of page dots could still find them.
-		bool showing = tray_slide > 0.01f;
-
-		buttons[Buttons::BT_AUTOFLY]->set_active(showing);
-		buttons[Buttons::BT_NAVIREG]->set_active(showing);
 	}
 
 	Point<int16_t> UIWorldMap::scaled(Point<int16_t> offset) const
@@ -358,23 +323,6 @@ namespace ms
 			update_world(parent_map);
 		}
 
-		// Move the tray toward wherever it is meant to be, and stop asking once
-		// it is there.
-		if (panel)
-		{
-			float want = tray_open ? 1.0f : 0.0f;
-
-			if (tray_slide != want)
-			{
-				if (tray_slide < want)
-					tray_slide = std::min(want, tray_slide + SLIDE_STEP);
-				else
-					tray_slide = std::max(want, tray_slide - SLIDE_STEP);
-
-				layout_tray();
-			}
-		}
-
 		if (search)
 			search_text.update(position);
 
@@ -441,14 +389,6 @@ namespace ms
 		case Buttons::BT_SEARCH_CLOSE:
 			set_search(false);
 			break;
-		case Buttons::BT_TRAY:
-			tray_open = !tray_open;
-
-			// Opened straight away rather than waiting for the slide, so the
-			// buttons are on their way in from this frame.
-			layout_tray();
-
-			return Button::State::NORMAL;
 		case Buttons::BT_BACK:
 			// The same step Escape takes: up to the region this one sits in.
 			if (!parent_map.empty())
