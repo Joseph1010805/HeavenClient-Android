@@ -65,6 +65,9 @@ namespace ms
 		// this is and how many there are.
 		void draw_chrome(Point<int16_t> screen) const;
 
+		// Which arrow a point is on: -1 back, 1 forward, 0 neither.
+		int16_t arrow_at(Point<int16_t> position, Point<int16_t> screen) const;
+
 		// The page's window, built the first time that page is shown. They are
 		// the game's own windows, but owned here rather than by UI - a window
 		// in UI's list is drawn over the game, which is the thing this panel
@@ -84,14 +87,10 @@ namespace ms
 		Point<int16_t> touch_now;
 		bool touching;
 
-		// Whether this drag has already been decided to be a swipe. Once it
-		// has, the page under it stops seeing the movement, so dragging across
-		// a map cannot both scroll it and turn the page.
-		bool swiping;
-
-		// How far the page is slid across while a swipe is under way, so the
-		// gesture is visible rather than the page simply changing on release.
-		int16_t slide;
+		// Which arrow is being held, -1 for back and 1 for forward, 0 for
+		// none. The arrows turn pages now; a drag belongs entirely to the page
+		// under it, which is what scrolling a long map needs.
+		int16_t pressed_arrow;
 
 		// How big the panel is, remembered so a page can be told at the moment
 		// it is built rather than only when it is drawn. Mutable because

@@ -524,8 +524,14 @@ namespace ms
 		// Compared against 80.0 originally, while the value is a fraction
 		// between 0 and 1 - so this could never fire and the atlas was only
 		// ever emptied by running out of room completely.
-		if (used_fraction() > 0.8)
+		//
+		// reset_pending is a request from a frame that ran out of room, which
+		// could not empty the atlas at the time without corrupting itself.
+		if (reset_pending || used_fraction() > 0.8)
+		{
+			reset_pending = false;
 			clearinternal();
+		}
 	}
 
 	void GraphicsGL::addbitmap(const nl::bitmap& bmp)
@@ -609,9 +615,22 @@ namespace ms
 				border.shift_y(yrange.second());
 
 				if (border.y() + height > ATLASH)
-					clearinternal();
-				else
-					yrange = Range<GLshort>();
+				{
+					// Out of room. Emptying the atlas here would invalidate
+					// every offset the quads already queued this frame are
+					// pointing at, and they would then be drawn with whatever
+					// texture landed in those slots next - which is how the
+					// world map came to be drawn as the Nexon loading screen.
+					//
+					// So the reset is asked for and happens at the start of the
+					// next frame, where nothing is queued. This one sprite is
+					// missing for a frame, which is a far better failure.
+					reset_pending = true;
+
+					return nulloffset;
+				}
+
+				yrange = Range<GLshort>();
 			}
 
 			x = border.x();

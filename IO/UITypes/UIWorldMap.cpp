@@ -103,13 +103,12 @@ namespace ms
 
 		if (image.x() > 0 && image.y() > 0)
 		{
-			// Cover rather than fit: the map reaches every edge and whatever
-			// will not fit goes off the side, which is better than a band of
-			// window behind it.
-			float across = static_cast<float>(panel_screen.x()) / image.x();
-			float down = static_cast<float>(panel_screen.y()) / image.y();
-
-			panel_scale = across > down ? across : down;
+			// Fit the width, not cover the screen. Covering scaled up until
+			// the shorter side filled and cut the map off east and west, which
+			// is where the interesting parts of a world map are. Anything left
+			// over above and below shows the panel's own backdrop, which is
+			// better than losing the edges of the map.
+			panel_scale = static_cast<float>(panel_screen.x()) / image.x();
 
 			panel_map_size = Point<int16_t>(
 				static_cast<int16_t>(image.x() * panel_scale),

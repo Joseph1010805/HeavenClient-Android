@@ -76,6 +76,26 @@ namespace ms
 
 			SecondScreenPanel panel;
 
+			// The space the panel is laid out in.
+			//
+			// Not its raw pixels: the main screen draws an 800x600 design onto
+			// a 1920x1080 panel, so everything there is enlarged about 1.8
+			// times. Drawing this panel one to one made the same buttons and
+			// text half the size they are on the top screen and too small to
+			// read. Matching that 600-high design keeps them the size the
+			// player already knows, and the width follows the panel's shape.
+			Point<int16_t> layout_size()
+			{
+				constexpr int16_t DESIGN_HEIGHT = 600;
+
+				if (height <= 0)
+					return Point<int16_t>(DESIGN_HEIGHT, DESIGN_HEIGHT);
+
+				return Point<int16_t>(
+					static_cast<int16_t>(width * DESIGN_HEIGHT / height),
+					DESIGN_HEIGHT);
+			}
+
 			void destroy_surface()
 			{
 				if (surface != EGL_NO_SURFACE)
@@ -199,13 +219,15 @@ namespace ms
 				backdrop = nl::nx::map001["Custom"]["BottomBg"];
 			}
 
-			GraphicsGL::get().begin_screen(width, height);
+			Point<int16_t> space = layout_size();
+
+			GraphicsGL::get().begin_screen(space.x(), space.y());
 
 			if (backdrop.is_valid())
-				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(width, height)));
+				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), space));
 
 			panel.update();
-			panel.draw(Point<int16_t>(width, height));
+			panel.draw(space);
 
 			GraphicsGL::get().flush(1.0f);
 		}
@@ -220,7 +242,7 @@ namespace ms
 			if (UI::get().has_focused_textfield())
 				return;
 
-			panel.send_touch(cursor(), Point<int16_t>(width, height), down, up);
+			panel.send_touch(cursor(), layout_size(), down, up);
 		}
 
 		Point<int16_t> cursor()
@@ -228,9 +250,11 @@ namespace ms
 			if (width <= 0 || height <= 0)
 				return Point<int16_t>(0, 0);
 
+			Point<int16_t> space = layout_size();
+
 			return Point<int16_t>(
-				static_cast<int16_t>(touch_x),
-				static_cast<int16_t>(touch_y));
+				static_cast<int16_t>(touch_x * space.x() / width),
+				static_cast<int16_t>(touch_y * space.y() / height));
 		}
 
 		void end()

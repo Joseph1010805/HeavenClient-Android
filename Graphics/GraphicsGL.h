@@ -285,6 +285,10 @@ namespace ms
 		int16_t VHEIGHT;
 		Rectangle<int16_t> SCREEN;
 
+		// Set when a frame ran out of atlas and could not empty it safely.
+		// Acted on at the start of the next frame, where nothing is queued.
+		bool reset_pending = false;
+
 		static const GLshort ATLASW = 8192;
 		static const GLshort ATLASH = 8192;
 		static const GLshort MINLOSIZE = 32;
