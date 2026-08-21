@@ -69,6 +69,9 @@ namespace ms
 		// Which arrow a point is on: -1 back, 1 forward, 0 neither.
 		int16_t arrow_at(Point<int16_t> position, Point<int16_t> screen) const;
 
+		// Take back any tooltip a page asked the main UI to show.
+		void clear_leaked_tooltips() const;
+
 		// The page's window, built the first time that page is shown. They are
 		// the game's own windows, but owned here rather than by UI - a window
 		// in UI's list is drawn over the game, which is the thing this panel

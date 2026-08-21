@@ -29,6 +29,9 @@
 #define LOG_ATLAS_FULL(x, y, w, h) \
 	printf("[!] atlas full at %d,%d - %dx%d sprite skipped, reset queued\n", (x), (y), (w), (h))
 
+#define LOG_ATLAS_PUT(id, x, y, w, h) \
+	printf("[*] atlas put id %llu at %d,%d size %dx%d\n", (id), (x), (y), (w), (h))
+
 namespace ms
 {
 	GraphicsGL::GraphicsGL()
@@ -719,6 +722,14 @@ namespace ms
 #else
 		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bmp.data());
 #endif
+
+		// Temporary: every upload of a large sprite, with the id it was filed
+		// under and where it went. If two different maps are filed under one
+		// id, only the first is ever uploaded and the second is drawn as the
+		// first - which would explain a correct rectangle full of the wrong
+		// pixels.
+		if (width > 200 && height > 200)
+			LOG_ATLAS_PUT((unsigned long long)id, x, y, width, height);
 
 		return offsets.emplace(
 			std::piecewise_construct,

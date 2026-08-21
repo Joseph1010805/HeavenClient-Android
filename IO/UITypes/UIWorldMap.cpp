@@ -188,11 +188,9 @@ namespace ms
 			// the bitmap says it is. A magnified piece of some other picture
 			// means these disagree.
 			{
-				static int32_t reported = 0;
-
-				if (reported < 8)
+				if (panel_reported < 4)
 				{
-					reported++;
+					panel_reported++;
 
 					Point<int16_t> want = base_img.get_dimensions();
 					Point<int16_t> got = GraphicsGL::get().atlas_size_of(base_img.get_bitmap());
@@ -435,6 +433,8 @@ namespace ms
 		// Each region's picture is its own size, so the scale that covers the
 		// panel is not the same one as the last region's.
 		layout_panel();
+
+		panel_reported = 0;
 
 		link_images.clear();
 		link_maps.clear();

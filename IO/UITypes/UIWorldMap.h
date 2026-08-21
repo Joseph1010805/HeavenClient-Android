@@ -134,6 +134,7 @@ namespace ms
 		bool panel;
 		Point<int16_t> panel_screen;
 		Point<int16_t> panel_map_size;
+		mutable int32_t panel_reported = 0;
 		float panel_scale_x;
 		float panel_scale_y;
 

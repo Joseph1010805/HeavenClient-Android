@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "SecondScreenPanel.h"
 
+#include "UI.h"
+
 #include "UITypes/UIMiniMap.h"
 #include "UITypes/UIWorldMap.h"
 
@@ -163,6 +165,21 @@ namespace ms
 		return 0;
 	}
 
+	void SecondScreenPanel::clear_leaked_tooltips() const
+	{
+		// A page here is one of the game's own windows, and those ask the main
+		// UI to show their tooltips - which then appear over the game on the
+		// OTHER screen, at coordinates that mean nothing there. That is the
+		// white box of monster names that kept turning up on the top screen.
+		//
+		// They are taken back as soon as they are asked for. Nothing on this
+		// panel should be able to draw on the other one.
+		UI::get().clear_tooltip(Tooltip::Parent::WORLDMAP);
+		UI::get().clear_tooltip(Tooltip::Parent::MINIMAP);
+		UI::get().clear_tooltip(Tooltip::Parent::ITEMINVENTORY);
+		UI::get().clear_tooltip(Tooltip::Parent::SKILLBOOK);
+	}
+
 	void SecondScreenPanel::send_touch(Point<int16_t> position, Point<int16_t> screen, bool down, bool up)
 	{
 		panel_screen = screen;
@@ -182,7 +199,10 @@ namespace ms
 			pressed_arrow = arrow_at(position, screen);
 
 			if (pressed_arrow == 0 && element)
+			{
 				element->send_cursor(true, position - origin);
+				clear_leaked_tooltips();
+			}
 
 			return;
 		}
@@ -205,7 +225,10 @@ namespace ms
 			}
 
 			if (element)
+			{
 				element->send_cursor(false, position - origin);
+				clear_leaked_tooltips();
+			}
 
 			return;
 		}
