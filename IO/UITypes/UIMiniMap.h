@@ -80,6 +80,7 @@ namespace ms
 		// is scaled to fill, so everything drawn on it scales with it.
 		Point<int16_t> panel_point(Point<int16_t> spot) const;
 		Point<int16_t> panel_marker(Point<int16_t> on_canvas) const;
+		void layout_panel();
 		void update_static_markers();
 		void set_npclist_active(bool active);
 		void update_dimensions();
@@ -132,11 +133,13 @@ namespace ms
 		bool panel;
 		Point<int16_t> panel_screen;
 
-		// One scale for the canvas and everything drawn on it, and where the
+		// The scale for the canvas and everything drawn on it, and where the
 		// scaled canvas sits.
-		float panel_zoom;
+		float panel_zoom_x;
+		float panel_zoom_y;
 		Point<int16_t> panel_size;
 		Point<int16_t> panel_offset;
+		bool panel_needs_layout = false;
 		Point<int16_t> center_offset;
 		Point<int16_t> min_dimensions;
 		Point<int16_t> normal_dimensions;

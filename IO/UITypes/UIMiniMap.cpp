@@ -29,7 +29,7 @@
 namespace ms
 {
 	UIMiniMap::UIMiniMap(const CharStats& st) : UIDragElement<PosMINIMAP>(Point<int16_t>(128, 20)),
-		stats(st), big_map(true), has_map(false), panel(false), panel_zoom(1.0f), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
+		stats(st), big_map(true), has_map(false), panel(false), panel_zoom_x(1.0f), panel_zoom_y(1.0f), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
 	{
 		type = Setting<MiniMapType>::get().load();
 		user_type = type;
@@ -470,26 +470,35 @@ namespace ms
 
 		update_canvas();
 
+		layout_panel();
+	}
+
+	void UIMiniMap::layout_panel()
+	{
+		if (!panel)
+			return;
+
 		Point<int16_t> canvas = map_sprite.get_dimensions();
 
-		if (canvas.x() > 0 && canvas.y() > 0)
-		{
-			// One scale, not one per axis: a mini map stretched to a screen of
-			// a different shape stops matching the room it is a map of.
-			float across = static_cast<float>(screen.x()) / canvas.x();
-			float down = static_cast<float>(screen.y()) / canvas.y();
+		if (canvas.x() <= 0 || canvas.y() <= 0)
+			return;
 
-			panel_zoom = across < down ? across : down;
+		// Filled outright, both ways. This is worked out from the canvas, and
+		// the canvas does not exist until a map has loaded - which is why
+		// doing it once in set_panel left the zoom at 1 and the map its
+		// original postage-stamp size on a screen this large.
+		panel_zoom_x = static_cast<float>(panel_screen.x()) / canvas.x();
+		panel_zoom_y = static_cast<float>(panel_screen.y()) / canvas.y();
 
-			panel_size = Point<int16_t>(
-				static_cast<int16_t>(canvas.x() * panel_zoom),
-				static_cast<int16_t>(canvas.y() * panel_zoom));
+		panel_size = panel_screen;
+		panel_offset = Point<int16_t>(0, 0);
 
-			// Centred in whatever room is left over.
-			panel_offset = Point<int16_t>(
-				(screen.x() - panel_size.x()) / 2,
-				(screen.y() - panel_size.y()) / 2);
-		}
+		// None of the window's own controls belong on the panel - shrink,
+		// enlarge, the world and NPC toggles are all for a window that is not
+		// drawn here.
+		for (auto& entry : buttons)
+			if (entry.second)
+				entry.second->set_active(false);
 	}
 
 	Point<int16_t> UIMiniMap::panel_marker(Point<int16_t> on_canvas) const
@@ -500,8 +509,8 @@ namespace ms
 			return on_canvas + Point<int16_t>(map_draw_origin_x, map_draw_origin_y);
 
 		return panel_offset + Point<int16_t>(
-			static_cast<int16_t>(on_canvas.x() * panel_zoom),
-			static_cast<int16_t>(on_canvas.y() * panel_zoom));
+			static_cast<int16_t>(on_canvas.x() * panel_zoom_x),
+			static_cast<int16_t>(on_canvas.y() * panel_zoom_y));
 	}
 
 	Point<int16_t> UIMiniMap::panel_point(Point<int16_t> spot) const
@@ -518,6 +527,9 @@ namespace ms
 		min_sprites.clear();
 		normal_sprites.clear();
 		max_sprites.clear();
+
+		// The panel's zoom depends on the canvas about to be replaced.
+		panel_needs_layout = true;
 
 		nl::node Min, Normal, Max;
 
@@ -536,6 +548,12 @@ namespace ms
 
 		map_sprite = Texture(Map["miniMap"]["canvas"]);
 		Point<int16_t> map_dimensions = map_sprite.get_dimensions();
+
+		if (panel_needs_layout)
+		{
+			panel_needs_layout = false;
+			layout_panel();
+		}
 
 		// 48 (Offset for text) + longer text's width + 10 (space for right side border)
 		int16_t mark_text_width = 48 + std::max(region_text.width(), town_text.width()) + 10;
