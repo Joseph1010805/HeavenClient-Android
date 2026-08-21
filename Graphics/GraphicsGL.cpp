@@ -1052,7 +1052,7 @@ namespace ms
 			quads.emplace_back(SCREEN.left(), SCREEN.right(), SCREEN.top(), SCREEN.bottom(), nulloffset, color, 0.0f);
 		}
 
-		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		glClearColor(clear_red, clear_green, clear_blue, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		GLsizeiptr csize = quads.size() * sizeof(Quad);
@@ -1076,6 +1076,13 @@ namespace ms
 
 		if (coverscene)
 			quads.pop_back();
+	}
+
+	void GraphicsGL::set_clearcolour(float red, float green, float blue)
+	{
+		clear_red = red;
+		clear_green = green;
+		clear_blue = blue;
 	}
 
 	void GraphicsGL::begin_screen(int16_t width, int16_t height)

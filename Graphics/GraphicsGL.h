@@ -81,6 +81,11 @@ namespace ms
 		// pass just flushed still refer to. Both screens draw from the one atlas.
 		void begin_screen(int16_t width, int16_t height);
 
+		// What a pass clears to before anything is drawn. The main screen
+		// wants white behind it; the lower panel wants its own colour, and
+		// certainly not a white flash every time a map loads.
+		void set_clearcolour(float red, float green, float blue);
+
 	private:
 		void clearinternal();
 		// How much of the atlas is spoken for, 0 to 1.
@@ -288,6 +293,10 @@ namespace ms
 		// Set when a frame ran out of atlas and could not empty it safely.
 		// Acted on at the start of the next frame, where nothing is queued.
 		bool reset_pending = false;
+
+		float clear_red = 1.0f;
+		float clear_green = 1.0f;
+		float clear_blue = 1.0f;
 
 		static const GLshort ATLASW = 8192;
 		static const GLshort ATLASH = 8192;

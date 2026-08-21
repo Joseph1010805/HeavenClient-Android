@@ -138,21 +138,14 @@ namespace ms
 		buttons[Buttons::BT_AUTOFLY]->set_position(Point<int16_t>(x - 468, ROW_Y - 25));
 		x += 99 + GAP;
 
+		// Search is off for now. Tapping into the box brought the keyboard up
+		// over the panel with no way back out of it, which is worse than not
+		// having search at all until it works properly.
 		buttons[Buttons::BT_SEARCH]->set_active(false);
+		buttons[Buttons::BT_ALLSEARCH]->set_active(false);
 
-		// The search box and its button, kept from the panel that was removed.
-		search_box = Rectangle<int16_t>(
-			Point<int16_t>(x, ROW_Y),
-			Point<int16_t>(x + 150, ROW_Y + 16));
-
-		search_text = Textfield(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::BLACK,
-			search_box, 12);
-		search_text.set_state(Textfield::State::NORMAL);
-
-		x += 150 + GAP;
-
-		buttons[Buttons::BT_ALLSEARCH]->set_position(Point<int16_t>(x - 99, ROW_Y - 24));
-		buttons[Buttons::BT_ALLSEARCH]->set_active(true);
+		search_box = Rectangle<int16_t>(Point<int16_t>(0, 0), Point<int16_t>(0, 0));
+		search_text.set_state(Textfield::State::DISABLED);
 	}
 
 	Point<int16_t> UIWorldMap::map_point(Point<int16_t> spot) const
@@ -189,13 +182,7 @@ namespace ms
 
 			base_img.draw(DrawArgument(topleft, topleft, panel_map_size, 1.0f, 1.0f, 1.0f, 0.0f));
 
-			GraphicsGL::get().drawrectangle(
-				position.x() + search_box.left() - 3, position.y() + search_box.top() - 2,
-				search_box.right() - search_box.left() + 6,
-				search_box.bottom() - search_box.top() + 4,
-				1.0f, 1.0f, 1.0f, 0.85f);
 
-			search_text.draw(position);
 		}
 		else
 		{

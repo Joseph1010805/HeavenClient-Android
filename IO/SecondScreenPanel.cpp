@@ -25,6 +25,8 @@
 #include <cstdlib>
 #include "../Graphics/GraphicsGL.h"
 
+#include <nlnx/nx.hpp>
+
 namespace ms
 {
 	namespace
@@ -46,13 +48,15 @@ namespace ms
 	SecondScreenPanel::SecondScreenPanel()
 		: current(WORLDMAP), touching(false), pressed_arrow(0)
 	{
-		// Doubled up, because one chevron in the largest font available is
-		// still a small thing to aim a thumb at on a panel this size.
-		arrow_left = OutlinedText(Text::Font::A18M, Text::Alignment::LEFT, Color::Name::YELLOW, Color::Name::TUNA);
-		arrow_left.change_text("<<");
+		// The same arrows the character select screen turns its pages with,
+		// rather than a letter standing in for one.
+		nl::node CharSelect = nl::nx::ui["Login.img"]["CharSelect"];
 
-		arrow_right = OutlinedText(Text::Font::A18M, Text::Alignment::RIGHT, Color::Name::YELLOW, Color::Name::TUNA);
-		arrow_right.change_text(">>");
+		arrow_left = CharSelect["pageL"]["normal"]["0"];
+		arrow_right = CharSelect["pageR"]["normal"]["0"];
+
+		loading = OutlinedText(Text::Font::A12B, Text::Alignment::LEFT, Color::Name::WHITE, Color::Name::TUNA);
+		loading.change_text("Welcome to MapleStory DS");
 	}
 
 	SecondScreenPanel::~SecondScreenPanel() {}
@@ -230,11 +234,8 @@ namespace ms
 		// out of the way - the page itself is what matters.
 		int16_t mid = screen.y() / 2;
 
-		GraphicsGL::get().drawrectangle(0, mid - 30, 44, 60, 0.0f, 0.0f, 0.0f, 0.45f);
-		GraphicsGL::get().drawrectangle(screen.x() - 44, mid - 30, 44, 60, 0.0f, 0.0f, 0.0f, 0.45f);
-
-		arrow_left.draw(Point<int16_t>(ARROW_INSET - 8, mid - 14));
-		arrow_right.draw(Point<int16_t>(screen.x() - ARROW_INSET + 8, mid - 14));
+		arrow_left.draw(Point<int16_t>(ARROW_INSET, mid));
+		arrow_right.draw(Point<int16_t>(screen.x() - ARROW_INSET, mid));
 	}
 
 	void SecondScreenPanel::draw(Point<int16_t> screen) const
@@ -242,6 +243,17 @@ namespace ms
 		panel_screen = screen;
 
 		UIElement* element = window();
+
+		if (!Stage::get().is_active())
+		{
+			// Centred by measuring it: the centre alignment a Text can be given
+			// needs a width to centre within, which this has not got.
+			loading.draw(Point<int16_t>(
+				(screen.x() - loading.width()) / 2,
+				screen.y() / 2 - 8));
+
+			return;
+		}
 
 		if (element)
 		{

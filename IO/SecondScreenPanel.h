@@ -20,6 +20,7 @@
 #include "UIElement.h"
 
 #include "../Graphics/SpecialText.h"
+#include "../Graphics/Texture.h"
 #include "../Template/Point.h"
 
 #include <memory>
@@ -97,8 +98,12 @@ namespace ms
 		// drawing is where the size arrives and drawing is const.
 		mutable Point<int16_t> panel_screen;
 
-		// The marks either side saying there is more that way.
-		OutlinedText arrow_left;
-		OutlinedText arrow_right;
+		// The marks either side saying there is more that way - the character
+		// select screen's own page arrows.
+		Texture arrow_left;
+		Texture arrow_right;
+
+		// Shown while there is no map loaded and so no page to show.
+		OutlinedText loading;
 	};
 }

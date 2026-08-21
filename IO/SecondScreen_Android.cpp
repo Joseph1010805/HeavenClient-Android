@@ -86,7 +86,12 @@ namespace ms
 			// player already knows, and the width follows the panel's shape.
 			Point<int16_t> layout_size()
 			{
-				constexpr int16_t DESIGN_HEIGHT = 600;
+				// Half what the main screen uses, which makes everything on
+				// this panel twice the size. The lower screen is looked at
+				// from further away and tapped with a thumb rather than
+				// pointed at with a cursor, so its controls want to be bigger
+				// than the same controls on the top screen, not the same size.
+				constexpr int16_t DESIGN_HEIGHT = 300;
 
 				if (height <= 0)
 					return Point<int16_t>(DESIGN_HEIGHT, DESIGN_HEIGHT);
@@ -221,6 +226,10 @@ namespace ms
 
 			Point<int16_t> space = layout_size();
 
+			// Not white. A map loading used to flash the panel white, which is
+			// the harshest thing a screen this close to the eye can do.
+			GraphicsGL::get().set_clearcolour(0.18f, 0.12f, 0.08f);
+
 			GraphicsGL::get().begin_screen(space.x(), space.y());
 
 			if (backdrop.is_valid())
@@ -230,6 +239,10 @@ namespace ms
 			panel.draw(space);
 
 			GraphicsGL::get().flush(1.0f);
+
+			// Put the main screen's own clear colour back, or the game flashes
+			// brown instead.
+			GraphicsGL::get().set_clearcolour(1.0f, 1.0f, 1.0f);
 		}
 
 		void touch(float x, float y, bool down, bool up)
