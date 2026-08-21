@@ -56,6 +56,13 @@ namespace ms
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
 
+		// Nothing to drag when this fills the panel. The window is pinned there
+		// and put back every frame, so a drag moved it and the next frame moved
+		// it back - while the hit-test read the position it was being dragged
+		// to. That is the pointer wandering and losing track of what is under
+		// it.
+		bool indragrange(Point<int16_t> cursorpos) const override;
+
 	private:
 		static constexpr uint8_t MAPSPOT_TYPE_MAX = 4u;
 
@@ -146,7 +153,6 @@ namespace ms
 		bool panel;
 		Point<int16_t> panel_screen;
 		Point<int16_t> panel_map_size;
-		mutable int32_t panel_reported = 0;
 		float panel_scale_x;
 		float panel_scale_y;
 

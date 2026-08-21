@@ -83,7 +83,7 @@ namespace ms
 		Point<int16_t> dragarea;
 		Point<int16_t> cursoroffset;
 
-	private:
+	protected:
 		virtual bool indragrange(Point<int16_t> cursorpos) const
 		{
 			auto bounds = Rectangle<int16_t>(position, position + dragarea);

@@ -44,6 +44,17 @@ BOTTOM_W, BOTTOM_H = 620, 540
 # against atlas space and the decompressed cache nlnx keeps per bitmap.
 W, H = 400, 300
 
+# How the videos play back.
+#
+# The client steps every 8ms, so a delay is best kept a multiple of that: 80ms
+# is 12.5 frames a second, which is the point where a slow camera pan stops
+# reading as a slideshow. Each frame costs W*H pixels of the 8192x8192 sprite
+# atlas, so this is the dial to turn if the atlas ever does run short - and
+# turn DURATION down before turning this down, because a shorter loop is much
+# less noticeable than a juddering one.
+FPS = 12
+DELAY = 80
+
 
 def frames(source, vf, fps, duration=None, start=None):
     """Run a filter chain and return the frames as raw BGRA."""
@@ -210,21 +221,23 @@ def main():
     # generator's watermark, so it is cut before the frame is squared off to
     # 4:3 - cropping rather than squashing, which would narrow the faces.
     login = frames(os.path.join(SRC, LOGIN_VIDEO),
-                   'crop=1024:585:0:55,crop=780:585:122:0', fps=4)
+                   'crop=1024:585:0:55,crop=780:585:122:0', fps=FPS)
 
-    # Near-static: a fixed scene with clouds drifting. Six frames a second is
-    # plenty and costs a third of what ten would.
+    # A fixed scene with clouds drifting. Half the source is enough, since
+    # zigzag plays it back out again and the loop is twice what is stored.
     charsel = frames(os.path.join(SRC, CHARSEL_VIDEO),
-                     'crop=1440:1080:240:0', fps=3, start=2, duration=8)
+                     'crop=1440:1080:240:0', fps=FPS, start=2, duration=5)
 
-    # Every frame of these sits in the sprite atlas for as long as the screen
-    # is up, and they were holding about a quarter of it - which a full-screen
-    # world map on the lower panel then tipped over, so the map was drawn with
-    # whatever texture landed in the slots it had been using. Fewer frames,
-    # each held longer.
+    # These used to run at 4 and 3 frames a second, cut that low because the
+    # frames were believed to be filling the sprite atlas and corrupting the
+    # world map. That belief was wrong twice over: the map's problem was not
+    # the atlas, and the arithmetic was off by about four times. The login
+    # frames hold 11.5M of the atlas's 67M pixels - 17%, not the quarter the
+    # old comment here claimed. So the smoothness was spent for nothing, and
+    # this buys it back.
     print('building nodes...')
-    animation(builder, custom, 'LoginBg', login, delay=250)
-    animation(builder, custom, 'CharBg', charsel, delay=333)
+    animation(builder, custom, 'LoginBg', login, delay=DELAY)
+    animation(builder, custom, 'CharBg', charsel, delay=DELAY)
 
     # World select gets a still from the same scene, so the two screens match.
     builder.bitmap(custom, 'WorldBg', charsel[0], W, H, origin=(0, 0))

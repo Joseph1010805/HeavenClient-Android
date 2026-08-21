@@ -17,20 +17,18 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "GraphicsGL.h"
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
 #include "../Configuration.h"
 
-// Said out loud when a sprite cannot be given room in the atlas. Two
-// explanations for the wrong-texture bug have been wrong already, so this
-// reports the moment the atlas actually runs out rather than leaving it to be
-// inferred from what is drawn.
+// Said out loud when a sprite cannot be given room in the atlas. Worth keeping:
+// it costs one line per sprite that did not fit, and it is the one clear signal
+// that the atlas is under real pressure rather than something being drawn
+// wrong for some other reason.
 #define LOG_ATLAS_FULL(x, y, w, h) \
 	printf("[!] atlas full at %d,%d - %dx%d sprite skipped, reset queued\n", (x), (y), (w), (h))
-
-#define LOG_ATLAS_PUT(id, x, y, w, h) \
-	printf("[*] atlas put id %llu at %d,%d size %dx%d\n", (id), (x), (y), (w), (h))
 
 namespace ms
 {
@@ -520,6 +518,7 @@ namespace ms
 		leftovers.clear();
 		rlid = 1;
 		wasted = 0;
+		atlas_census.clear();
 	}
 
 	double GraphicsGL::used_fraction() const
@@ -659,6 +658,7 @@ namespace ms
 					reset_pending = true;
 
 					LOG_ATLAS_FULL(border.x(), border.y(), width, height);
+					report_atlas_contents();
 
 					return nulloffset;
 				}
@@ -723,19 +723,46 @@ namespace ms
 		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_BGRA, GL_UNSIGNED_BYTE, bmp.data());
 #endif
 
-		// Temporary: every upload of a large sprite, with the id it was filed
-		// under and where it went. If two different maps are filed under one
-		// id, only the first is ever uploaded and the second is drawn as the
-		// first - which would explain a correct rectangle full of the wrong
-		// pixels.
-		if (width > 200 && height > 200)
-			LOG_ATLAS_PUT((unsigned long long)id, x, y, width, height);
+		// Temporary: what is actually in the atlas, by sprite size. Guessing at
+		// this has been wrong twice, and the cost is one counter per upload.
+		atlas_census[(static_cast<uint32_t>(width) << 16) | static_cast<uint32_t>(height)]++;
 
 		return offsets.emplace(
 			std::piecewise_construct,
 			std::forward_as_tuple(id),
 			std::forward_as_tuple(x, y, width, height)
 		).first->second;
+	}
+
+	void GraphicsGL::report_atlas_contents()
+	{
+		std::vector<std::pair<uint32_t, size_t>> rows(atlas_census.begin(), atlas_census.end());
+
+		std::sort(rows.begin(), rows.end(),
+			[](const std::pair<uint32_t, size_t>& a, const std::pair<uint32_t, size_t>& b)
+			{
+				size_t pa = (a.first >> 16) * (a.first & 0xFFFF) * a.second;
+				size_t pb = (b.first >> 16) * (b.first & 0xFFFF) * b.second;
+
+				return pa > pb;
+			});
+
+		size_t total = 0;
+
+		for (auto& row : rows)
+			total += (row.first >> 16) * (row.first & 0xFFFF) * row.second;
+
+		printf("[*] atlas census: %zu sizes, %.1fM pixels uploaded since reset\n",
+			rows.size(), total / 1.0e6);
+
+		for (size_t i = 0; i < rows.size() && i < 12; i++)
+		{
+			uint32_t w = rows[i].first >> 16;
+			uint32_t h = rows[i].first & 0xFFFF;
+
+			printf("[*]   %4ux%-4u x%-5zu = %6.2fM\n",
+				w, h, rows[i].second, w * h * rows[i].second / 1.0e6);
+		}
 	}
 
 	void GraphicsGL::draw(const nl::bitmap& bmp, const Rectangle<int16_t>& rect, const Color& color, float angle)
@@ -1135,18 +1162,6 @@ namespace ms
 
 		if (coverscene)
 			quads.pop_back();
-	}
-
-	void GraphicsGL::forget(const nl::bitmap& bmp)
-	{
-		offsets.erase(bmp.id());
-	}
-
-	Point<int16_t> GraphicsGL::atlas_size_of(const nl::bitmap& bmp)
-	{
-		const Offset& o = getoffset(bmp);
-
-		return Point<int16_t>(o.right - o.left, o.bottom - o.top);
 	}
 
 	void GraphicsGL::set_clearcolour(float red, float green, float blue)

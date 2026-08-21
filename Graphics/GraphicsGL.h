@@ -31,6 +31,8 @@
 
 #include <nlnx/bitmap.hpp>
 
+#include <map>
+
 namespace ms
 {
 	// Graphics engine which uses OpenGL.
@@ -86,22 +88,11 @@ namespace ms
 		// certainly not a white flash every time a map loads.
 		void set_clearcolour(float red, float green, float blue);
 
-		// The atlas rectangle a bitmap currently occupies, for diagnosis.
-		// A sprite drawn as a magnified piece of some other picture is
-		// sampling a rectangle that is not its own size.
-		Point<int16_t> atlas_size_of(const nl::bitmap& bmp);
-
-		// Forget where a bitmap lives, so the next draw uploads it again.
-		//
-		// For a sprite whose pixels are found to have been trampled after
-		// they were uploaded. Re-uploading every frame is wasteful and is
-		// not a fix; it is a way to tell being overwritten apart from being
-		// uploaded wrong, and a way for one picture to survive while that is
-		// settled.
-		void forget(const nl::bitmap& bmp);
-
 	private:
 		void clearinternal();
+		// Temporary: print what the atlas is holding, by sprite size.
+		void report_atlas_contents();
+		std::map<uint32_t, size_t> atlas_census;
 		// How much of the atlas is spoken for, 0 to 1.
 		double used_fraction() const;
 		bool addfont(const char* name, Text::Font id, FT_UInt width, FT_UInt height);

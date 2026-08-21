@@ -27,9 +27,9 @@
 
 #include <nlnx/nx.hpp>
 
-// Temporary, while the map is being drawn as pieces of other pictures.
-#define LOG_MAP_RECT(w, h, aw, ah, id) \
-	printf("[*] worldmap draw: bitmap %dx%d | atlas rect %dx%d | id %llu\n", (w), (h), (aw), (ah), (id))
+#include <algorithm>
+#include <utility>
+#include <vector>
 
 namespace ms
 {
@@ -225,29 +225,7 @@ namespace ms
 				- Point<int16_t>(panel_map_size.x() / 2, panel_map_size.y() / 2)
 				+ base_img.get_origin();
 
-			// Temporary: what the atlas says this bitmap occupies, against what
-			// the bitmap says it is. A magnified piece of some other picture
-			// means these disagree.
-			{
-				if (panel_reported < 4)
-				{
-					panel_reported++;
-
-					Point<int16_t> want = base_img.get_dimensions();
-					Point<int16_t> got = GraphicsGL::get().atlas_size_of(base_img.get_bitmap());
-
-					LOG_MAP_RECT(want.x(), want.y(), got.x(), got.y(), (unsigned long long)base_img.get_bitmap().id());
-				}
-			}
-
-			// Uploaded afresh each frame. See GraphicsGL::forget - this is a
-			// test of whether the pixels are being trampled after upload, and
-			// meanwhile keeps the map readable.
-			GraphicsGL::get().forget(base_img.get_bitmap());
-
 			base_img.draw(DrawArgument(topleft, topleft, panel_map_size, 1.0f, 1.0f, 1.0f, 0.0f));
-
-
 		}
 		else
 		{
@@ -407,6 +385,14 @@ namespace ms
 		return Button::State::NORMAL;
 	}
 
+	bool UIWorldMap::indragrange(Point<int16_t> cursorpos) const
+	{
+		if (panel)
+			return false;
+
+		return UIDragElement::indragrange(cursorpos);
+	}
+
 	void UIWorldMap::remove_cursor()
 	{
 		UIDragElement::remove_cursor();
@@ -474,26 +460,9 @@ namespace ms
 		base_img = WorldMap["BaseImg"][0];
 		parent_map = std::string(WorldMap["info"]["parentMap"]);
 
-		// Temporary: the map has twice been drawn as the Nexon loading screen,
-		// and the atlas has been ruled out - so this reports what the node
-		// actually resolved to, rather than it being inferred from the picture.
-		{
-			Point<int16_t> size = base_img.get_dimensions();
-
-			printf("%s %s | BaseImg %s %dx%d | parent '%s' | asked '%s'\n",
-				"[*] worldmap:",
-				WorldMap ? "node found" : "node MISSING",
-				base_img.is_valid() ? "valid" : "INVALID",
-				size.x(), size.y(),
-				parent_map.c_str(),
-				map.c_str());
-		}
-
 		// Each region's picture is its own size, so the scale that covers the
 		// panel is not the same one as the last region's.
 		layout_panel();
-
-		panel_reported = 0;
 
 		link_images.clear();
 		link_maps.clear();
@@ -503,15 +472,45 @@ namespace ms
 				if (iter.first >= Buttons::BT_LINK0)
 					button->set_active(false);
 
-		size_t i = Buttons::BT_LINK0;
+		std::vector<std::pair<Texture, std::string>> links;
 
 		for (nl::node link : WorldMap["MapLink"])
 		{
 			nl::node l = link["link"];
-			Texture link_image = l["linkImg"];
+
+			links.emplace_back(Texture(l["linkImg"]), std::string(l["linkMap"]));
+		}
+
+		// Smallest region first.
+		//
+		// A region is picked out by a RECTANGLE round its highlight picture,
+		// and those rectangles overlap - a small region in the middle of the
+		// map sits entirely inside the box of a big one around it. Both the
+		// highlight and the click take the first region in this list whose box
+		// holds the cursor, so with the big one first the small one can never
+		// be reached at all. That is why the middle of the map would not
+		// highlight while the edges would.
+		//
+		// Ordering them by area means the first match is always the tightest
+		// one, which is the one meant. Highlight and click read the same list,
+		// so they cannot disagree about which region that is.
+		std::stable_sort(links.begin(), links.end(),
+			[](const std::pair<Texture, std::string>& a, const std::pair<Texture, std::string>& b)
+			{
+				Point<int16_t> da = a.first.get_dimensions();
+				Point<int16_t> db = b.first.get_dimensions();
+
+				return static_cast<int32_t>(da.x()) * da.y() < static_cast<int32_t>(db.x()) * db.y();
+			});
+
+		size_t i = Buttons::BT_LINK0;
+
+		for (auto& link : links)
+		{
+			const Texture& link_image = link.first;
 
 			link_images[i] = link_image;
-			link_maps[i] = std::string(l["linkMap"]);
+			link_maps[i] = link.second;
 
 			// The region's touchable area has to follow the picture. Left at the
 			// unstretched size it answered where the region used to be, which

@@ -246,13 +246,35 @@ namespace nl {
             return {string_cache[idx] + 2, *reinterpret_cast<uint16_t const *>(string_cache[idx])};
         }
 
+        // A string is a uint16 length followed by that many bytes. Read the
+        // length FIRST and take exactly that many - reading a fixed 100 bytes
+        // and then trusting the length inside them means any string longer
+        // than 98 characters is handed out as a pointer to 100 bytes with a
+        // length of up to 65535. See to_string(), where that crashed.
         auto const s = m_file->string_table[m_data->name];
         ::fseek(m_file->file_handle, s, SEEK_SET);
-        char* buffer = (char*) malloc(100);
-        ::fread(buffer, 100, 1, m_file->file_handle);
-        //fscanf(m_file->file_handle, "%s", buffer);
+
+        uint16_t length = 0;
+
+        if (::fread(&length, sizeof(length), 1, m_file->file_handle) != 1)
+            return {};
+
+        char* buffer = (char*) malloc(sizeof(length) + length);
+
+        if (!buffer)
+            return {};
+
+        *reinterpret_cast<uint16_t*>(buffer) = length;
+
+        if (length && ::fread(buffer + 2, 1, length, m_file->file_handle) != length)
+        {
+            free(buffer);
+
+            return {};
+        }
+
         string_cache[idx] = buffer;
-        return {buffer + 2, *reinterpret_cast<uint16_t const *>(buffer)};
+        return {buffer + 2, length};
     }
     size_t node::size() const {
         return m_data ? m_data->num : 0u;
@@ -289,7 +311,11 @@ namespace nl {
             auto const s = buffer/*sl*/ + 2;
             auto const os = reinterpret_cast<uint8_t const *>(o);
             bool z = false;
-            auto const len = l1 < l ? l1 : l;
+            // Only 98 bytes of the name were actually read, so never compare
+            // past them however long the name claims to be.
+            auto const avail = static_cast<uint16_t>(sizeof(buffer) - 2);
+            auto const l2 = l1 < avail ? l1 : avail;
+            auto const len = l2 < l ? l2 : l;
             for (auto i = 0U; i < len; ++i) {
                 if (s[i] > os[i]) {
                     n = n2;
@@ -344,13 +370,28 @@ namespace nl {
         //char const* t = reinterpret_cast<char const *>(m_data->string);
 
         //string table helps us find the memory offset in the file where our string lives....
+        // A string is a uint16 length followed by that many bytes.
+        //
+        // This used to read a fixed 100 bytes into a buffer on the STACK and
+        // then build a string of whatever length was written in the first two
+        // of them. A description longer than 98 characters - and the mob and
+        // map descriptions in String.nx are - then copied thousands of bytes
+        // out of a hundred-byte stack buffer, off the top of the stack, and
+        // the process died. That is the crash from hovering the world map.
         auto const offset = m_file->string_table[m_data->string];
-        char buffer[100];
         ::fseek(m_file->file_handle, offset, SEEK_SET);
-        ::fread(buffer, 100, 1, m_file->file_handle);
-        std::string x = std::string(buffer);
-        //return {t + 2, *reinterpret_cast<uint16_t const *>(t)};
-        return {buffer + 2, *reinterpret_cast<uint16_t const *>(buffer)};
+
+        uint16_t length = 0;
+
+        if (::fread(&length, sizeof(length), 1, m_file->file_handle) != 1)
+            return {};
+
+        std::string out(length, '\0');
+
+        if (length && ::fread(&out[0], 1, length, m_file->file_handle) != length)
+            return {};
+
+        return out;
     }
     vector2i node::to_vector() const {
         return {m_data->vector[0], m_data->vector[1]};
