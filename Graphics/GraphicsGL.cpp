@@ -564,13 +564,29 @@ namespace ms
 
 		Leftover value = Leftover(x, y, width, height);
 
-		size_t lid = leftovers.findnode(
+		// The free list is not used.
+		//
+		// It hands back gaps left behind by earlier sprites, and its
+		// bookkeeping - erase one, add up to three replacements - gave out
+		// overlapping rectangles once the atlas had been filled and reused a
+		// few times. Two sprites then shared pixels: the second's upload
+		// overwrote the first, and the first was afterwards drawn as the
+		// second. That is what showed the world map as pieces of the Nexon
+		// loading screen, and only after a second region had been loaded,
+		// because until then nothing had been freed to reuse.
+		//
+		// Taking every allocation fresh from the cursor wastes the gaps, at
+		// the cost of the atlas filling sooner and resetting more often - which
+		// it already does safely, at the start of a frame.
+		constexpr bool USE_LEFTOVERS = false;
+
+		size_t lid = USE_LEFTOVERS ? leftovers.findnode(
 			value,
 			[](const Leftover& val, const Leftover& leaf)
 			{
 				return val.width() <= leaf.width() && val.height() <= leaf.height();
 			}
-		);
+		) : 0;
 
 		if (lid > 0)
 		{
