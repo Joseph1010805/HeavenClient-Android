@@ -798,7 +798,10 @@ namespace ms
 		width = 0;
 		endy = 0;
 
-		if (maxwidth == 0)
+		// A width of zero means "no limit". A NEGATIVE one means a caller
+		// worked one out badly, and would otherwise be a line no character can
+		// fit on.
+		if (maxwidth <= 0)
 			maxwidth = 800;
 	}
 
@@ -868,7 +871,7 @@ namespace ms
 			for (size_t i = first; i < last; i++)
 			{
 				char c = text[i];
-				wordwidth += font.chars[c].ax;
+				wordwidth += font.glyph(c).ax;
 
 				if (wordwidth > maxwidth)
 				{
@@ -878,8 +881,20 @@ namespace ms
 					}
 					else
 					{
-						prev = add(text, prev, first, i);
-						return add(text, prev, i, last);
+						// The word is too long for the line, so it is split and
+						// each half laid out on its own.
+						//
+						// The split has to actually move. If the very FIRST
+						// character is already wider than the whole line, i is
+						// still first, and splitting there hands this call its
+						// own arguments straight back - which recurses until
+						// the stack runs out. Keeping at least one character on
+						// this side guarantees both halves are shorter than the
+						// word, so the recursion always ends.
+						size_t at = i > first ? i : first + 1;
+
+						prev = add(text, prev, first, at);
+						return add(text, prev, at, last);
 					}
 				}
 			}
@@ -906,7 +921,7 @@ namespace ms
 		for (size_t pos = first; pos < last; pos++)
 		{
 			char c = text[pos];
-			const Font::Char& ch = font.chars[c];
+			const Font::Char& ch = font.glyph(c);
 
 			advances.push_back(ax);
 
@@ -1019,7 +1034,7 @@ namespace ms
 				for (size_t pos = word.first; pos < word.last; ++pos)
 				{
 					const char c = text[pos];
-					const Font::Char& ch = font.chars[c];
+					const Font::Char& ch = font.glyph(c);
 
 					GLshort char_x = x + ax + ch.bl;
 					GLshort char_y = y + ay - ch.bt;

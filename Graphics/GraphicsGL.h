@@ -249,7 +249,11 @@ namespace ms
 
 			GLshort width;
 			GLshort height;
-			Char chars[128];
+			// Only 32..127 are ever loaded, so the rest must at least start at
+			// zero: an unloaded glyph read as garbage gives a nonsense advance
+			// width, and a nonsense width wider than the line is what sent the
+			// layout builder into infinite recursion.
+			Char chars[128] = {};
 
 			Font(GLshort w, GLshort h)
 			{
@@ -261,6 +265,21 @@ namespace ms
 			{
 				width = 0;
 				height = 0;
+			}
+
+			// The only way a glyph should ever be read.
+			//
+			// The game's own data is not plain ASCII - map, mob and NPC names
+			// carry bytes above 127 - and indexing this array with one of those
+			// reads off the end of it entirely. Anything outside the range that
+			// was actually loaded is drawn as a question mark, which is honest
+			// about the text being unrenderable and, unlike garbage, has a real
+			// width.
+			const Char& glyph(char c) const
+			{
+				unsigned char u = static_cast<unsigned char>(c);
+
+				return chars[u >= 32 && u < 128 ? u : '?'];
 			}
 
 			int16_t linespace() const
