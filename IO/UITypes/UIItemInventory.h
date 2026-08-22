@@ -129,6 +129,7 @@ namespace ms
 		// above and the action button below need.
 		static constexpr int16_t PANEL_GRID_TOP = 46;
 		static constexpr int16_t PANEL_TAB_TOP = 8;
+		static constexpr int16_t PANEL_TAB_LEFT = 42;
 		static constexpr int16_t PANEL_ACTION_H = 26;
 		static constexpr int16_t PANEL_ACTION_W = 96;
 

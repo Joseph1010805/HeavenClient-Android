@@ -132,37 +132,55 @@ public class SecondScreen extends Presentation
      * arriving that way from Android, with a single contact reported the whole
      * time.
      *
-     * A median throws away an isolated outlier completely while passing real
-     * movement through untouched - unlike an average, which would drag the
-     * pointer part of the way towards every bad sample. The cost is that a
-     * point is one sample behind, about 8ms, which is not perceptible.
+     * A median throws away outliers completely while passing real movement
+     * through untouched - unlike an average, which would drag the pointer part
+     * of the way towards every bad sample.
+     *
+     * Five samples, not three. Three removes a SINGLE bad sample, and measuring
+     * the stream showed the bad ones are not always alone: steps of 128, 97, 70
+     * and 70 pixels came through in one stroke. Five survives two bad samples
+     * in a row. The cost is two samples of lag, about 16ms.
      */
-    private final float[] recentX = new float[3];
-    private final float[] recentY = new float[3];
-    private int recentCount = 0;
+    private static final int WINDOW = 5;
 
-    private static float median3(float a, float b, float c)
-    {
-        return Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
-    }
+    private final float[] recentX = new float[WINDOW];
+    private final float[] recentY = new float[WINDOW];
+    private final float[] scratch = new float[WINDOW];
+    private int recentCount = 0;
 
     private void remember(float x, float y)
     {
-        recentX[2] = recentX[1]; recentX[1] = recentX[0]; recentX[0] = x;
-        recentY[2] = recentY[1]; recentY[1] = recentY[0]; recentY[0] = y;
+        for (int i = WINDOW - 1; i > 0; i--)
+        {
+            recentX[i] = recentX[i - 1];
+            recentY[i] = recentY[i - 1];
+        }
 
-        if (recentCount < 3)
+        recentX[0] = x;
+        recentY[0] = y;
+
+        if (recentCount < WINDOW)
             recentCount++;
+    }
+
+    private float middle(float[] from)
+    {
+        int n = recentCount;
+
+        System.arraycopy(from, 0, scratch, 0, n);
+        java.util.Arrays.sort(scratch, 0, n);
+
+        return scratch[n / 2];
     }
 
     private float steadyX()
     {
-        return recentCount < 3 ? recentX[0] : median3(recentX[0], recentX[1], recentX[2]);
+        return recentCount == 0 ? 0.0f : middle(recentX);
     }
 
     private float steadyY()
     {
-        return recentCount < 3 ? recentY[0] : median3(recentY[0], recentY[1], recentY[2]);
+        return recentCount == 0 ? 0.0f : middle(recentY);
     }
 
     @Override

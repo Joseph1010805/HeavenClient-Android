@@ -989,7 +989,8 @@ namespace ms
 			Buttons::BT_TAB_SETUP, Buttons::BT_TAB_CASH
 		};
 
-		int16_t x = grid_origin().x();
+		// Clear of the panel's page arrows, which sit in the top corners.
+		int16_t x = PANEL_TAB_LEFT;
 
 		for (Buttons id : tabs)
 		{

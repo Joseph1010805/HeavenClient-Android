@@ -138,9 +138,8 @@ namespace ms
 		Texture arrow_left;
 		Texture arrow_right;
 
-		// The inventory page's bag, loaded the first time that page is shown.
-		mutable Texture backpack;
-		mutable bool backpack_tried = false;
+		// A page's own backdrop, loaded the first time that page is shown.
+		mutable Texture backdrops[NUM_PAGES];
 
 		// Shown while there is no map loaded and so no page to show.
 		OutlinedText loading;

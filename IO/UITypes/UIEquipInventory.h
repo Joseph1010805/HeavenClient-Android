@@ -37,6 +37,11 @@ namespace ms
 
 		UIEquipInventory(const Inventory& inventory);
 
+		// Show this copy on the lower panel rather than over the game. The
+		// paper-doll layout is left exactly as it is: unlike the item grid,
+		// where the slots go is what the picture MEANS.
+		void set_panel(Point<int16_t> screen);
+
 		void draw(float inter) const override;
 
 		void toggle_active() override;
@@ -50,6 +55,16 @@ namespace ms
 		void modify(int16_t pos, int8_t mode, int16_t arg);
 
 	protected:
+		// Pinned to the panel, so there is nothing to drag.
+		bool indragrange(Point<int16_t> cursorpos) const override;
+
+		bool panel = false;
+
+		// How much of the window's own white shows through on the panel. The
+		// gear on top of it is drawn at full strength.
+		static constexpr float PANEL_FADE = 0.5f;
+
+
 		Button::State button_pressed(uint16_t buttonid) override;
 
 	private:

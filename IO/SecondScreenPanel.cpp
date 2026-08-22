@@ -19,6 +19,7 @@
 
 #include "UI.h"
 
+#include "UITypes/UIEquipInventory.h"
 #include "UITypes/UIItemInventory.h"
 #include "UITypes/UIWorldMap.h"
 
@@ -120,6 +121,13 @@ namespace ms
 			slot = std::move(bag);
 			break;
 		}
+		case EQUIPMENT:
+		{
+			auto worn = std::make_unique<UIEquipInventory>(Stage::get().get_player().get_inventory());
+			worn->set_panel(panel_screen);
+			slot = std::move(worn);
+			break;
+		}
 		default:
 			// The remaining pages are not hosted here yet.
 			break;
@@ -173,7 +181,9 @@ namespace ms
 	{
 		// A generous target either side - they are small marks, and a finger
 		// is not.
-		if (position.y() < screen.y() / 2 - ARROW_REACH || position.y() > screen.y() / 2 + ARROW_REACH)
+		// Along the TOP now, not the sides - a page fills the panel and its own
+		// content wants the middle of the edges.
+		if (position.y() > ARROW_REACH)
 			return 0;
 
 		if (position.x() <= ARROW_REACH)
@@ -329,7 +339,7 @@ namespace ms
 		// this is on the OTHER screen, so there is nowhere sensible on this one
 		// for the box to hang off - a fixed corner is at least always in the
 		// same place.
-		tooltip.draw_within(Point<int16_t>(24, 60),
+		tooltip.draw_within(Point<int16_t>(6, 22),
 			Point<int16_t>(
 				Constants::Constants::get().get_viewwidth(),
 				Constants::Constants::get().get_viewheight()));
@@ -362,11 +372,10 @@ namespace ms
 		Point<int16_t> full = arrow_left.get_dimensions();
 		Point<int16_t> size = Point<int16_t>(full.x() / 2, full.y() / 2);
 
-		int16_t mid = screen.y() / 2 - size.y() / 2;
 		int16_t right = screen.x() - ARROW_INSET - size.x();
 
-		Point<int16_t> at_left = Point<int16_t>(ARROW_INSET, mid);
-		Point<int16_t> at_right = Point<int16_t>(right, mid);
+		Point<int16_t> at_left = Point<int16_t>(ARROW_INSET, ARROW_INSET);
+		Point<int16_t> at_right = Point<int16_t>(right, ARROW_INSET);
 
 		arrow_left.draw(DrawArgument(at_left, at_left, size, 1.0f, 1.0f, 1.0f, 0.0f));
 		arrow_right.draw(DrawArgument(at_right, at_right, size, 1.0f, 1.0f, 1.0f, 0.0f));
@@ -376,16 +385,28 @@ namespace ms
 	{
 		// A page may bring its own backdrop instead of the panel's forest. The
 		// inventory does: it is a bag, and it reads as one.
-		if (current != INVENTORY)
-			return nullptr;
+		// Each page may bring its own. The inventory is a bag and reads as one;
+		// the equipment page is the rack the gear hangs on.
+		const char* which = nullptr;
 
-		if (!backpack_tried)
+		switch (current)
 		{
-			backpack_tried = true;
-			backpack = nl::nx::map001["Custom"]["InvBg"];
+		case INVENTORY:
+			which = "InvBg";
+			break;
+		case EQUIPMENT:
+			which = "EquipBg";
+			break;
+		default:
+			return nullptr;
 		}
 
-		return backpack.is_valid() ? &backpack : nullptr;
+		Texture& slot = backdrops[current];
+
+		if (!slot.is_valid())
+			slot = nl::nx::map001["Custom"][which];
+
+		return slot.is_valid() ? &slot : nullptr;
 	}
 
 	void SecondScreenPanel::draw(Point<int16_t> screen) const

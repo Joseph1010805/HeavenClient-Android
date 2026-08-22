@@ -131,23 +131,71 @@ namespace ms
 		change_tab(Buttons::BT_TAB0);
 	}
 
+	void UIEquipInventory::set_panel(Point<int16_t>)
+	{
+		panel = true;
+
+		// The window's own furniture goes: a close box, the cash-shop and salon
+		// buttons, the slot-expansion button. What is left is the doll and its
+		// slots, which is the whole reason to give it a screen.
+		buttons[Buttons::BT_CLOSE]->set_active(false);
+		buttons[Buttons::BT_SLOT]->set_active(false);
+		buttons[Buttons::BT_EFFECT]->set_active(false);
+		buttons[Buttons::BT_SALON]->set_active(false);
+		buttons[Buttons::BT_CONSUMESETTING]->set_active(false);
+		buttons[Buttons::BT_EXCEPTION]->set_active(false);
+		buttons[Buttons::BT_SHOP]->set_active(false);
+	}
+
+	bool UIEquipInventory::indragrange(Point<int16_t> cursorpos) const
+	{
+		if (panel)
+			return false;
+
+		return UIDragElement::indragrange(cursorpos);
+	}
+
 	void UIEquipInventory::draw(float alpha) const
 	{
-		UIElement::draw(alpha);
+		if (panel)
+		{
+			// None of the window itself. Its frame is a black border and its
+			// body is a solid white plate, and the two are one picture - the
+			// same reason the item grid is drawn by hand rather than stamped.
+			// The rack behind it is the background here.
+			//
+			// The TOTEM strip goes with it. It hangs 56 pixels to the LEFT of
+			// this window's own origin, so on a panel that centres what it is
+			// given it was always half off the edge. Its three slots are a
+			// later-version feature and are inert here.
+			UIElement::draw_buttons(alpha);
 
-		background[tab].draw(position);
-		tabbar.draw(position);
+			// The slot squares stay, at half strength: they carry the labels -
+			// RING, WEAPON, CAPE - and without them nothing says which square
+			// is which. What goes IN them is drawn at full strength below.
+			for (auto slot : Slots[tab])
+				slot.draw(DrawArgument(position, PANEL_FADE));
+		}
+		else
+		{
+			UIElement::draw(alpha);
 
-		for (auto slot : Slots[tab])
-			slot.draw(position);
+			background[tab].draw(position);
+			tabbar.draw(position);
+
+			for (auto slot : Slots[tab])
+				slot.draw(position);
+		}
 
 		if (tab == Buttons::BT_TAB0)
 		{
 			if (!hasPendantSlot)
-				disabled.draw(position + iconpositions[Equipslot::Id::PENDANT2]);
+				disabled.draw(DrawArgument(position + iconpositions[Equipslot::Id::PENDANT2],
+					panel ? PANEL_FADE : 1.0f));
 
 			if (!hasPocketSlot)
-				disabled.draw(position + iconpositions[Equipslot::Id::POCKET]);
+				disabled.draw(DrawArgument(position + iconpositions[Equipslot::Id::POCKET],
+					panel ? PANEL_FADE : 1.0f));
 
 			for (auto iter : icons)
 				if (iter.second)

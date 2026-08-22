@@ -721,6 +721,21 @@ namespace ms
 		max_sprites.emplace_back(nl::nx::map["MapHelper.img"]["mark"][Map["info"]["mapMark"]], DrawArgument(Point<int16_t>(7, 17)));
 
 		max_dimensions = normal_dimensions + Point<int16_t>(0, MAX_ADJ);
+
+		// Pinned to the top RIGHT of the main screen, and put back there each
+		// time the map changes - the minimap is a fixture of the screen rather
+		// than a window someone arranged, and its size changes with every map,
+		// so a saved corner does not stay a corner.
+		if (!panel)
+		{
+			constexpr int16_t EDGE = 6;
+
+			Point<int16_t> size = (type == Type::MAX) ? max_dimensions : normal_dimensions;
+
+			position = Point<int16_t>(
+				Constants::Constants::get().get_viewwidth() - size.x() - EDGE,
+				EDGE);
+		}
 	}
 
 	void UIMiniMap::draw_movable_markers(Point<int16_t> init_pos, float alpha) const
