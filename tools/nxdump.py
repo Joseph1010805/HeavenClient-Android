@@ -45,6 +45,22 @@ class Nx:
         return bytes(self.data[off + 2:off + 2 + length]).decode(
             'utf-8', 'replace')
 
+    def value(self, ntype, payload):
+        """The node's own value, for the types that carry one. Origins and
+        delays live here, and placing a sprite by hand needs them."""
+        if ntype == 1:
+            return struct.unpack('<q', payload)[0]
+        if ntype == 2:
+            return struct.unpack('<d', payload)[0]
+        if ntype == 3:
+            return repr(self.string(struct.unpack_from('<I', payload)[0]))
+        if ntype == 4:
+            return '({}, {})'.format(*struct.unpack_from('<ii', payload))
+        if ntype == 5:
+            _, w, h = struct.unpack_from('<IHH', payload)
+            return f'{w}x{h}'
+        return ''
+
     def child(self, index, want):
         """Linear scan, not a binary search - the point here is to see what is
         really stored, including anything mis-sorted enough that the client's
@@ -79,9 +95,9 @@ def main():
     print(f'{path or "/"}  type={TYPES.get(ntype, ntype)}  children={num}')
 
     for i in range(first, first + num):
-        cname, _, cnum, ctype, _ = nx.node(i)
+        cname, _, cnum, ctype, payload = nx.node(i)
         print(f'  {nx.string(cname):<24} {TYPES.get(ctype, ctype):<8} '
-              f'children={cnum}')
+              f'children={cnum:<4} {nx.value(ctype, payload)}')
 
 
 if __name__ == '__main__':

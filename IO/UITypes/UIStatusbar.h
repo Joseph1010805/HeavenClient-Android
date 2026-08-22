@@ -112,6 +112,11 @@ namespace ms
 
 		PadSlot padslots[QUICKSLOT_COUNT];
 
+		// Where the borrowed exit button sits relative to the setting menu.
+		// x centres a 98-wide sprite in a 109-wide row; y is the fifth slot,
+		// raised so a 35-tall sprite sits inside a 26-tall row.
+		static constexpr Point<int16_t> SETTING_EXIT_OFFSET = { 11, 141 };
+
 		enum Buttons : uint16_t
 		{
 			BT_CASHSHOP,
@@ -138,6 +143,10 @@ namespace ms
 			BT_SETTING_KEYS,
 			BT_SETTING_JOYPAD,
 			BT_SETTING_QUIT,
+			// Must stay AFTER BT_SETTING_QUIT: the loops that reposition and
+			// key-navigate the setting menu run up to that one, and this
+			// button is placed by hand rather than by a baked-in origin.
+			BT_SETTING_EXIT,
 			BT_COMMUNITY_FRIENDS,
 			BT_COMMUNITY_PARTY,
 			BT_COMMUNITY_GUILD,

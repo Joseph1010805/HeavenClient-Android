@@ -84,6 +84,11 @@ namespace ms
 		int panel_w = 0;
 		int panel_h = 0;
 
+		// The window the finished scene is blitted to. Kept here because the
+		// blit has to re-ask for its size and Window::glwnd is a member this
+		// namespace cannot see.
+		SDL_Window* present_wnd = nullptr;
+
 		void init_offscreen(int w, int h)
 		{
 			scene_w = w;
@@ -170,6 +175,29 @@ namespace ms
 		{
 			if (!scene_fbo)
 				return;
+
+			// Re-ask for the drawable size rather than trusting the one taken
+			// at startup. Android settles rotation and window insets a beat
+			// after the GL context exists, so the size measured then is
+			// sometimes the pre-rotation one - and there is no
+			// SDL_WINDOWEVENT handling here to notice it changing later.
+			//
+			// Held stale, every frame for the rest of the run is blitted to
+			// the wrong rectangle: the picture is scaled to a viewport that
+			// is not the screen, which reads as the game being cut off at the
+			// edges. It only happens when the race falls the wrong way, which
+			// is why it came and went between launches.
+			int drawable_w = 0;
+			int drawable_h = 0;
+
+			if (present_wnd)
+				SDL_GL_GetDrawableSize(present_wnd, &drawable_w, &drawable_h);
+
+			if (drawable_w > 0 && drawable_h > 0)
+			{
+				panel_w = drawable_w;
+				panel_h = drawable_h;
+			}
 
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, scene_fbo);
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -436,6 +464,8 @@ namespace ms
 			LOGE("GraphicsGL::init failed");
 			return error;
 		}
+
+		present_wnd = glwnd;
 
 		SDL_GL_GetDrawableSize(glwnd, &panel_w, &panel_h);
 		glViewport(0, 0, width, height);

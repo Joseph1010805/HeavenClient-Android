@@ -41,6 +41,7 @@
 #include "../UITypes/UIOptionMenu.h"
 #include "../UITypes/UIQuit.h"
 #include "../UITypes/UINotice.h"
+#include "../UITypes/UILoginNotice.h"
 #include "../Character/ExpTable.h"
 
 #include <nlnx/nx.hpp>
@@ -323,6 +324,22 @@ namespace ms
 		buttons[Buttons::BT_SETTING_KEYS] = std::make_unique<MapleButton>(submenu["setting"]["button:keySetting"], setting_pos);
 		buttons[Buttons::BT_SETTING_OPTION] = std::make_unique<MapleButton>(submenu["setting"]["button:option"], setting_pos);
 
+		// The setting menu draws five slots but this UI version only supplies
+		// four buttons - there is no `button:JoyPad` under submenu/setting -
+		// so the last slot has always been an unexplained gap. Fill it with a
+		// real quit, which the menu otherwise has no way to reach: the button
+		// labelled GameQuit returns to character select rather than exiting.
+		//
+		// The other four place themselves through origins baked into their
+		// sprites (-33, -61, -89, -117, a step of 28), so the fifth belongs at
+		// -145. This one is borrowed from the login screen and has an origin
+		// of (0,0), so it is positioned by hand, nudged to sit centred in a
+		// row it is slightly too large for.
+		buttons[Buttons::BT_SETTING_EXIT] = std::make_unique<MapleButton>(
+			nl::nx::ui["Login.img"]["Common"]["BtExit"],
+			setting_pos + SETTING_EXIT_OFFSET
+		);
+
 		buttons[Buttons::BT_COMMUNITY_PARTY] = std::make_unique<MapleButton>(submenu["community"]["button:bossParty"], community_pos);
 		buttons[Buttons::BT_COMMUNITY_FRIENDS] = std::make_unique<MapleButton>(submenu["community"]["button:friends"], community_pos);
 		buttons[Buttons::BT_COMMUNITY_GUILD] = std::make_unique<MapleButton>(submenu["community"]["button:guild"], community_pos);
@@ -565,6 +582,10 @@ namespace ms
 		for (size_t i = Buttons::BT_SETTING_CHANNEL; i <= Buttons::BT_SETTING_QUIT; i++)
 			buttons[i]->set_position(setting_pos + pos_adj);
 
+		// Placed by hand rather than by a sprite origin, so it is not part of
+		// the loop above.
+		buttons[Buttons::BT_SETTING_EXIT]->set_position(setting_pos + pos_adj + SETTING_EXIT_OFFSET);
+
 		for (size_t i = Buttons::BT_COMMUNITY_FRIENDS; i <= Buttons::BT_COMMUNITY_MAPLECHAT; i++)
 			buttons[i]->set_position(community_pos + pos_adj);
 
@@ -660,6 +681,13 @@ namespace ms
 							UIQuit::return_to_charselect();
 					}
 				);
+
+			remove_menus();
+			break;
+		case Buttons::BT_SETTING_EXIT:
+			// Leaves the game entirely - the same confirmation the device's
+			// own back gesture raises, so both routes out behave alike.
+			UI::get().emplace<UIQuitConfirm>();
 
 			remove_menus();
 			break;
@@ -779,7 +807,7 @@ namespace ms
 				else if (setting_active)
 				{
 					min_id = Buttons::BT_SETTING_CHANNEL;
-					max_id = Buttons::BT_SETTING_QUIT;
+					max_id = Buttons::BT_SETTING_EXIT;
 				}
 				else if (community_active)
 				{
@@ -957,6 +985,7 @@ namespace ms
 		buttons[Buttons::BT_SETTING_JOYPAD]->set_active(setting_active);
 		buttons[Buttons::BT_SETTING_KEYS]->set_active(setting_active);
 		buttons[Buttons::BT_SETTING_OPTION]->set_active(setting_active);
+		buttons[Buttons::BT_SETTING_EXIT]->set_active(setting_active);
 
 		if (setting_active)
 		{
