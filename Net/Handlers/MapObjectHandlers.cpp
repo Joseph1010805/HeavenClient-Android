@@ -225,7 +225,9 @@ namespace ms
 			// A summoned monster with no spawn effect.
 			if (effect == -3)
 			{
-				recv.read_int(); // parent object id, nothing here needs it
+				int32_t parent = recv.read_int();
+
+				printf("[*] spawn: summoned, parent oid %d\n", parent);
 
 				// It appears when its parent dies rather than fading in.
 				return -1;
@@ -244,7 +246,13 @@ namespace ms
 			int8_t marker = static_cast<int8_t>((tail >> 24) & 0xFF);
 
 			if ((tail & 0x00FFFFFF) == 0 && (marker == -1 || marker == -2))
+			{
+				printf("[*] spawn: effect %d, marker %d\n", effect, marker);
+
 				return marker;
+			}
+
+			printf("[*] spawn: summoned with effect %d, parent oid %d\n", effect, tail);
 
 			return -1; // an object id, so summoned again
 		}

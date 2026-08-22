@@ -27,6 +27,12 @@
 #include "../IO/UITypes/UIStatsinfo.h"
 #include "../Net/Packets/GameplayPackets.h"
 #include "../Net/Packets/InventoryPackets.h"
+#include "../Net/Packets/PlayerPackets.h"
+
+#include <nlnx/nx.hpp>
+
+#include <algorithm>
+#include <string>
 
 namespace ms
 {
@@ -153,6 +159,83 @@ namespace ms
 			Char::draw(viewx, viewy, alpha);
 	}
 
+	namespace
+	{
+		// One tick every ten seconds, which is what the original did.
+		constexpr int64_t RECOVERY_INTERVAL = 10'000;
+
+		// What a character with no passive recovers per tick.
+		constexpr int32_t RECOVERY_BASE = 10;
+
+		// The two passives that change it. A Warrior's Improved HP Recovery
+		// and a Magician's MP Recovery both add a flat amount per tick, and
+		// how much is in the skill's own data rather than anywhere in this
+		// client - so it is read from there rather than written down here and
+		// left to drift.
+		constexpr int32_t IMPROVED_HP_RECOVERY = 1000000;
+		constexpr int32_t MP_RECOVERY = 2000000;
+
+		int32_t passive_bonus(int32_t skill_id, int32_t level)
+		{
+			if (level <= 0)
+				return 0;
+
+			std::string job = std::to_string(skill_id / 10000) + ".img";
+
+			nl::node x = nl::nx::skill[job]["skill"][std::to_string(skill_id)]
+				["level"][std::to_string(level)]["x"];
+
+			return x ? static_cast<int32_t>(x) : 0;
+		}
+
+		// How much of a recovery is worth asking for: never more than the gap
+		// to full, and nothing at all when already there.
+		int16_t wanted(const CharStats& stats, Maplestat::Id now, Maplestat::Id most, int32_t amount)
+		{
+			int32_t missing = stats.get_stat(most) - stats.get_stat(now);
+
+			if (missing <= 0)
+				return 0;
+
+			return static_cast<int16_t>(std::min(missing, amount));
+		}
+	}
+
+	void Player::update_recovery()
+	{
+		// Standing still is the whole condition. Walking, jumping, climbing,
+		// attacking or lying dead all start the count again from nothing.
+		if (state != Char::State::STAND || attacking)
+		{
+			still_for = 0;
+
+			return;
+		}
+
+		still_for += Constants::TIMESTEP;
+
+		if (still_for < RECOVERY_INTERVAL)
+			return;
+
+		still_for = 0;
+
+		int32_t hp_tick = RECOVERY_BASE
+			+ passive_bonus(IMPROVED_HP_RECOVERY, skillbook.get_level(IMPROVED_HP_RECOVERY));
+
+		int32_t mp_tick = RECOVERY_BASE
+			+ passive_bonus(MP_RECOVERY, skillbook.get_level(MP_RECOVERY));
+
+		int16_t hp = wanted(stats, Maplestat::Id::HP, Maplestat::Id::MAXHP, hp_tick);
+		int16_t mp = wanted(stats, Maplestat::Id::MP, Maplestat::Id::MAXMP, mp_tick);
+
+		// Nothing to say when both are already full - and saying it anyway
+		// would be one more packet every ten seconds for every idle character.
+		if (hp == 0 && mp == 0)
+			return;
+
+		HealOverTimePacket(hp, mp).dispatch();
+	}
+
 	int8_t Player::update(const Physics& physics)
 	{
 		const PlayerState* pst = get_state(state);
@@ -174,6 +257,8 @@ namespace ms
 				pst->update_state(*this);
 			}
 		}
+
+		update_recovery();
 
 		uint8_t stancebyte = facing_right ? state : state + 1;
 		Movement newmove(phobj, stancebyte);

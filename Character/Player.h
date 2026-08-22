@@ -69,6 +69,14 @@ namespace ms
 		// Use the item from the player's inventory with the given id.
 		void use_item(int32_t itemid);
 
+		// Old-school standing recovery.
+		//
+		// HP and MP come back only while the character is doing nothing, and
+		// any movement, jump or attack starts the count again. The server does
+		// not do this by itself - the client counts it and reports it, which is
+		// how the original worked too.
+		void update_recovery();
+
 		// Return if the player is attacking.
 		bool is_attacking() const;
 		// Return whether the player can attack or not.
@@ -173,5 +181,8 @@ namespace ms
 		Optional<const Ladder> ladder;
 
 		bool underwater;
+
+		// How long the character has been standing still, in milliseconds.
+		int64_t still_for = 0;
 	};
 }

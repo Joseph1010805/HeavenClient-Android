@@ -52,6 +52,20 @@ public class SecondScreen extends Presentation
         // the game.
         setCancelable(false);
 
+        // Never take key input focus.
+        //
+        // A Presentation is a window, and touching a window hands it the
+        // keyboard - so the first touch on the panel took the d-pad away from
+        // the game and gave it to a window with nothing to do with it. The
+        // controls came back only when something on the MAIN screen took focus
+        // back, which is why opening a window up there fixed it.
+        //
+        // This flag refuses focus outright. Touches on this window still
+        // arrive here; only key and button events are left where they belong.
+        if (getWindow() != null)
+            getWindow().addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+
         view = new SurfaceView(getContext());
         view.getHolder().addCallback(new SurfaceHolder.Callback()
         {

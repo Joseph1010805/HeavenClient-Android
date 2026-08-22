@@ -82,6 +82,12 @@ namespace ms
 			SCROLL_EQUIP = 86,
 
 			// Player
+			// The client counts its own standing recovery and tells the server
+			// what it recovered - the server does not do this on its own. Note
+			// the neighbours: 87 and 90 spend ability and skill points, so this
+			// number is worth getting from the server rather than guessing at.
+			HEAL_OVER_TIME = 89,
+
 			SPEND_AP = 87,
 			SPEND_SP = 90,
 			CHANGE_KEYMAP = 135,

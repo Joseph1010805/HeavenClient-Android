@@ -27,6 +27,25 @@ namespace ms
 {
 	// Requests a stat increase by spending ap.
 	// Opcode: SPEND_AP(87)
+	// Tells the server what was recovered by standing still.
+	// Opcode 89, read by Cosmic's HealOvertimeHandler as: eight bytes skipped,
+	// then HP, then MP.
+	//
+	// The server watches this: two heals less than 1.5 seconds apart are
+	// treated as cheating, and HP above 77 * the map's recovery rate * 1.5 is
+	// an instant ban. A tick of ten every ten seconds is far inside both.
+	class HealOverTimePacket : public OutPacket
+	{
+	public:
+		HealOverTimePacket(int16_t hp, int16_t mp) : OutPacket(OutPacket::Opcode::HEAL_OVER_TIME)
+		{
+			skip(8);
+
+			write_short(hp);
+			write_short(mp);
+		}
+	};
+
 	class SpendApPacket : public OutPacket
 	{
 	public:
