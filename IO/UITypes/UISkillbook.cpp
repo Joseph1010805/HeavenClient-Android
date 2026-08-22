@@ -295,9 +295,12 @@ namespace ms
 		{
 			Point<int16_t> sp_pos = position + Point<int16_t>(bg_dimensions.x(), 0);
 
-			sp_backgrnd.draw(sp_pos);
-			sp_backgrnd2.draw(sp_pos);
-			sp_backgrnd3.draw(sp_pos);
+			// Faint like the book it opens beside.
+			float fade = panel ? PANEL_FADE : 1.0f;
+
+			sp_backgrnd.draw(DrawArgument(sp_pos, fade));
+			sp_backgrnd2.draw(DrawArgument(sp_pos, fade));
+			sp_backgrnd3.draw(DrawArgument(sp_pos, fade));
 
 			// The artwork supplies the labels and the empty boxes; these are
 			// the values that go in them, measured against it.

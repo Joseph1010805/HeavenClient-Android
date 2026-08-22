@@ -325,7 +325,18 @@ namespace ms
 			auto parent_map = "WorldMap0" + std::to_string(prefix);
 			user_map = parent_map;
 
-			update_world(parent_map);
+			// On the panel the map is a thing being READ, and walking through a
+			// door should not throw away the region someone navigated to. The
+			// "you are here" marker still follows, because that is drawn from
+			// mapid above - only the picture stays put.
+			//
+			// The first load still has to happen, or the page would be empty.
+			if (!panel || !world_loaded)
+			{
+				world_loaded = true;
+
+				update_world(parent_map);
+			}
 		}
 
 		if (search)

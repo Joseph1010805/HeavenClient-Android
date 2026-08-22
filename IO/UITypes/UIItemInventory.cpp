@@ -523,12 +523,13 @@ namespace ms
 					// pointer it holds until the item is dropped somewhere.
 					// A touch never drops it, so every item tapped stayed
 					// faded and the pointer stayed open-handed. Here the tap
-					// simply marks the slot and the pointer closes on it.
-					selected = slot;
+					// simply marks the slot and the pointer closes on it - and
+					// tapping the marked one again puts it down.
+					selected = (selected == slot) ? 0 : slot;
 
 					clear_tooltip();
 
-					return Cursor::State::GRABBING;
+					return selected == slot ? Cursor::State::GRABBING : Cursor::State::CANGRAB;
 				}
 
 				Point<int16_t> slotpos = get_slotpos(slot);

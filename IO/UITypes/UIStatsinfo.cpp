@@ -172,16 +172,20 @@ namespace ms
 		{
 			Point<int16_t> detail_pos(position + Point<int16_t>(212, 0));
 
-			textures_detail[0].draw(detail_pos + Point<int16_t>(0, -1));
-			textures_detail[1].draw(detail_pos);
-			textures_detail[2].draw(detail_pos);
-			textures_detail[3].draw(detail_pos);
+			// The same treatment as the window it opens beside - otherwise the
+			// detail column arrives as a solid white slab next to a faint one.
+			float fade = panel ? PANEL_FADE : 1.0f;
 
-			abilities[Ability::NONE].draw(DrawArgument(detail_pos));
+			textures_detail[0].draw(DrawArgument(detail_pos + Point<int16_t>(0, -1), fade));
+			textures_detail[1].draw(DrawArgument(detail_pos, fade));
+			textures_detail[2].draw(DrawArgument(detail_pos, fade));
+			textures_detail[3].draw(DrawArgument(detail_pos, fade));
 
-			inner_ability[false].draw(detail_pos);
-			inner_ability[false].draw(detail_pos + Point<int16_t>(0, 19));
-			inner_ability[false].draw(detail_pos + Point<int16_t>(0, 38));
+			abilities[Ability::NONE].draw(DrawArgument(detail_pos, fade));
+
+			inner_ability[false].draw(DrawArgument(detail_pos, fade));
+			inner_ability[false].draw(DrawArgument(detail_pos + Point<int16_t>(0, 19), fade));
+			inner_ability[false].draw(DrawArgument(detail_pos + Point<int16_t>(0, 38), fade));
 		}
 
 		size_t last = showdetail ? StatLabel::NUM_LABELS : StatLabel::NUM_NORMAL;

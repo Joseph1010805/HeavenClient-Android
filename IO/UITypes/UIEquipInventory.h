@@ -79,6 +79,12 @@ namespace ms
 		// rack was showing through them.
 		static constexpr float PANEL_FADE = 0.6f;
 
+		// The tab row on the panel: where it starts, how far apart the tabs
+		// are, and how far down. UNEQUIP goes on the end of it.
+		static constexpr int16_t PANEL_TAB_LEFT = 3;
+		static constexpr int16_t PANEL_TAB_STEP = 40;
+		static constexpr int16_t PANEL_TAB_TOP = 3;
+
 
 		Button::State button_pressed(uint16_t buttonid) override;
 

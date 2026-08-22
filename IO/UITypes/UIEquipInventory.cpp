@@ -137,6 +137,16 @@ namespace ms
 		panel = true;
 		panel_screen = screen;
 
+		// The tabs move to the left so the row has room for a button. They are
+		// placed rather than left where the artwork puts them, which spread
+		// them across the whole width.
+		Buttons tabs[] = { Buttons::BT_TAB0, Buttons::BT_TAB1,
+			Buttons::BT_TAB2, Buttons::BT_TAB3 };
+
+		for (int i = 0; i < 4; i++)
+			buttons[tabs[i]]->set_position(Point<int16_t>(
+				PANEL_TAB_LEFT + i * PANEL_TAB_STEP, PANEL_TAB_TOP));
+
 		// The window's own furniture goes: a close box, the cash-shop and salon
 		// buttons, the slot-expansion button. What is left is the doll and its
 		// slots, which is the whole reason to give it a screen.
@@ -159,20 +169,23 @@ namespace ms
 		if (!panel)
 			return Rectangle<int16_t>();
 
-		constexpr int16_t W = 96;
-		constexpr int16_t H = 26;
-
-		// Beside the doll rather than under it. Under it the button sat at the
-		// very bottom of the screen; the space to the RIGHT of the window is
-		// empty and is the easiest part of the panel to reach.
+		// ABSOLUTE, not relative to the window.
 		//
-		// Worked out in screen terms and then expressed relative to the window,
-		// because that is the space the window hit-tests and draws in.
-		int16_t left = panel_screen.x() - W - 10 - position.x();
-		int16_t top = (dimension.y() - H) / 2;
+		// This window hit-tests its slots in the panel's own coordinates -
+		// slot_by_position compares against position + the slot offset - so a
+		// button measured from the window's corner was compared against a
+		// cursor measured from the screen's, and never matched. That is why
+		// the button did nothing.
+		//
+		// It sits in the tab row, to the right of the four tabs, which is the
+		// only band of this window with nothing already in it.
+		constexpr int16_t W = 86;
+		constexpr int16_t H = 18;
 
-		return Rectangle<int16_t>(Point<int16_t>(left, top),
-			Point<int16_t>(left + W, top + H));
+		Point<int16_t> at = position + Point<int16_t>(
+			PANEL_TAB_LEFT + 4 * PANEL_TAB_STEP + 6, PANEL_TAB_TOP);
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(W, H));
 	}
 
 	void UIEquipInventory::unequip_selected()
@@ -267,7 +280,7 @@ namespace ms
 			bool ready = selected != Equipslot::Id::NONE && icons[selected];
 
 			GraphicsGL::get().drawrectangle(
-				position.x() + act.left(), position.y() + act.top(),
+				act.left(), act.top(),
 				act.width(), act.height(),
 				ready ? 0.42f : 0.16f,
 				ready ? 0.18f : 0.16f,
@@ -275,8 +288,8 @@ namespace ms
 				ready ? 0.92f : 0.55f);
 
 			action_text.draw(Point<int16_t>(
-				position.x() + act.left() + act.width() / 2,
-				position.y() + act.top() + 4));
+				act.left() + act.width() / 2,
+				act.top() + 1));
 		}
 
 		if (tab == Buttons::BT_TAB2)

@@ -163,6 +163,7 @@ namespace ms
 
 		// Set when this copy is the one on the lower panel.
 		bool panel;
+		bool world_loaded = false;
 		Point<int16_t> panel_screen;
 		Point<int16_t> panel_map_size;
 		float panel_scale_x;
