@@ -122,6 +122,49 @@ public class SecondScreen extends Presentation
      */
     private int activePointer = -1;
 
+    /**
+     * The last three raw positions, and the median of them is what gets used.
+     *
+     * The screen emits the occasional wild sample in the middle of a stroke -
+     * measured at 258 pixels in 8 milliseconds, which no finger does. One bad
+     * sample, then straight back to where the finger really is. That is the
+     * pointer jumping about, and it comes from the digitizer: the log shows it
+     * arriving that way from Android, with a single contact reported the whole
+     * time.
+     *
+     * A median throws away an isolated outlier completely while passing real
+     * movement through untouched - unlike an average, which would drag the
+     * pointer part of the way towards every bad sample. The cost is that a
+     * point is one sample behind, about 8ms, which is not perceptible.
+     */
+    private final float[] recentX = new float[3];
+    private final float[] recentY = new float[3];
+    private int recentCount = 0;
+
+    private static float median3(float a, float b, float c)
+    {
+        return Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
+    }
+
+    private void remember(float x, float y)
+    {
+        recentX[2] = recentX[1]; recentX[1] = recentX[0]; recentX[0] = x;
+        recentY[2] = recentY[1]; recentY[1] = recentY[0]; recentY[0] = y;
+
+        if (recentCount < 3)
+            recentCount++;
+    }
+
+    private float steadyX()
+    {
+        return recentCount < 3 ? recentX[0] : median3(recentX[0], recentX[1], recentX[2]);
+    }
+
+    private float steadyY()
+    {
+        return recentCount < 3 ? recentY[0] : median3(recentY[0], recentY[1], recentY[2]);
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event)
     {
@@ -130,15 +173,33 @@ public class SecondScreen extends Presentation
         int action = event.getActionMasked();
         int index = event.getActionIndex();
 
-        if (event.getPointerCount() > 1)
-            android.util.Log.i("HeavenClient",
-                "[cursor] " + event.getPointerCount() + " contacts, following id "
-                + activePointer);
+        // Temporary. The converted coordinates were seen jumping about, and
+        // reading the raw ones back from them has been guesswork twice over -
+        // once wrongly. So this is what Android actually handed us, before
+        // anything here touches it: the event, the raw position, how many
+        // contacts there are, and the size of the view those coordinates are
+        // measured against. If the raw stream is smooth then the fault is
+        // downstream of this line; if it jumps, it is not ours at all.
+        android.util.Log.i("HeavenClient",
+            "[raw] a=" + action + " id=" + activePointer
+            + " n=" + event.getPointerCount()
+            + " xy=" + (int) event.getX() + "," + (int) event.getY()
+            + " view=" + (view == null ? 0 : view.getWidth())
+            + "x" + (view == null ? 0 : view.getHeight())
+            + " src=" + event.getSource() + " tool=" + event.getToolType(0)
+            + " dev=" + event.getDeviceId());
 
         switch (action)
         {
         case MotionEvent.ACTION_DOWN:
             activePointer = event.getPointerId(index);
+
+            // A press is taken exactly where it landed. There is no history to
+            // judge it against, and delaying a tap to be sure of it would be
+            // worse than the occasional bad one.
+            recentCount = 0;
+            remember(event.getX(index), event.getY(index));
+
             nativeTouch(event.getX(index), event.getY(index), true, false);
             return true;
 
@@ -148,7 +209,11 @@ public class SecondScreen extends Presentation
             int at = event.findPointerIndex(activePointer);
 
             if (at >= 0)
-                nativeTouch(event.getX(at), event.getY(at), false, false);
+            {
+                remember(event.getX(at), event.getY(at));
+
+                nativeTouch(steadyX(), steadyY(), false, false);
+            }
 
             return true;
         }
@@ -159,9 +224,14 @@ public class SecondScreen extends Presentation
             int at = event.findPointerIndex(activePointer);
 
             if (at >= 0)
-                nativeTouch(event.getX(at), event.getY(at), false, true);
+            {
+                // Where the finger steadily WAS, not where the last sample
+                // claimed - a bad one on the way up would move the click.
+                nativeTouch(steadyX(), steadyY(), false, true);
+            }
 
             activePointer = -1;
+            recentCount = 0;
             return true;
         }
 
