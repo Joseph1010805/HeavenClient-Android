@@ -40,6 +40,7 @@
 #include "../UITypes/UIChat.h"
 #include "../UITypes/UIOptionMenu.h"
 #include "../UITypes/UIQuit.h"
+#include "../UITypes/UINotice.h"
 #include "../Character/ExpTable.h"
 
 #include <nlnx/nx.hpp>
@@ -644,7 +645,21 @@ namespace ms
 			remove_menus();
 			break;
 		case Buttons::BT_SETTING_QUIT:
-			UI::get().emplace<UIQuit>(stats);
+			// The rich version needs artwork our UI data does not have. Left
+			// unguarded it drew nothing but a dark screen, took focus, and
+			// trapped the player with no way back in and no way out - there
+			// is no Escape key on a handheld.
+			if (UIQuit::has_artwork())
+				UI::get().emplace<UIQuit>(stats);
+			else
+				UI::get().emplace<UIYesNo>(
+					"Do you want to return to the character select screen?",
+					[](bool yes)
+					{
+						if (yes)
+							UIQuit::return_to_charselect();
+					}
+				);
 
 			remove_menus();
 			break;

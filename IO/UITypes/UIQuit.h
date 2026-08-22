@@ -35,6 +35,18 @@ namespace ms
 
 		UIQuit(const CharStats& stats);
 
+		// This dialog is drawn entirely from UIWindow6.img/askReward, which
+		// only exists in much later UI versions than the v178 data this
+		// client pairs with. Without it the window has no artwork and no
+		// buttons, but still darkens the screen and still takes focus - so
+		// it must not be opened unless the artwork is actually there.
+		static bool has_artwork();
+
+		// Leaves the world and goes back to character select. This is what
+		// the YES button does, exposed so a plain confirmation box can do
+		// the same thing when the artwork above is missing.
+		static void return_to_charselect();
+
 		void draw(float inter) const override;
 		void update() override;
 
