@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 // NoLifeNx - Part of the NoLifeStory project                               //
-// Copyright ï¿½ 2013 Peter Atashian                                          //
+// Copyright © 2013 Peter Atashian                                          //
 //                                                                          //
 // This program is free software: you can redistribute it and/or modify     //
 // it under the terms of the GNU Affero General Public License as           //
@@ -17,11 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-
 #include "file.hpp"
 #include "node_impl.hpp"
-
-#include <unordered_map>
 
 namespace nl {
 #pragma pack(push, 1)
@@ -48,11 +45,8 @@ namespace nl {
         void * file_handle = nullptr;
         void * map = nullptr;
 #else
-        //int file_handle = 0;
-        FILE* file_handle = 0;
+        int file_handle = 0;
         size_t size = 0;
 #endif
     };
-    static std::unordered_map<uint64_t,const char*> bitmap_cache;
-    static std::unordered_map<uint64_t,const char*> string_cache;
 }
