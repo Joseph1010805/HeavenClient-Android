@@ -42,6 +42,13 @@ namespace ms
 
 		bool is_hittable() const;
 
+	private:
+		// Plays the noise a given state makes when it is struck, if the data
+		// has one for it.
+		void play_state_sound(int8_t which);
+
+	public:
+
 		// Check if this mob collides with the specified rectangle.
 		bool is_in_range(const Rectangle<int16_t>& range) const;
 
@@ -71,7 +78,9 @@ namespace ms
 
 		Animation normal;
 
-		Sound hitsound;
-		Sound diesound;
+		// One sound per state, which is how the data stores them:
+		// Sound.img/Reactor.img/<plain id>/<state>/Hit. There is no separate
+		// break sound - breaking is simply the last state being hit.
+		std::map<int8_t, Sound> statesounds;
 	};
 }

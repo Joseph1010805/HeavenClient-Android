@@ -66,13 +66,23 @@ namespace ms
 				break;
 		}
 
-		// The sounds are keyed by the PLAIN reactor id, not the zero-padded
-		// one the data file uses: Sound.img has "2001" where the reactor node
-		// is "0002001.img". Looking it up with the padded id finds nothing and
-		// plays nothing, which is exactly as quiet as having no sound at all.
+		// Sounds live at Sound.img/Reactor.img/<id>/<state>/Hit - keyed by the
+		// PLAIN reactor id, not the zero-padded name the reactor's own data
+		// file uses, and split per state rather than into hit/break. The code
+		// here previously asked for "hit" and "break" under the padded id;
+		// none of those three names exist, so it silently found nothing.
 		nl::node sndsrc = nl::nx::sound["Reactor.img"][std::to_string(rid)];
-		hitsound = sndsrc["hit"];
-		diesound = sndsrc["break"];
+
+		for (auto state_node : sndsrc)
+		{
+			nl::node hit = state_node["Hit"];
+
+			if (hit.data_type() == nl::node::type::audio)
+				statesounds.emplace(
+					static_cast<int8_t>(std::stoi(state_node.name())),
+					Sound(hit)
+				);
+		}
 	}
 
 	void Reactor::draw(double viewx, double viewy, float alpha) const
@@ -117,7 +127,9 @@ namespace ms
 
 	void Reactor::set_state(int8_t state)
 	{
-		hitsound.play();
+		// The sound belongs to the state being LEFT - it is the noise that
+		// state makes when struck, not the noise of arriving somewhere new.
+		play_state_sound(this->state);
 
 		if (hittable)
 		{
@@ -130,11 +142,19 @@ namespace ms
 
 	void Reactor::destroy(int8_t, Point<int16_t>)
 	{
-		diesound.play();
+		play_state_sound(this->state);
 		animations[this->state] = src[this->state]["hit"];
 		state++;
 		dead = true;
 		animation_ended = false;
+	}
+
+	void Reactor::play_state_sound(int8_t which)
+	{
+		auto it = statesounds.find(which);
+
+		if (it != statesounds.end())
+			it->second.play();
 	}
 
 	bool Reactor::is_hittable() const
