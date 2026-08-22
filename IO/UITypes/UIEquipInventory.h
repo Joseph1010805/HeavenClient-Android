@@ -60,9 +60,13 @@ namespace ms
 
 		bool panel = false;
 
-		// How much of the window's own white shows through on the panel. The
-		// gear on top of it is drawn at full strength.
-		static constexpr float PANEL_FADE = 0.4f;
+		// How solid the slot squares are on the panel. The gear on top of them
+		// is drawn at full strength either way.
+		//
+		// A fifth MORE solid than the half-strength they started at, not less -
+		// the labels have to be readable against a busy picture, and at 0.4 the
+		// rack was showing through them.
+		static constexpr float PANEL_FADE = 0.6f;
 
 
 		Button::State button_pressed(uint16_t buttonid) override;
