@@ -90,12 +90,25 @@ Both came from OpenStory having already hit them against Cosmic.
 **The next thing to do is test it**, which takes two characters logged in at
 once. Nothing here has been seen working.
 
+## Done since, all untested
+
+The RP5 is provisioned and playing - app, 4.7 GB of data, fonts and Settings,
+via `tools/deploy_data.sh`. Both handhelds are paired for wireless debugging,
+so neither needs a cable again.
+
+- **The quit dialog no longer traps the player.** It drew from artwork the
+  v178 data does not carry, so it dimmed the screen, took focus, and accepted
+  nothing. That lockup is also what produced an apparently deleted character.
+- **Movement lag between devices**, which was about a second: Nagle on the
+  client socket, plus a deliberate 400ms jitter buffer in `OtherChar`.
+- **The Amherst boxes** - three causes, see the commit. Reactor hittability
+  was being read from the spawn state alone, the stance we sent was one
+  Cosmic silently rejects, and the sounds had never been written.
+
 ## After that
 
 - The chat page: emotions on top, keyboard pinned underneath, chat opening by
   itself.
-- The boxes in Amherst, which do not break reliably and make no sound. Reactor
-  handling, never investigated.
 - Quest completion, doors, summons, pets - each its own batch from OpenStory.
 - Offline play: one device hosts. The first thing to check is whether Termux
   can run Java 21, because Cosmic requires it and everything else depends on

@@ -4,13 +4,11 @@ A running list. Tick things off, add to it as they come up.
 
 ## Must do
 
-- [ ] **Take the debug logging out.** Three of these write a line per touch
-      event, which floods the log and buries anything real:
-    - `android/.../SecondScreen.java` - the `[raw]` line, every MotionEvent
-    - `IO/SecondScreenPanel.cpp` - the `[cursor]` line, every touch
-    - `IO/UITypes/UIWorldMap.cpp` - the `[cursor] worldmap ->` line
-      They exist to chase the pointer glitch. Keep them until that is settled,
-      then remove all three together.
+- [ ] **Take the last debug logging out.** The three per-touch lines are gone.
+      What remains is the atlas census in `Graphics/GraphicsGL.cpp`
+      (`atlas_census` / `report_atlas_contents`), which dumps a table of every
+      texture size on each atlas reset. It was for chasing atlas thrashing and
+      that is long settled.
 - [ ] **Decide the signing key.** It is a debug-signed APK today. Choose the
       key before anyone installs it, not after - changing it later forces an
       uninstall on every device. Keep the keystore somewhere it cannot be lost,
@@ -34,8 +32,10 @@ A running list. Tick things off, add to it as they come up.
       from one handler, and it only fires when the new level is higher - so a
       repeated packet cannot retrigger it. Log the moment it plays and count
       the calls.
-- [ ] **Boxes in Amherst do not break reliably, and make no sound.** Reactor
-      handling. Never investigated.
+- [ ] **The Amherst boxes are fixed but untested.** Three causes: hittability
+      was read from the spawn state only, we sent a stance Cosmic silently
+      rejects, and the sounds were never written. Needs someone to go and hit
+      a box.
 - [ ] **Parties are built but untested.** The handler, the panel, the overhead
       gauges and the `/party` commands are all in. None of it has been seen
       working, because it takes two characters logged in at once. Test that
@@ -45,6 +45,12 @@ A running list. Tick things off, add to it as they come up.
 
 - [ ] Everything about parties, which needs two characters at once: forming
       one, the invite prompt, the panel, the overhead gauges, expelling.
+- [ ] **The movement lag between devices.** Was about a second; two causes
+      found and fixed (Nagle on the client socket, and a 400ms jitter buffer
+      in `OtherChar`). If other players now look jerky rather than late, the
+      dial to raise is `DELAY` in `OtherChar::send_movement`.
+- [ ] **The quit / change-character dialog.** It used to trap the player with
+      no way out. Should now be a plain Yes/No box.
 - [ ] UNEQUIP on the equipment page - added but never seen working.
 - [ ] The stat sheet's DETAIL column at its new position - the whole reason the
       list was redrawn by hand, and unverified.
