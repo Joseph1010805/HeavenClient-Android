@@ -239,42 +239,9 @@ namespace nl {
     std::string node::name() const {
         if (!m_data)
             return {};
-
-        uint64_t idx = ((uint64_t) m_file->file_handle << 32) | m_data->name;
-        if(string_cache.find(idx) != string_cache.end()) {
-            //printf("hit string cache %d\n", m_data->name);
-            return {string_cache[idx] + 2, *reinterpret_cast<uint16_t const *>(string_cache[idx])};
-        }
-
-        // A string is a uint16 length followed by that many bytes. Read the
-        // length FIRST and take exactly that many - reading a fixed 100 bytes
-        // and then trusting the length inside them means any string longer
-        // than 98 characters is handed out as a pointer to 100 bytes with a
-        // length of up to 65535. See to_string(), where that crashed.
-        auto const s = m_file->string_table[m_data->name];
-        ::fseek(m_file->file_handle, s, SEEK_SET);
-
-        uint16_t length = 0;
-
-        if (::fread(&length, sizeof(length), 1, m_file->file_handle) != 1)
-            return {};
-
-        char* buffer = (char*) malloc(sizeof(length) + length);
-
-        if (!buffer)
-            return {};
-
-        *reinterpret_cast<uint16_t*>(buffer) = length;
-
-        if (length && ::fread(buffer + 2, 1, length, m_file->file_handle) != length)
-        {
-            free(buffer);
-
-            return {};
-        }
-
-        string_cache[idx] = buffer;
-        return {buffer + 2, length};
+        auto const s = reinterpret_cast<char const *>(m_file->base)
+            + m_file->string_table[m_data->name];
+        return {s + 2, *reinterpret_cast<uint16_t const *>(s)};
     }
     size_t node::size() const {
         return m_data ? m_data->num : 0u;
@@ -287,35 +254,19 @@ namespace nl {
             return {nullptr, m_file};
         auto p = m_file->node_table + m_data->children;
         auto n = m_data->num;
-        //auto const b = reinterpret_cast<const char *>(m_file->base);
+        auto const b = reinterpret_cast<const char *>(m_file->base);
         auto const t = m_file->string_table;
         for (;;) {
             if (!n)
                 return {nullptr, m_file};
             auto const n2 = static_cast<decltype(n)>(n >> 1);
             auto const p2 = p + n2;
-            auto const sl = t[p2->name]; //b + t[p2->name];  in this case it would be num bytes offset from beg of file
-
-            ::fseek(m_file->file_handle, sl, SEEK_SET);
-            char buffer[100];
-            memset(buffer, 1, sizeof(buffer));
-            /*fscanf(m_file->file_handle, "%s", buffer);
-            if (!buffer[0]) {
-                long newpos = sl - 1;
-                ::fseek(m_file->file_handle, newpos, SEEK_SET);
-                memset(buffer, 1, sizeof(buffer));
-                fscanf(m_file->file_handle, "%s%s", buffer,buffer+1);
-            }*/
-            ::fread(buffer, 100, 1, m_file->file_handle);
-            auto const l1 =  *reinterpret_cast<uint16_t const *>(buffer); //*reinterpret_cast<uint16_t const *>(sl);
-            auto const s = buffer/*sl*/ + 2;
+            auto const sl = b + t[p2->name];
+            auto const l1 = *reinterpret_cast<uint16_t const *>(sl);
+            auto const s = reinterpret_cast<uint8_t const *>(sl + 2);
             auto const os = reinterpret_cast<uint8_t const *>(o);
             bool z = false;
-            // Only 98 bytes of the name were actually read, so never compare
-            // past them however long the name claims to be.
-            auto const avail = static_cast<uint16_t>(sizeof(buffer) - 2);
-            auto const l2 = l1 < avail ? l1 : avail;
-            auto const len = l2 < l ? l2 : l;
+            auto const len = l1 < l ? l1 : l;
             for (auto i = 0U; i < len; ++i) {
                 if (s[i] > os[i]) {
                     n = n2;
@@ -345,113 +296,25 @@ namespace nl {
         return m_data->dreal;
     }
     std::string node::to_string() const {
-
-        //auto const s = reinterpret_cast<char const *>(m_file->base)
-        //    + m_file->header->string_offset + m_data->string;
-
-        /*::fseek(m_file->file_handle, m_file->header->string_offset + m_data->string, SEEK_SET);
-        char ch = ::getc(m_file->file_handle);
-        int count = 0;
-        while ((ch != '\n') && (ch != EOF) && (ch != '\000')) {
-            ch = ::getc(m_file->file_handle);
-            count++;
-        }
-        char* t = (char*)malloc(sizeof(char) * count);
-        if (t == NULL) {
-            printf("failed to alloc");
-            exit(1);
-        }
-        ::fseek(m_file->file_handle, m_file->header->string_offset + m_data->string, SEEK_SET);
-        ::fread(t, sizeof(t), 1, m_file->file_handle);*/
-        //::sscanf(s, "%s", &t);
-        // not sure if m_data->string is a byte offset...
-            //+ m_file->string_table[m_data->string];
-
-        //char const* t = reinterpret_cast<char const *>(m_data->string);
-
-        //string table helps us find the memory offset in the file where our string lives....
-        // A string is a uint16 length followed by that many bytes.
-        //
-        // This used to read a fixed 100 bytes into a buffer on the STACK and
-        // then build a string of whatever length was written in the first two
-        // of them. A description longer than 98 characters - and the mob and
-        // map descriptions in String.nx are - then copied thousands of bytes
-        // out of a hundred-byte stack buffer, off the top of the stack, and
-        // the process died. That is the crash from hovering the world map.
-        auto const offset = m_file->string_table[m_data->string];
-        ::fseek(m_file->file_handle, offset, SEEK_SET);
-
-        uint16_t length = 0;
-
-        if (::fread(&length, sizeof(length), 1, m_file->file_handle) != 1)
-            return {};
-
-        std::string out(length, '\0');
-
-        if (length && ::fread(&out[0], 1, length, m_file->file_handle) != length)
-            return {};
-
-        return out;
+        auto const s = reinterpret_cast<char const *>(m_file->base)
+            + m_file->string_table[m_data->string];
+        return {s + 2, *reinterpret_cast<uint16_t const *>(s)};
     }
     vector2i node::to_vector() const {
         return {m_data->vector[0], m_data->vector[1]};
     }
     bitmap node::to_bitmap() const {
-        uint64_t idx = ((uint64_t) m_file->file_handle << 32) | m_data->bitmap.index;
-        if(bitmap_cache.find(idx) != bitmap_cache.end()) {
-            //printf("hit bitmap_cache %d\n", m_data->bitmap.index);
-            return {reinterpret_cast<const char*>(bitmap_cache[idx]), m_data->bitmap.width, m_data->bitmap.height};
-        }
-        // A bitmap is stored as a uint32 compressed length followed by that
-        // many bytes of LZ4. Read the length first and take exactly the blob,
-        // rather than reading 4*width*height and hoping the blob is somewhere
-        // inside it.
-        //
-        // That guess is 1.2MB for a 640x470 picture while the blob may be a
-        // tenth of it, so it runs on into whichever bitmaps happen to follow -
-        // harmless mid-file, but at the end of the file the read comes up
-        // short and the tail of the buffer is uninitialised malloc memory,
-        // which LZ4 then decodes into whatever the heap was holding. A picture
-        // built that way looks like pieces of other pictures.
-        ::fseek(m_file->file_handle, m_file->bitmap_table[m_data->bitmap.index], SEEK_SET);
-
-        uint32_t compressed = 0;
-
-        if (::fread(&compressed, sizeof(compressed), 1, m_file->file_handle) != 1)
-            return {nullptr, m_data->bitmap.width, m_data->bitmap.height};
-
-        size_t bm_size = sizeof(compressed) + compressed;
-        char* bm = (char*) malloc(bm_size);
-
-        if (!bm)
-            return {nullptr, m_data->bitmap.width, m_data->bitmap.height};
-
-        // The length is put back at the front because everything downstream
-        // expects to skip over it before the LZ4 stream begins.
-        *reinterpret_cast<uint32_t*>(bm) = compressed;
-
-        if (::fread(bm + sizeof(compressed), 1, compressed, m_file->file_handle) != compressed)
-        {
-            free(bm);
-            return {nullptr, m_data->bitmap.width, m_data->bitmap.height};
-        }
-        bitmap_cache[idx] = bm;
-        return {reinterpret_cast<const char*>(bm), m_data->bitmap.width, m_data->bitmap.height};
+        return {reinterpret_cast<char const *>(m_file->base)
+            + m_file->bitmap_table[m_data->bitmap.index],
+            m_data->bitmap.width, m_data->bitmap.height};
     }
     audio node::to_audio() const {
-        size_t au_size = m_data->audio.length;
-        char* au = (char*) malloc(au_size);
-        ::fseek(m_file->file_handle, m_file->audio_table[m_data->audio.index], SEEK_SET);
-        ::fread(au, au_size, 1, m_file->file_handle);
-
-        return {reinterpret_cast<const char*>(au), m_data->audio.length};
-
-        /*return {reinterpret_cast<char const *>(m_file->base)
-            + m_file->header->audio_offset + m_data->audio.index,
-            m_data->audio.length};*/
+        return {reinterpret_cast<char const *>(m_file->base)
+            + m_file->audio_table[m_data->audio.index],
+            m_data->audio.length};
     }
     node node::root() const {
-        return {m_file->node_table, m_file}; // this should be fine...
+        return {m_file->node_table, m_file};
     }
     node node::resolve(std::string path) const {
         std::istringstream stream(path);
