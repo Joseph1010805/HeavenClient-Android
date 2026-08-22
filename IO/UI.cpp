@@ -445,6 +445,11 @@ namespace ms
 		state->drag_icon(icon);
 	}
 
+	void UI::forget_dragged(const Icon* icon)
+	{
+		state->forget_dragged(icon);
+	}
+
 	void UI::add_keymapping(uint8_t no, uint8_t type, int32_t action)
 	{
 		keyboard.assign(no, type, action);

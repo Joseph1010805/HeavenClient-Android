@@ -16,6 +16,8 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "Icon.h"
+
+#include "../UI.h"
 #include "Charset.h"
 
 #include "../Audio/Audio.h"
@@ -34,6 +36,11 @@ namespace ms
 	}
 
 	Icon::Icon() : Icon(std::make_unique<NullType>(), {}, -1) {}
+
+	Icon::~Icon()
+	{
+		UI::get().forget_dragged(this);
+	}
 
 	void Icon::draw(Point<int16_t> position) const
 	{

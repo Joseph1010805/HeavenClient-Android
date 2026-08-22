@@ -443,6 +443,14 @@ namespace ms
 		draggedicon = drgic;
 	}
 
+	void UIStateGame::forget_dragged(const Icon* icon)
+	{
+		// Dropped, not cancelled: the icon is already being destroyed, so
+		// reset() would be reaching into it on the way out.
+		if (draggedicon.get() == icon)
+			draggedicon = {};
+	}
+
 	void UIStateGame::clear_tooltip(Tooltip::Parent parent)
 	{
 		if (parent == tooltipparent)

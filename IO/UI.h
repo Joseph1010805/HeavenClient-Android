@@ -91,6 +91,11 @@ namespace ms
 		void remove_textfield();
 		void drag_icon(Icon* icon);
 
+		// Stop holding this icon if it is the one being dragged. Called by the
+		// icon's own destructor, so the UI can never be left pointing at one
+		// that has gone.
+		void forget_dragged(const Icon* icon);
+
 		void add_keymapping(uint8_t no, uint8_t type, int32_t action);
 
 		void clear_tooltip(Tooltip::Parent parent);

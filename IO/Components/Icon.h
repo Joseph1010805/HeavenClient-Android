@@ -68,6 +68,12 @@ namespace ms
 		};
 
 		Icon(std::unique_ptr<Type> type, Texture texture, int16_t count);
+
+		// An icon being dragged is held by the UI as a bare pointer it does not
+		// own. Rebuilding the window that owns it - changing inventory tab does
+		// exactly that - would destroy it and leave the UI drawing freed
+		// memory on the next frame. So an icon says when it is going.
+		~Icon();
 		Icon();
 
 		void drop_on_stage() const;
