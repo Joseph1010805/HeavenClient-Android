@@ -23,6 +23,7 @@
 
 #include "../Data/WeaponData.h"
 #include "../IO/UI.h"
+#include "../IO/SecondScreen.h"
 
 #include "../IO/UITypes/UIStatsinfo.h"
 #include "../Net/Packets/GameplayPackets.h"
@@ -487,6 +488,9 @@ namespace ms
 		if (level > oldlevel)
 		{
 			show_effect_id(CharEffect::Id::LEVELUP);
+
+			// And on the lower panel, over whatever it was showing.
+			SecondScreen::play_levelup();
 
 			// Same story as the tombstone: Audio has been loading this sound
 			// since long before the port and nothing ever played it, so the

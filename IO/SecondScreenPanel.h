@@ -22,6 +22,7 @@
 #include "Components/MapTooltip.h"
 
 #include "../Graphics/SpecialText.h"
+#include "../Graphics/Animation.h"
 #include "../Graphics/Texture.h"
 #include "../Template/Point.h"
 
@@ -58,6 +59,9 @@ namespace ms
 		// screen's coordinates. Called from the main pass, not this one.
 		void draw_top_tooltip() const;
 		void update();
+
+		// Play the level-up flourish over whatever page is showing.
+		void play_levelup();
 
 		// A touch in panel pixels.
 		void send_touch(Point<int16_t> position, Point<int16_t> screen, bool down, bool up);
@@ -140,6 +144,13 @@ namespace ms
 
 		// A page's own backdrop, loaded the first time that page is shown.
 		mutable Texture backdrops[NUM_PAGES];
+
+		// The level-up flourish, and whether it is running. Loaded the first
+		// time somebody levels rather than at startup - it is 64 frames, and
+		// most sessions never see it.
+		mutable Animation levelup;
+		mutable bool levelup_tried = false;
+		bool levelup_playing = false;
 
 		// Shown while there is no map loaded and so no page to show.
 		OutlinedText loading;

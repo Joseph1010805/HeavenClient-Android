@@ -340,6 +340,14 @@ namespace ms
 			}
 		}
 
+		void play_levelup()
+		{
+			if (!available() || !panel_ptr)
+				return;
+
+			panel_ptr->play_levelup();
+		}
+
 		void draw_top_tooltip()
 		{
 			if (!available() || !panel_ptr)

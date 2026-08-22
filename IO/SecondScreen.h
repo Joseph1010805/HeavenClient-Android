@@ -85,5 +85,9 @@ namespace ms
 		// the main screen's own pass, so it lands in that screen's pixels.
 		void draw_top_tooltip();
 
+		// Play the level-up flourish on the panel. Does nothing where there is
+		// no panel, so the one-screen build is unaffected.
+		void play_levelup();
+
 	}
 }

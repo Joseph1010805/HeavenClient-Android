@@ -157,6 +157,18 @@ namespace ms
 			CONTENT_TOP + (room - size.y()) / 2);
 	}
 
+	void SecondScreenPanel::play_levelup()
+	{
+		if (!levelup_tried)
+		{
+			levelup_tried = true;
+			levelup = nl::nx::map001["Custom"]["LevelUp"];
+		}
+
+		levelup.reset();
+		levelup_playing = true;
+	}
+
 	void SecondScreenPanel::turn_to(int16_t next)
 	{
 		// The deck wraps, so the last page is one swipe from the first either
@@ -167,10 +179,26 @@ namespace ms
 			next = 0;
 
 		current = static_cast<Page>(next);
+
+		// Nothing a page put on screen outlives the page. A place name from the
+		// map, an item's details, whatever was picked up - all of it describes
+		// something that is no longer being shown, and the map's box in
+		// particular sits on the OTHER screen where there is nothing to say it
+		// is stale.
+		tooltip.reset();
+
+		UI::get().clear_tooltip(Tooltip::Parent::WORLDMAP);
+		UI::get().clear_tooltip(Tooltip::Parent::MINIMAP);
+		UI::get().clear_tooltip(Tooltip::Parent::ITEMINVENTORY);
+		UI::get().clear_tooltip(Tooltip::Parent::EQUIPINVENTORY);
+		UI::get().clear_tooltip(Tooltip::Parent::SKILLBOOK);
 	}
 
 	void SecondScreenPanel::update()
 	{
+		if (levelup_playing && levelup.update())
+			levelup_playing = false;
+
 		if (UIElement* element = window())
 			element->update();
 
@@ -335,6 +363,11 @@ namespace ms
 
 	void SecondScreenPanel::draw_top_tooltip() const
 	{
+		// Only while the map is the page being shown. The box describes a place
+		// on that map, so once the panel has moved on it is describing nothing.
+		if (current != WORLDMAP)
+			return;
+
 		// Parked rather than following a cursor. The pointer that asked for
 		// this is on the OTHER screen, so there is nowhere sensible on this one
 		// for the box to hang off - a fixed corner is at least always in the
@@ -451,6 +484,18 @@ namespace ms
 		}
 
 		draw_chrome(screen);
+
+		// Over everything, including the arrows and the dots - for five seconds
+		// the panel is a level-up and nothing else. Centred rather than
+		// stretched: the artwork is square and the panel is not.
+		if (levelup_playing)
+		{
+			Point<int16_t> size = levelup.get_dimensions();
+
+			levelup.draw(DrawArgument(Point<int16_t>(
+				(screen.x() - size.x()) / 2,
+				(screen.y() - size.y()) / 2)), 1.0f);
+		}
 
 		// Over everything else, because it is the thing being aimed with.
 		//

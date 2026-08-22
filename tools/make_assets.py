@@ -32,9 +32,11 @@ OUT = os.environ.get('MAKE_ASSETS_OUT', os.path.join(
 
 LOGIN_VIDEO = 'login.mp4'
 CHARSEL_VIDEO = 'character selection.mp4'
+LEVELUP_VIDEO = 'levelup.mp4'
 LOGO_IMAGE = 'LoginIcon.jpg'
 BOTTOM_IMAGE = 'bottomscreenbackground.jpg'
 INVENTORY_IMAGE = 'backpack.jpg'
+EQUIPMENT_IMAGE = 'newequipmentscreen.jpg'
 
 # The handheld's lower panel is 1240x1080. The client draws it in a design
 # space of half that, which has the same shape, so a layout written once is
@@ -57,7 +59,7 @@ FPS = 12
 DELAY = 80
 
 
-def frames(source, vf, fps, duration=None, start=None):
+def frames(source, vf, fps, duration=None, start=None, w=None, h=None):
     """Run a filter chain and return the frames as raw BGRA."""
     cmd = [FFMPEG, '-y', '-v', 'error']
 
@@ -67,12 +69,12 @@ def frames(source, vf, fps, duration=None, start=None):
         cmd += ['-t', str(duration)]
 
     cmd += ['-i', source,
-            '-vf', 'fps=%s,%s,scale=%d:%d' % (fps, vf, W, H),
+            '-vf', 'fps=%s,%s,scale=%d:%d' % (fps, vf, w or W, h or H),
             '-pix_fmt', 'bgra', '-f', 'rawvideo', '-']
 
     raw = subprocess.run(cmd, capture_output=True, check=True).stdout
 
-    size = W * H * 4
+    size = (w or W) * (h or H) * 4
     if len(raw) % size:
         raise SystemExit('ragged frame data: %d is not a multiple of %d'
                          % (len(raw), size))
@@ -199,11 +201,11 @@ def bottom_bgra(path):
     return Image.merge('RGBA', (b, g, r, a)).tobytes()
 
 
-def animation(builder, parent, name, data, delay, zigzag=True):
+def animation(builder, parent, name, data, delay, zigzag=True, w=None, h=None):
     node = parent.child(name)
 
     for i, frame in enumerate(data):
-        builder.bitmap(node, str(i), frame, W, H, origin=(0, 0), delay=delay)
+        builder.bitmap(node, str(i), frame, w or W, h or H, origin=(0, 0), delay=delay)
 
     if zigzag:
         node.integer('zigzag', 1)
@@ -255,6 +257,23 @@ def main():
     inventory = bottom_bgra(os.path.join(SRC, INVENTORY_IMAGE))
     builder.bitmap(custom, 'InvBg', inventory, BOTTOM_W, BOTTOM_H, origin=(0, 0))
     print('  %-9s %dx%d' % ('InvBg', BOTTOM_W, BOTTOM_H))
+
+    # The level-up flourish, played over whatever the panel was showing.
+    #
+    # Square, because the source is - it is centred on the panel rather than
+    # stretched across it, so a burst of light does not come out as an oval.
+    # It plays once and stops, so no zigzag: a level-up runs forwards.
+    LEVELUP_SIZE = 320
+
+    levelup = frames(os.path.join(SRC, LEVELUP_VIDEO), 'null',
+                     fps=FPS, w=LEVELUP_SIZE, h=LEVELUP_SIZE)
+
+    animation(builder, custom, 'LevelUp', levelup, delay=DELAY, zigzag=False,
+              w=LEVELUP_SIZE, h=LEVELUP_SIZE)
+
+    equipment = bottom_bgra(os.path.join(SRC, EQUIPMENT_IMAGE))
+    builder.bitmap(custom, 'EquipBg', equipment, BOTTOM_W, BOTTOM_H, origin=(0, 0))
+    print('  %-9s %dx%d' % ('EquipBg', BOTTOM_W, BOTTOM_H))
 
     logo, lw, lh = logo_bgra(os.path.join(SRC, LOGO_IMAGE), 240)
     builder.bitmap(custom, 'Logo', logo, lw, lh, origin=(0, 0))
