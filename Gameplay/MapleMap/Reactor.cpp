@@ -66,7 +66,11 @@ namespace ms
 				break;
 		}
 
-		nl::node sndsrc = nl::nx::sound["Reactor.img"][strid];
+		// The sounds are keyed by the PLAIN reactor id, not the zero-padded
+		// one the data file uses: Sound.img has "2001" where the reactor node
+		// is "0002001.img". Looking it up with the padded id finds nothing and
+		// plays nothing, which is exactly as quiet as having no sound at all.
+		nl::node sndsrc = nl::nx::sound["Reactor.img"][std::to_string(rid)];
 		hitsound = sndsrc["hit"];
 		diesound = sndsrc["break"];
 	}

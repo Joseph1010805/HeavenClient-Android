@@ -59,7 +59,13 @@ namespace ms
 		std::map<int8_t, Animation> animations;
 		bool animation_ended;
 
-		bool active;
+		// `active` deliberately does NOT live here - it belongs to MapObject,
+		// which sets it true on construction and clears it in deactivate().
+		// Re-declaring it shadowed the base with an uninitialised copy, so
+		// is_in_range read whatever happened to be in that memory: the box
+		// still drew, because drawing asks the base class, but attacking it
+		// consulted the garbage. Stable per object and different per box,
+		// which is exactly what "the boxes only break sometimes" looked like.
 		bool hittable;
 		bool dead;
 
