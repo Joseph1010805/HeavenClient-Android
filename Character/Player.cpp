@@ -234,6 +234,11 @@ namespace ms
 		if (hp == 0 && mp == 0)
 			return;
 
+		// Say so over the character's head - otherwise standing still to heal
+		// gives no sign that anything is happening.
+		if (hp > 0)
+			show_recovery(hp);
+
 		HealOverTimePacket(hp, mp).dispatch();
 	}
 

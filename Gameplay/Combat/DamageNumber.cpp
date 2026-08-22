@@ -194,6 +194,8 @@ namespace ms
 		charsets[DamageNumber::Type::CRITICAL].set(true, nl::nx::effect["BasicEff.img"]["NoCri0"], Charset::Alignment::LEFT);
 		charsets[DamageNumber::Type::TOPLAYER].set(false, nl::nx::effect["BasicEff.img"]["NoViolet1"], Charset::Alignment::LEFT);
 		charsets[DamageNumber::Type::TOPLAYER].set(true, nl::nx::effect["BasicEff.img"]["NoViolet0"], Charset::Alignment::LEFT);
+		charsets[DamageNumber::Type::RECOVERY].set(false, nl::nx::effect["BasicEff.img"]["NoBlue1"], Charset::Alignment::LEFT);
+		charsets[DamageNumber::Type::RECOVERY].set(true, nl::nx::effect["BasicEff.img"]["NoBlue0"], Charset::Alignment::LEFT);
 	}
 
 	BoolPair<Charset> DamageNumber::charsets[NUM_TYPES];

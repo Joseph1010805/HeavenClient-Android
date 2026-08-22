@@ -275,6 +275,19 @@ namespace ms
 		{
 			if (pressed)
 			{
+				// On the panel a press does NOT pick the item up.
+				//
+				// A drag hands the UI an icon it then draws at the main
+				// screen's cursor - which is how a grey shirt came to be
+				// floating in the corner of the top screen. A touch never
+				// finishes the drag either, so it would hang there.
+				if (panel)
+				{
+					clear_tooltip();
+
+					return Cursor::State::GRABBING;
+				}
+
 				icon->start_drag(cursorpos - position - iconpositions[slot]);
 
 				UI::get().drag_icon(icon);

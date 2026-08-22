@@ -32,7 +32,7 @@ OUT = os.environ.get('MAKE_ASSETS_OUT', os.path.join(
 
 LOGIN_VIDEO = 'login.mp4'
 CHARSEL_VIDEO = 'character selection.mp4'
-LEVELUP_VIDEO = 'levelup.mp4'
+LEVELUP_VIDEO = 'newlevelup.mp4'
 LOGO_IMAGE = 'LoginIcon.jpg'
 BOTTOM_IMAGE = 'bottomscreenbackground.jpg'
 INVENTORY_IMAGE = 'backpack.jpg'

@@ -103,6 +103,13 @@ namespace ms
 		void show_iron_body();
 		// Display damage over the characters head.
 		void show_damage(int32_t damage);
+
+		// What just came back, over the character's head.
+		//
+		// Deliberately not show_damage with a different colour: that one also
+		// makes the character flinch and go briefly invincible, which is right
+		// for being hit and wrong for standing still and getting better.
+		void show_recovery(int32_t amount);
 		// Display a chat bubble with the specified line in it.
 		void speak(const std::string& line);
 		// Change a part of the character's look.
