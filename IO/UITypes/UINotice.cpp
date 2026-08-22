@@ -362,4 +362,58 @@ namespace ms
 
 		return Button::State::NORMAL;
 	}
+
+	UIDeathNotice::UIDeathNotice(std::function<void(bool ok)> oh) : UIDragElement<PosNOTICE>(Point<int16_t>(0, 0))
+	{
+		okhandler = oh;
+
+		backdrop = Texture(nl::nx::ui["UIWindow.img"]["Notice"]["0"]);
+		dimension = backdrop.get_dimensions();
+		dragarea = Point<int16_t>(dimension.x(), 20);
+
+		buttons[Buttons::OK] = std::make_unique<MapleButton>(
+			nl::nx::ui["Basic.img"]["BtOK4"],
+			Point<int16_t>(dimension.x() / 2 - 30, dimension.y() - 32)
+		);
+
+		Sound(Sound::Name::DLGNOTICE).play();
+	}
+
+	bool UIDeathNotice::available()
+	{
+		return nl::nx::ui["UIWindow.img"]["Notice"]["0"].data_type() == nl::node::type::bitmap;
+	}
+
+	void UIDeathNotice::draw(float alpha) const
+	{
+		// This frame carries its own wording, so nothing is drawn over it.
+		backdrop.draw(DrawArgument(position));
+
+		UIElement::draw(alpha);
+	}
+
+	void UIDeathNotice::send_key(int32_t keycode, bool pressed, bool escape)
+	{
+		if (pressed && (keycode == KeyAction::Id::RETURN || escape))
+		{
+			okhandler(true);
+			deactivate();
+		}
+	}
+
+	UIElement::Type UIDeathNotice::get_type() const
+	{
+		return TYPE;
+	}
+
+	Button::State UIDeathNotice::button_pressed(uint16_t buttonid)
+	{
+		if (buttonid == Buttons::OK)
+		{
+			okhandler(true);
+			deactivate();
+		}
+
+		return Button::State::NORMAL;
+	}
 }

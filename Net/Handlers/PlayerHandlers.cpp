@@ -72,9 +72,10 @@ namespace ms
 			player.show_effect_id(CharEffect::Id::TOMBSTONE);
 			Sound(Sound::Name::TOMBSTONE).play();
 
-			UI::get().emplace<UIOk>(
-				"You have died. You will return to the nearest town.",
-				[](bool)
+			// The revive request, whichever frame asks for it. The tombstone
+			// frame is the right one for dying; the plain message box is the
+			// fallback if this UI version has no tombstone to draw.
+			auto revive = [](bool)
 				{
 					// The map id must not be -1. Cosmic wraps its whole revive
 					// path in "if (targetMapId != -1)", so -1 - the obvious
@@ -84,7 +85,12 @@ namespace ms
 					// getReturnMapId(), so the current map is a safe thing to
 					// send.
 					ChangeMapPacket(true, Stage::get().get_mapid(), "", false).dispatch();
-				});
+				};
+
+			if (UIDeathNotice::available())
+				UI::get().emplace<UIDeathNotice>(revive);
+			else
+				UI::get().emplace<UIOk>("You have died. You will return to the nearest town.", revive);
 		}
 	}
 

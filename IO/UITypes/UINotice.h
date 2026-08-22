@@ -134,4 +134,39 @@ namespace ms
 
 		std::function<void(bool ok)> okhandler;
 	};
+
+	// The death notice, on the tombstone frame rather than the plain message
+	// box every other prompt uses. From OpenStory (AGPL-3.0).
+	class UIDeathNotice : public UIDragElement<PosNOTICE>
+	{
+	public:
+		static constexpr Type TYPE = UIElement::Type::NOTICE;
+		static constexpr bool FOCUSED = true;
+		static constexpr bool TOGGLED = false;
+
+		UIDeathNotice(std::function<void(bool ok)> okhandler);
+
+		// Whether the tombstone frame is in the UI data at all. Checked
+		// before use, because a notice that draws nothing but still takes
+		// focus is how the quit dialog trapped the player.
+		static bool available();
+
+		void draw(float alpha) const override;
+
+		void send_key(int32_t keycode, bool pressed, bool escape) override;
+
+		UIElement::Type get_type() const override;
+
+	protected:
+		Button::State button_pressed(uint16_t buttonid) override;
+
+	private:
+		enum Buttons : int16_t
+		{
+			OK
+		};
+
+		std::function<void(bool ok)> okhandler;
+		Texture backdrop;
+	};
 }
