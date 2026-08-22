@@ -32,10 +32,12 @@ A running list. Tick things off, add to it as they come up.
       from one handler, and it only fires when the new level is higher - so a
       repeated packet cannot retrigger it. Log the moment it plays and count
       the calls.
-- [ ] **The Amherst boxes are fixed but untested.** Three causes: hittability
-      was read from the spawn state only, we sent a stance Cosmic silently
-      rejects, and the sounds were never written. Needs someone to go and hit
-      a box.
+- [x] **The Amherst boxes.** Done and confirmed at the table. Four causes:
+      `Reactor` shadowed `MapObject::active` with an uninitialised copy (the
+      reason it looked random - the box drew, because drawing asks the base,
+      while attacking read the garbage), hittability was read from the spawn
+      state only, we sent a stance Cosmic silently rejects, and the sounds
+      were looked up under three wrong names at once.
 - [ ] **Parties are built but untested.** The handler, the panel, the overhead
       gauges and the `/party` commands are all in. None of it has been seen
       working, because it takes two characters logged in at once. Test that
