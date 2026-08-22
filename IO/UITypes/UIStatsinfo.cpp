@@ -136,12 +136,18 @@ namespace ms
 		showdetail = false;
 	}
 
-	void UIStatsinfo::set_panel(Point<int16_t>)
+	void UIStatsinfo::set_panel(Point<int16_t> screen)
 	{
 		panel = true;
 
 		// Nothing to close and nothing to drag on a page.
 		buttons[Buttons::BT_CLOSE]->set_active(false);
+
+		// Claimed as wide as the panel so the page centres it at x 0 rather
+		// than in the middle. DETAIL opens a second column 213 pixels to the
+		// RIGHT of this window, and from the middle that column would open
+		// off the edge of the screen.
+		dimension = Point<int16_t>(screen.x(), dimension.y());
 	}
 
 	bool UIStatsinfo::indragrange(Point<int16_t> cursorpos) const
@@ -154,7 +160,13 @@ namespace ms
 
 	void UIStatsinfo::draw(float alpha) const
 	{
-		UIElement::draw_sprites(alpha);
+		// Faint on the panel, where there is a picture behind it. Only the
+		// window's own plate fades - every label and number on top of it is
+		// drawn exactly as before.
+		if (panel)
+			UIElement::draw_sprites(alpha, PANEL_FADE);
+		else
+			UIElement::draw_sprites(alpha);
 
 		if (showdetail)
 		{

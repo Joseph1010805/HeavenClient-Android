@@ -33,6 +33,9 @@ namespace ms
 		Sprite();
 
 		void draw(Point<int16_t> parentpos, float alpha) const;
+
+		// The same, drawn faintly - see DrawArgument::with_opacity.
+		void draw(Point<int16_t> parentpos, float alpha, float opacity) const;
 		bool update(uint16_t timestep);
 		bool update();
 

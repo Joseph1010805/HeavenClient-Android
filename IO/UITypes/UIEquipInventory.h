@@ -69,6 +69,7 @@ namespace ms
 		bool indragrange(Point<int16_t> cursorpos) const override;
 
 		bool panel = false;
+		Point<int16_t> panel_screen;
 
 		// How solid the slot squares are on the panel. The gear on top of them
 		// is drawn at full strength either way.

@@ -52,6 +52,7 @@ namespace ms
 		bool indragrange(Point<int16_t> cursorpos) const override;
 
 		bool panel = false;
+		static constexpr float PANEL_FADE = 0.6f;
 
 
 		Button::State button_pressed(uint16_t buttonid) override;

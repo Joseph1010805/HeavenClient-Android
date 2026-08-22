@@ -132,9 +132,10 @@ namespace ms
 		change_tab(Buttons::BT_TAB0);
 	}
 
-	void UIEquipInventory::set_panel(Point<int16_t>)
+	void UIEquipInventory::set_panel(Point<int16_t> screen)
 	{
 		panel = true;
+		panel_screen = screen;
 
 		// The window's own furniture goes: a close box, the cash-shop and salon
 		// buttons, the slot-expansion button. What is left is the doll and its
@@ -158,12 +159,17 @@ namespace ms
 		if (!panel)
 			return Rectangle<int16_t>();
 
-		// Under the doll, in the window's own coordinates.
 		constexpr int16_t W = 96;
 		constexpr int16_t H = 26;
 
-		int16_t left = (dimension.x() - W) / 2;
-		int16_t top = dimension.y() - H - 6;
+		// Beside the doll rather than under it. Under it the button sat at the
+		// very bottom of the screen; the space to the RIGHT of the window is
+		// empty and is the easiest part of the panel to reach.
+		//
+		// Worked out in screen terms and then expressed relative to the window,
+		// because that is the space the window hit-tests and draws in.
+		int16_t left = panel_screen.x() - W - 10 - position.x();
+		int16_t top = (dimension.y() - H) / 2;
 
 		return Rectangle<int16_t>(Point<int16_t>(left, top),
 			Point<int16_t>(left + W, top + H));
@@ -370,12 +376,14 @@ namespace ms
 				// finishes the drag either, so it would hang there.
 				if (panel)
 				{
-					// PICKED, not dragged - see set_panel.
-					selected = slot;
+					// PICKED, not dragged - see set_panel. Tapping the one
+					// already held puts it down again, so there is a way to
+					// change your mind without equipping something.
+					selected = (selected == slot) ? Equipslot::Id::NONE : slot;
 
 					clear_tooltip();
 
-					return Cursor::State::GRABBING;
+					return selected == slot ? Cursor::State::GRABBING : Cursor::State::CANGRAB;
 				}
 
 				icon->start_drag(cursorpos - position - iconpositions[slot]);
@@ -389,6 +397,11 @@ namespace ms
 			else
 			{
 				show_equip(slot);
+
+				// A closed fist over the one being held, an open hand over the
+				// rest - so the pointer says which item the button will act on.
+				if (panel && slot == selected)
+					return Cursor::State::GRABBING;
 
 				return Cursor::State::CANGRAB;
 			}

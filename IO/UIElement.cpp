@@ -37,6 +37,12 @@ namespace ms
 			sprite.draw(position, alpha);
 	}
 
+	void UIElement::draw_sprites(float alpha, float opacity) const
+	{
+		for (const Sprite& sprite : sprites)
+			sprite.draw(position, alpha, opacity);
+	}
+
 	void UIElement::draw_buttons(float) const
 	{
 		for (auto& iter : buttons)

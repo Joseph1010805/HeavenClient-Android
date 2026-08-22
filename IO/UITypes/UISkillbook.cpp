@@ -233,7 +233,13 @@ namespace ms
 
 	void UISkillbook::draw(float alpha) const
 	{
-		UIElement::draw_sprites(alpha);
+		// Faint on the panel. Nothing is moved: the list, the spend arrows and
+		// the level readouts line up with this artwork, and it is only the
+		// artwork's opacity that changes.
+		if (panel)
+			UIElement::draw_sprites(alpha, PANEL_FADE);
+		else
+			UIElement::draw_sprites(alpha);
 
 		// These three were placed against the wider window too - the book name
 		// at x 173 and the SP count at x 304, both outside a window 174 across,

@@ -45,6 +45,15 @@ namespace ms
 		constexpr DrawArgument(Point<int16_t> position, Point<int16_t> center, Point<int16_t> stretch, float xscale, float yscale, float opacity, float angle) : pos(position), center(center), stretch(stretch), xscale(xscale), yscale(yscale), color(1.0f, 1.0f, 1.0f, opacity), angle(angle) {}
 		constexpr DrawArgument(Point<int16_t> position, Point<int16_t> center, Point<int16_t> stretch, float xscale, float yscale, Color color, float angle) : pos(position), center(center), stretch(stretch), xscale(xscale), yscale(yscale), color(color), angle(angle) {}
 
+		// The same arrangement, drawn at this opacity.
+		//
+		// For a window's own background art on the lower panel: the position,
+		// stretch and rotation are whatever they were, only fainter.
+		constexpr DrawArgument with_opacity(float opacity) const
+		{
+			return DrawArgument(pos, center, stretch, xscale, yscale, opacity, angle);
+		}
+
 		constexpr Point<int16_t> getpos() const
 		{
 			return pos;

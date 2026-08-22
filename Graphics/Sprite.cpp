@@ -30,6 +30,12 @@ namespace ms
 		animation.draw(absargs, alpha);
 	}
 
+	void Sprite::draw(Point<int16_t> parentpos, float alpha, float opacity) const
+	{
+		auto absargs = (stateargs + parentpos).with_opacity(opacity);
+		animation.draw(absargs, alpha);
+	}
+
 	bool Sprite::update(uint16_t timestep)
 	{
 		return animation.update(timestep);

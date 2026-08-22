@@ -111,6 +111,10 @@ namespace ms
 		UIElement();
 
 		void draw_sprites(float alpha) const;
+
+		// The window's own background art, drawn faintly. Used by the pages on
+		// the lower panel, which sit on a picture of their own.
+		void draw_sprites(float alpha, float opacity) const;
 		void draw_buttons(float alpha) const;
 
 		std::map<uint16_t, std::unique_ptr<Button>> buttons;
