@@ -20,11 +20,159 @@
 #include "../Components/MapleButton.h"
 
 #include "../Net/Packets/MessagingPackets.h"
+#include "../Net/Packets/GameplayPackets.h"
+
+#include "../../Gameplay/Stage.h"
 
 #include <nlnx/nx.hpp>
 
+#include <sstream>
+
 namespace ms
 {
+	namespace
+	{
+		std::string lowercase(std::string s)
+		{
+			for (char& c : s)
+				if (c >= 'A' && c <= 'Z')
+					c = c - 'A' + 'a';
+
+			return s;
+		}
+
+		std::string trim(const std::string& s)
+		{
+			size_t first = s.find_first_not_of(' ');
+
+			if (first == std::string::npos)
+				return "";
+
+			return s.substr(first, s.find_last_not_of(' ') - first + 1);
+		}
+
+		// Finds a party member by name, case-insensitively. Returns 0 when
+		// there is no such member, which every caller treats as "say how".
+		int32_t party_member_id(const std::string& name)
+		{
+			std::string wanted = lowercase(trim(name));
+
+			if (wanted.empty())
+				return 0;
+
+			for (const auto& member : Stage::get().get_player().get_party().get_members())
+				if (lowercase(member.name) == wanted)
+					return member.cid;
+
+			return 0;
+		}
+	}
+
+	// Handles a typed party command. Returns false if the line is not one,
+	// in which case it goes to the server as ordinary chat.
+	//
+	// The real client has a party window for this. Until there is one, these
+	// are the only way to form a party at all.
+	bool UIChatbar::handle_command(const std::string& line)
+	{
+		if (line.empty() || line[0] != '/')
+			return false;
+
+		std::istringstream stream(line);
+		std::string command;
+		stream >> command;
+		command = lowercase(command);
+
+		std::string rest;
+		std::getline(stream, rest);
+		rest = trim(rest);
+
+		// /invite <name> is what the original client accepted, so keep it.
+		if (command == "/invite")
+		{
+			if (rest.empty())
+				send_chatline("[Party] Usage: /invite <name>", LineType::YELLOW);
+			else
+			{
+				InviteToPartyPacket(rest).dispatch();
+				send_chatline("[Party] Invited " + rest + ".", LineType::YELLOW);
+			}
+
+			return true;
+		}
+
+		if (command != "/party" && command != "/p")
+			return false;
+
+		std::istringstream args(rest);
+		std::string action;
+		args >> action;
+		action = lowercase(action);
+
+		std::string argument;
+		std::getline(args, argument);
+		argument = trim(argument);
+
+		const Party& party = Stage::get().get_player().get_party();
+
+		if (action == "create")
+		{
+			CreatePartyPacket().dispatch();
+		}
+		else if (action == "leave")
+		{
+			LeavePartyPacket().dispatch();
+		}
+		else if (action == "invite")
+		{
+			if (argument.empty())
+				send_chatline("[Party] Usage: /party invite <name>", LineType::YELLOW);
+			else
+			{
+				InviteToPartyPacket(argument).dispatch();
+				send_chatline("[Party] Invited " + argument + ".", LineType::YELLOW);
+			}
+		}
+		else if (action == "expel" || action == "kick")
+		{
+			int32_t cid = party_member_id(argument);
+
+			if (cid == 0)
+				send_chatline("[Party] Usage: /party expel <name>", LineType::YELLOW);
+			else
+				ExpelFromPartyPacket(cid).dispatch();
+		}
+		else if (action == "leader")
+		{
+			int32_t cid = party_member_id(argument);
+
+			if (cid == 0)
+				send_chatline("[Party] Usage: /party leader <name>", LineType::YELLOW);
+			else
+				ChangePartyLeaderPacket(cid).dispatch();
+		}
+		else if (action == "list")
+		{
+			if (!party.is_in_party())
+				send_chatline("[Party] You are not in a party.", LineType::YELLOW);
+			else
+				for (const auto& member : party.get_members())
+					send_chatline(
+						"[Party] " + member.name
+						+ (member.cid == party.get_leader() ? " (leader)" : "")
+						+ (member.online ? "" : " - offline"),
+						LineType::YELLOW
+					);
+		}
+		else
+		{
+			send_chatline("[Party] /party create | leave | invite <name>", LineType::YELLOW);
+			send_chatline("[Party] /party expel <name> | leader <name> | list", LineType::YELLOW);
+		}
+
+		return true;
+	}
+
 	UIChatbar::UIChatbar() : UIDragElement<PosCHAT>(Point<int16_t>(410, -5))
 	{
 		chatopen = Setting<Chatopen>::get().load();
@@ -96,7 +244,8 @@ namespace ms
 					{
 						msg.erase(last + 1);
 
-						GeneralChatPacket(msg, true).dispatch();
+						if (!handle_command(msg))
+							GeneralChatPacket(msg, true).dispatch();
 
 						lastentered.push_back(msg);
 						lastpos = lastentered.size();

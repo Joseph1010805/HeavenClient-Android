@@ -23,6 +23,7 @@
 #include "UITypes/UIChatbar.h"
 #include "UITypes/UIMiniMap.h"
 #include "UITypes/UIBuffList.h"
+#include "UITypes/UIPartyHUD.h"
 #include "UITypes/UINpcTalk.h"
 #include "UITypes/UIShop.h"
 #include "UITypes/UIStatsinfo.h"
@@ -56,6 +57,8 @@ namespace ms
 		emplace<UIChatbar>();
 		emplace<UIMiniMap>(stats);
 		emplace<UIBuffList>();
+		// Draws nothing until there is a party to draw.
+		emplace<UIPartyHUD>();
 		emplace<UIShop>(look, inventory);
 
 		VWIDTH = Constants::Constants::get().get_viewwidth();

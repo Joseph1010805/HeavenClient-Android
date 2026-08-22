@@ -46,6 +46,16 @@ namespace ms
 		{
 			if (!movements.empty())
 			{
+				// Normally one movement per tick. If a backlog has built up -
+				// a burst arrived, or the frame rate dipped - throw the excess
+				// away rather than walking through it, because playing every
+				// stale position back at one per tick means never catching up
+				// and staying permanently behind.
+				constexpr size_t MAX_BACKLOG = 8;
+
+				while (movements.size() > MAX_BACKLOG)
+					movements.pop();
+
 				lastmove = movements.front();
 				movements.pop();
 			}
@@ -81,7 +91,15 @@ namespace ms
 
 		if (timer == 0)
 		{
-			constexpr uint16_t DELAY = 50;
+			// Hold the first movement briefly so that a burst arriving at
+			// once plays back smoothly instead of snapping.
+			//
+			// This was 50 ticks. At an 8ms timestep that is 400ms of delay
+			// before another player is drawn where they already are, re-armed
+			// every time they pause - which is most of the second of lag
+			// between two devices on the same wifi. That much buffering only
+			// buys anything across the internet; on a LAN it is pure lag.
+			constexpr uint16_t DELAY = 6;
 			timer = DELAY;
 		}
 	}

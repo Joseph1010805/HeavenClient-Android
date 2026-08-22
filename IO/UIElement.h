@@ -50,6 +50,7 @@ namespace ms
 			STATUSBAR,
 			CHATBAR,
 			BUFFLIST,
+			PARTYHUD,
 			NOTICE,
 			NPCTALK,
 			SHOP,

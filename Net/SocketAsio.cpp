@@ -40,6 +40,18 @@ namespace ms
 
 		if (!error)
 		{
+			// Nagle's algorithm holds a small write back until the previous
+			// one is acknowledged, hoping to coalesce them. Movement packets
+			// are small and constant, so on a LAN - where an ack is fast but
+			// not instant - this adds a steady lag between a character moving
+			// here and moving on someone else's screen, with nothing to gain:
+			// there is no bandwidth problem to solve on a home network.
+			//
+			// asio leaves this off by default. Netty turns it off itself, so
+			// the server side was already fine and only the client stalled.
+			socket.set_option(tcp::no_delay(true), error);
+			error.clear();
+
 			size_t result = socket.read_some(asio::buffer(buffer), error);
 
 			if (error || result != HANDSHAKE_LEN)

@@ -97,6 +97,7 @@ namespace ms
 
 			// Gameplay 2
 			PARTY_OPERATION = 124,
+			DENY_PARTY_REQUEST = 125,
 			MOVE_MONSTER = 188,
 			PICKUP_ITEM = 202,
 			DAMAGE_REACTOR = 205,

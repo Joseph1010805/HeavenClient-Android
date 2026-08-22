@@ -114,6 +114,35 @@ namespace ms
 		InviteToPartyPacket(const std::string& name) : PartyOperationPacket(PartyOperationPacket::Operation::INVITE)
 		{
 			write_string(name);
+			last_invited() = name;
+		}
+
+		// The server's refusal codes ("already in a party", "the party is
+		// full") name nobody, so the only way to say WHO the message is
+		// about is to remember who we last asked.
+		static const std::string& last_invited_name()
+		{
+			return last_invited();
+		}
+
+	private:
+		static std::string& last_invited()
+		{
+			static std::string name;
+			return name;
+		}
+	};
+
+	// Refuses a party invitation. This is its own opcode, not a
+	// PARTY_OPERATION - the server matches the refusal back to the inviter
+	// by name, so send the name exactly as it arrived.
+	class DenyPartyInvitePacket : public OutPacket
+	{
+	public:
+		DenyPartyInvitePacket(const std::string& from_name) : OutPacket(OutPacket::Opcode::DENY_PARTY_REQUEST)
+		{
+			write_byte(23);
+			write_string(from_name);
 		}
 	};
 

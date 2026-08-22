@@ -337,6 +337,13 @@ namespace ms
 		SaveLogin() : BoolEntry("SaveLogin", "false") {}
 	};
 
+	// Whether party invitations pop up a prompt. Turning this off makes
+	// invites arrive silently rather than refusing them.
+	struct AllowPartyInvite : public Configuration::BoolEntry
+	{
+		AllowPartyInvite() : BoolEntry("AllowPartyInvite", "true") {}
+	};
+
 	// The last used account name.
 	struct DefaultAccount : public Configuration::StringEntry
 	{
@@ -447,6 +454,12 @@ namespace ms
 	struct PosNOTICE : public Configuration::PointEntry
 	{
 		PosNOTICE() : PointEntry("PosNOTICE", "(400, 285)") {}
+	};
+
+	// The default position of the party panel.
+	struct PosPARTYHUD : public Configuration::PointEntry
+	{
+		PosPARTYHUD() : PointEntry("PosPARTYHUD", "(10, 80)") {}
 	};
 
 	// The default position of the maple chat.
