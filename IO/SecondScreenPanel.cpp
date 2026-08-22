@@ -185,7 +185,6 @@ namespace ms
 		panel_screen = screen;
 
 		UIElement* element = window();
-		Point<int16_t> origin = window_position(screen);
 
 		// The pointer is here now, so it is not on the other screen.
 		UI::get().set_cursor_visible(false);
@@ -235,7 +234,15 @@ namespace ms
 		// place highlights it the way hovering does. The press is sent when the
 		// finger lifts on somewhere already highlighted, which is the second
 		// touch - so a place is read first and entered second.
-		Point<int16_t> at = position - origin;
+		// The touch is handed over in the PANEL's coordinates, not the window's.
+		//
+		// A window hit-tests by asking each of its buttons for bounds() at the
+		// window's own position and checking the cursor against that, so it is
+		// already accounting for where it sits - subtracting that here took it
+		// off twice. The world map hid this because it fills the panel and so
+		// sits at 0,0; the inventory is centred at 224,102 and was out by
+		// exactly that much.
+		Point<int16_t> at = position;
 
 		// A clean slate before the page is asked, so what it sets is what gets
 		// drawn - and so a second place can replace the first. MapTooltip

@@ -17,6 +17,8 @@
 #include "SecondScreenPanel.h"
 #include "UI.h"
 
+#include "../Gameplay/Stage.h"
+
 #include "../Graphics/GraphicsGL.h"
 #include "../Graphics/Texture.h"
 
@@ -278,7 +280,11 @@ namespace ms
 
 			GraphicsGL::get().begin_screen(space.x(), space.y());
 
-			if (backdrop.is_valid())
+			// The forest belongs to the login screen and nowhere else. In game
+			// the panel is a working surface: a page either brings its own
+			// backdrop - the inventory brings the bag - or sits on black, and
+			// either way a woodland scene behind the slots is just noise.
+			if (backdrop.is_valid() && !Stage::get().is_active())
 				backdrop.draw(DrawArgument(Point<int16_t>(0, 0), space));
 
 			// On the game thread, with the GL context current - which is the
