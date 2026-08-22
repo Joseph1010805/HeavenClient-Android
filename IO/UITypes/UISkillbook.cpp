@@ -216,6 +216,21 @@ namespace ms
 		dragarea = Point<int16_t>(dimension.x(), 20);
 	}
 
+	void UISkillbook::set_panel(Point<int16_t>)
+	{
+		panel = true;
+
+		buttons[Buttons::BT_CLOSE]->set_active(false);
+	}
+
+	bool UISkillbook::indragrange(Point<int16_t> cursorpos) const
+	{
+		if (panel)
+			return false;
+
+		return UIDragElement::indragrange(cursorpos);
+	}
+
 	void UISkillbook::draw(float alpha) const
 	{
 		UIElement::draw_sprites(alpha);

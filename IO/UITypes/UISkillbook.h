@@ -38,6 +38,10 @@ namespace ms
 
 		UISkillbook(const CharStats& stats, const Skillbook& skillbook);
 
+		// Show this copy on the lower panel: pinned, with the window's own
+		// close box and drag bar taken away.
+		void set_panel(Point<int16_t> screen);
+
 		void draw(float alpha) const override;
 
 		void toggle_active() override;
@@ -53,6 +57,11 @@ namespace ms
 		bool is_skillpoint_enabled();
 
 	protected:
+		bool indragrange(Point<int16_t> cursorpos) const override;
+
+		bool panel = false;
+
+
 		Button::State button_pressed(uint16_t id) override;
 
 	private:

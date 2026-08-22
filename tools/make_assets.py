@@ -35,8 +35,16 @@ CHARSEL_VIDEO = 'character selection.mp4'
 LEVELUP_VIDEO = 'newlevelup.mp4'
 LOGO_IMAGE = 'LoginIcon.jpg'
 BOTTOM_IMAGE = 'bottomscreenbackground.jpg'
-INVENTORY_IMAGE = 'backpack.jpg'
-EQUIPMENT_IMAGE = 'newequipmentscreen.jpg'
+# One backdrop per page. Wide 16:9 artwork with the character in the LEFT
+# corner, so they are cropped from the left rather than the middle - centring
+# them would take the character off the picture entirely.
+PAGE_IMAGES = {
+    'InvBg': 'inventory.png',
+    'EquipBg': 'equipment.png',
+    'AbilityBg': 'ability.png',
+    'SkillBg': 'skill.png',
+    'ChatBg': 'chatandemotions.png',
+}
 
 # The handheld's lower panel is 1240x1080. The client draws it in a design
 # space of half that, which has the same shape, so a layout written once is
@@ -171,7 +179,7 @@ def logo_bgra(path, target_width):
     return Image.merge('RGBA', (b, g, r, a)).tobytes(), img.width, img.height
 
 
-def bottom_bgra(path):
+def bottom_bgra(path, anchor='center'):
     """The lower panel's backdrop, cropped to the panel's shape.
 
     The artwork is taller than it is wide and the panel is wider than it is
@@ -184,13 +192,12 @@ def bottom_bgra(path):
     band = round(w * BOTTOM_H / BOTTOM_W)
 
     if band < h:
-        top = (h - band) // 2
+        top = 0 if anchor == 'left' else (h - band) // 2
         img = img.crop((0, top, w, top + band))
     else:
-        # Wider than the panel instead: take a band out of the middle the
-        # other way round.
+        # Wider than the panel instead: take a band out the other way round.
         band = round(h * BOTTOM_W / BOTTOM_H)
-        left = (w - band) // 2
+        left = 0 if anchor == 'left' else (w - band) // 2
         img = img.crop((left, 0, left + band, h))
 
     img = img.resize((BOTTOM_W, BOTTOM_H), Image.LANCZOS)
@@ -250,14 +257,6 @@ def main():
     builder.bitmap(custom, 'BottomBg', bottom, BOTTOM_W, BOTTOM_H, origin=(0, 0))
     print('  %-9s %dx%d' % ('BottomBg', BOTTOM_W, BOTTOM_H))
 
-    # The inventory page's own backdrop, cropped to the panel the same way.
-    # It is dimmed where it is DRAWN rather than here, so how far it sits
-    # behind the window is one number in SecondScreenPanel rather than a
-    # rebuild of this file.
-    inventory = bottom_bgra(os.path.join(SRC, INVENTORY_IMAGE))
-    builder.bitmap(custom, 'InvBg', inventory, BOTTOM_W, BOTTOM_H, origin=(0, 0))
-    print('  %-9s %dx%d' % ('InvBg', BOTTOM_W, BOTTOM_H))
-
     # The level-up flourish, played over whatever the panel was showing.
     #
     # Square, because the source is - it is centred on the panel rather than
@@ -271,9 +270,12 @@ def main():
     animation(builder, custom, 'LevelUp', levelup, delay=DELAY, zigzag=False,
               w=LEVELUP_SIZE, h=LEVELUP_SIZE)
 
-    equipment = bottom_bgra(os.path.join(SRC, EQUIPMENT_IMAGE))
-    builder.bitmap(custom, 'EquipBg', equipment, BOTTOM_W, BOTTOM_H, origin=(0, 0))
-    print('  %-9s %dx%d' % ('EquipBg', BOTTOM_W, BOTTOM_H))
+    # A backdrop for every page that has one. Cropped from the left so the
+    # character in the corner survives the change of shape.
+    for node_name, filename in sorted(PAGE_IMAGES.items()):
+        art = bottom_bgra(os.path.join(SRC, filename), anchor='left')
+        builder.bitmap(custom, node_name, art, BOTTOM_W, BOTTOM_H, origin=(0, 0))
+        print('  %-9s %dx%d  %s' % (node_name, BOTTOM_W, BOTTOM_H, filename))
 
     logo, lw, lh = logo_bgra(os.path.join(SRC, LOGO_IMAGE), 240)
     builder.bitmap(custom, 'Logo', logo, lw, lh, origin=(0, 0))

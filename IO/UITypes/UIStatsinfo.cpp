@@ -136,6 +136,22 @@ namespace ms
 		showdetail = false;
 	}
 
+	void UIStatsinfo::set_panel(Point<int16_t>)
+	{
+		panel = true;
+
+		// Nothing to close and nothing to drag on a page.
+		buttons[Buttons::BT_CLOSE]->set_active(false);
+	}
+
+	bool UIStatsinfo::indragrange(Point<int16_t> cursorpos) const
+	{
+		if (panel)
+			return false;
+
+		return UIDragElement::indragrange(cursorpos);
+	}
+
 	void UIStatsinfo::draw(float alpha) const
 	{
 		UIElement::draw_sprites(alpha);

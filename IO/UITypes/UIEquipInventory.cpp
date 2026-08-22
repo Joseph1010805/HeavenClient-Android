@@ -21,6 +21,7 @@
 
 #include "../Components/MapleButton.h"
 #include "../Data/ItemData.h"
+#include "../../Graphics/GraphicsGL.h"
 #include "../Audio/Audio.h"
 
 #include "../Net/Packets/InventoryPackets.h"
@@ -145,6 +146,50 @@ namespace ms
 		buttons[Buttons::BT_CONSUMESETTING]->set_active(false);
 		buttons[Buttons::BT_EXCEPTION]->set_active(false);
 		buttons[Buttons::BT_SHOP]->set_active(false);
+
+		action_text = OutlinedText(Text::Font::A12B, Text::Alignment::CENTER,
+			Color::Name::WHITE, Color::Name::TUNA);
+
+		action_text.change_text("UNEQUIP");
+	}
+
+	Rectangle<int16_t> UIEquipInventory::action_bounds() const
+	{
+		if (!panel)
+			return Rectangle<int16_t>();
+
+		// Under the doll, in the window's own coordinates.
+		constexpr int16_t W = 96;
+		constexpr int16_t H = 26;
+
+		int16_t left = (dimension.x() - W) / 2;
+		int16_t top = dimension.y() - H - 6;
+
+		return Rectangle<int16_t>(Point<int16_t>(left, top),
+			Point<int16_t>(left + W, top + H));
+	}
+
+	void UIEquipInventory::unequip_selected()
+	{
+		if (selected == Equipslot::Id::NONE)
+			return;
+
+		if (!icons[selected])
+			return;
+
+		// Exactly what a double click does on a desktop: find a free bag slot
+		// and move it there. Nowhere to put it means nothing happens, rather
+		// than an item vanishing.
+		int16_t freeslot = inventory.find_free_slot(InventoryType::Id::EQUIP);
+
+		if (!freeslot)
+			return;
+
+		UnequipItemPacket(selected, freeslot).dispatch();
+
+		Sound(Sound::Name::DRAGEND).play();
+
+		selected = Equipslot::Id::NONE;
 	}
 
 	bool UIEquipInventory::indragrange(Point<int16_t> cursorpos) const
@@ -175,6 +220,15 @@ namespace ms
 			// is which. What goes IN them is drawn at full strength below.
 			for (auto slot : Slots[tab])
 				slot.draw(DrawArgument(position, PANEL_FADE));
+
+			// What is picked, marked rather than faded - nothing here greys out.
+			if (selected != Equipslot::Id::NONE)
+			{
+				Point<int16_t> at = position + iconpositions[selected];
+
+				GraphicsGL::get().drawrectangle(at.x() + 1, at.y() + 1, 32, 32,
+					1.0f, 0.92f, 0.45f, 0.85f);
+			}
 		}
 		else
 		{
@@ -201,7 +255,25 @@ namespace ms
 				if (iter.second)
 					iter.second->draw(position + iconpositions[iter.first] + Point<int16_t>(4, 4));
 		}
-		else if (tab == Buttons::BT_TAB2)
+		if (panel && tab == Buttons::BT_TAB0)
+		{
+			Rectangle<int16_t> act = action_bounds();
+			bool ready = selected != Equipslot::Id::NONE && icons[selected];
+
+			GraphicsGL::get().drawrectangle(
+				position.x() + act.left(), position.y() + act.top(),
+				act.width(), act.height(),
+				ready ? 0.42f : 0.16f,
+				ready ? 0.18f : 0.16f,
+				ready ? 0.18f : 0.16f,
+				ready ? 0.92f : 0.55f);
+
+			action_text.draw(Point<int16_t>(
+				position.x() + act.left() + act.width() / 2,
+				position.y() + act.top() + 4));
+		}
+
+		if (tab == Buttons::BT_TAB2)
 		{
 			disabled2.draw(position + Point<int16_t>(113, 57));
 			disabled2.draw(position + Point<int16_t>(113, 106));
@@ -269,6 +341,21 @@ namespace ms
 			return dstate;
 		}
 
+		if (panel)
+		{
+			Rectangle<int16_t> act = action_bounds();
+
+			if (act.contains(cursorpos))
+			{
+				if (pressed)
+					unequip_selected();
+
+				clear_tooltip();
+
+				return Cursor::State::CANCLICK;
+			}
+		}
+
 		Equipslot::Id slot = slot_by_position(cursorpos);
 
 		if (auto icon = icons[slot].get())
@@ -283,6 +370,9 @@ namespace ms
 				// finishes the drag either, so it would hang there.
 				if (panel)
 				{
+					// PICKED, not dragged - see set_panel.
+					selected = slot;
+
 					clear_tooltip();
 
 					return Cursor::State::GRABBING;

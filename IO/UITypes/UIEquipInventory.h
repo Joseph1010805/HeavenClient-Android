@@ -21,6 +21,7 @@
 
 #include "../Components/EquipTooltip.h"
 #include "../Components/Icon.h"
+#include "../../Graphics/SpecialText.h"
 #include "../Template/EnumMap.h"
 
 #include "../Character/Inventory/Inventory.h"
@@ -41,6 +42,15 @@ namespace ms
 		// paper-doll layout is left exactly as it is: unlike the item grid,
 		// where the slots go is what the picture MEANS.
 		void set_panel(Point<int16_t> screen);
+
+		// Which slot is picked, and where the button that acts on it sits.
+		// Same idea as the item page: on a touch screen a tap PICKS and a
+		// button acts, because a drag has nowhere to end.
+		Equipslot::Id selected = Equipslot::Id::NONE;
+		Rectangle<int16_t> action_bounds() const;
+		void unequip_selected();
+
+		OutlinedText action_text;
 
 		void draw(float inter) const override;
 

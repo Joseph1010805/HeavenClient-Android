@@ -34,6 +34,10 @@ namespace ms
 
 		UIStatsinfo(const CharStats& stats);
 
+		// Show this copy on the lower panel: pinned, with the window's own
+		// close box and drag bar taken away.
+		void set_panel(Point<int16_t> screen);
+
 		void draw(float alpha) const override;
 
 		void send_key(int32_t keycode, bool pressed, bool escape) override;
@@ -45,6 +49,11 @@ namespace ms
 		void update_stat(Maplestat::Id stat);
 
 	protected:
+		bool indragrange(Point<int16_t> cursorpos) const override;
+
+		bool panel = false;
+
+
 		Button::State button_pressed(uint16_t buttonid) override;
 
 	private:

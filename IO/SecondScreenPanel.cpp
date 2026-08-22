@@ -21,6 +21,8 @@
 
 #include "UITypes/UIEquipInventory.h"
 #include "UITypes/UIItemInventory.h"
+#include "UITypes/UISkillbook.h"
+#include "UITypes/UIStatsinfo.h"
 #include "UITypes/UIWorldMap.h"
 
 #include "../Constants.h"
@@ -126,6 +128,23 @@ namespace ms
 			auto worn = std::make_unique<UIEquipInventory>(Stage::get().get_player().get_inventory());
 			worn->set_panel(panel_screen);
 			slot = std::move(worn);
+			break;
+		}
+		case ABILITY:
+		{
+			auto info = std::make_unique<UIStatsinfo>(Stage::get().get_player().get_stats());
+			info->set_panel(panel_screen);
+			slot = std::move(info);
+			break;
+		}
+		case SKILLS:
+		{
+			auto book = std::make_unique<UISkillbook>(
+				Stage::get().get_player().get_stats(),
+				Stage::get().get_player().get_skills());
+
+			book->set_panel(panel_screen);
+			slot = std::move(book);
 			break;
 		}
 		default:
@@ -429,6 +448,15 @@ namespace ms
 			break;
 		case EQUIPMENT:
 			which = "EquipBg";
+			break;
+		case ABILITY:
+			which = "AbilityBg";
+			break;
+		case SKILLS:
+			which = "SkillBg";
+			break;
+		case CHAT:
+			which = "ChatBg";
 			break;
 		default:
 			return nullptr;
