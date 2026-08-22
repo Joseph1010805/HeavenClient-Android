@@ -26,6 +26,7 @@
 #include "Handlers/InventoryHandlers.h"
 #include "Handlers/MessagingHandlers.h"
 #include "Handlers/NpcInteractionHandlers.h"
+#include "Handlers/SocialHandlers.h"
 #include "Handlers/TestingHandlers.h"
 
 #include "../Console.h"
@@ -75,6 +76,7 @@ namespace ms
 
 		// Player 3
 		UPDATE_GENDER = 58,
+		PARTY_OPERATION = 62,
 		BUDDY_LIST = 63,
 		GUILD_OPERATION = 65,
 
@@ -204,6 +206,9 @@ namespace ms
 		emplace<RECALCULATE_STATS, RecalculateStatsHandler>();
 		emplace<UPDATE_SKILL, UpdateSkillHandler>();
 		emplace<ADD_COOLDOWN, AddCooldownHandler>();
+
+		// Social handlers
+		emplace<PARTY_OPERATION, PartyOperationHandler>();
 
 		// Messaging handlers
 		emplace<SHOW_STATUS_INFO, ShowStatusInfoHandler>();

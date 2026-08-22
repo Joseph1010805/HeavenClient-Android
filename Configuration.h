@@ -337,6 +337,13 @@ namespace ms
 		SaveLogin() : BoolEntry("SaveLogin", "false") {}
 	};
 
+	// Whether party invitations pop up a prompt. Turning this off makes
+	// invites arrive silently rather than refusing them.
+	struct AllowPartyInvite : public Configuration::BoolEntry
+	{
+		AllowPartyInvite() : BoolEntry("AllowPartyInvite", "true") {}
+	};
+
 	// The last used account name.
 	struct DefaultAccount : public Configuration::StringEntry
 	{

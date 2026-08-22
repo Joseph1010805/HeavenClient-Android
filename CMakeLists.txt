@@ -132,6 +132,8 @@ set(HEAVEN_SOURCES
         Character/OtherChar.h
         Character/PassiveBuffs.cpp
         Character/PassiveBuffs.h
+        Character/Party.cpp
+        Character/Party.h
         Character/Player.cpp
         Character/Player.h
         Character/PlayerStates.cpp
@@ -413,6 +415,8 @@ set(HEAVEN_SOURCES
         Net/Handlers/MessagingHandlers.h
         Net/Handlers/NpcInteractionHandlers.cpp
         Net/Handlers/NpcInteractionHandlers.h
+        Net/Handlers/SocialHandlers.cpp
+        Net/Handlers/SocialHandlers.h
         Net/Handlers/PlayerHandlers.cpp
         Net/Handlers/PlayerHandlers.h
         Net/Handlers/SetfieldHandlers.cpp

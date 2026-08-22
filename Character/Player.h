@@ -23,6 +23,7 @@
 #include "Questlog.h"
 #include "Telerock.h"
 #include "Monsterbook.h"
+#include "Party.h"
 #include "Buff.h"
 #include "ActiveBuffs.h"
 #include "PassiveBuffs.h"
@@ -157,6 +158,9 @@ namespace ms
 		Telerock& get_telerock();
 		// Obtain a reference to the player's monsterbook.
 		Monsterbook& get_monsterbook();
+		// Returns the party this character belongs to. Empty when solo.
+		Party& get_party();
+		const Party& get_party() const;
 
 	private:
 		CharStats stats;
@@ -165,6 +169,7 @@ namespace ms
 		Questlog questlog;
 		Telerock telerock;
 		Monsterbook monsterbook;
+		Party party;
 
 		EnumMap<Buffstat::Id, Buff> buffs;
 		ActiveBuffs active_buffs;
