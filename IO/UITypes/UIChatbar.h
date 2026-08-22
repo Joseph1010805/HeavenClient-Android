@@ -56,6 +56,8 @@ namespace ms
 		Cursor::State check_dragtop(bool clicking, Point<int16_t> cursorpos);
 
 		void send_chatline(const std::string& line, LineType type);
+		// Acts on a typed party command. False means it was ordinary chat.
+		bool handle_command(const std::string& line);
 		void display_message(Messages::Type line, UIChatbar::LineType type);
 		void toggle_chat();
 		void toggle_chat(bool chat_open);
