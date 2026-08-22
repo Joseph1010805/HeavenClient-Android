@@ -496,8 +496,7 @@ namespace ms
 				Point<int16_t> size = logo.get_dimensions();
 
 				logo.draw(Point<int16_t>(
-					(screen.x() - size.x()) / 2,
-					(screen.y() - size.y()) / 2));
+					(screen.x() - size.x()) / 2, 20));
 			}
 
 			return;
@@ -529,9 +528,27 @@ namespace ms
 		{
 			Point<int16_t> size = levelup.get_dimensions();
 
-			levelup.draw(DrawArgument(Point<int16_t>(
-				(screen.x() - size.x()) / 2,
-				(screen.y() - size.y()) / 2)), 1.0f);
+			if (size.x() > 0 && size.y() > 0)
+			{
+				// Scaled until it COVERS the panel rather than fits inside it,
+				// so there are no bands down the sides. The artwork is square
+				// and the panel is not, so covering crops a little off the top
+				// and bottom - which is better than stretching a burst of
+				// light into an oval.
+				float across = static_cast<float>(screen.x()) / size.x();
+				float down = static_cast<float>(screen.y()) / size.y();
+				float scale = across > down ? across : down;
+
+				Point<int16_t> to(
+					static_cast<int16_t>(size.x() * scale),
+					static_cast<int16_t>(size.y() * scale));
+
+				Point<int16_t> at(
+					(screen.x() - to.x()) / 2,
+					(screen.y() - to.y()) / 2);
+
+				levelup.draw(DrawArgument(at, to), 1.0f);
+			}
 		}
 
 		// Over everything else, because it is the thing being aimed with.

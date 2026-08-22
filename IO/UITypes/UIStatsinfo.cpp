@@ -162,29 +162,29 @@ namespace ms
 		StatLabel rows[] = { StatLabel::HP, StatLabel::MP, StatLabel::STR,
 			StatLabel::DEX, StatLabel::INT, StatLabel::LUK };
 
-		// A button is drawn at its position MINUS its artwork's origin, so the
-		// origin has to come off or the arrow lands wherever the artwork
-		// happened to sit inside the window it was drawn for - which is how
-		// they ended up on the far side of the screen.
+		// A button is drawn at its position MINUS its artwork's origin, so to
+		// land somewhere the origin is ADDED to it, not taken off. Subtracting
+		// it doubles the offset instead, which is how these ended up on the
+		// far side of the screen.
 		for (int i = 0; i < 6; i++)
 		{
 			Point<int16_t> at = Point<int16_t>(
 				PANEL_W - 16, PANEL_TOP + rows[i] * PANEL_ROW_H - 3);
 
-			buttons[spend[i]]->set_position(at - buttons[spend[i]]->origin());
+			buttons[spend[i]]->set_position(at + buttons[spend[i]]->origin());
 		}
 
 		// Auto-assign and the detail toggle go under the list.
 		int16_t below = PANEL_TOP + StatLabel::NUM_NORMAL * PANEL_ROW_H + 4;
 
 		buttons[Buttons::BT_AUTO]->set_position(
-			Point<int16_t>(PANEL_NAME_X, below) - buttons[Buttons::BT_AUTO]->origin());
+			Point<int16_t>(PANEL_NAME_X, below) + buttons[Buttons::BT_AUTO]->origin());
 
 		buttons[Buttons::BT_DETAILOPEN]->set_position(
-			Point<int16_t>(PANEL_W - 64, below) - buttons[Buttons::BT_DETAILOPEN]->origin());
+			Point<int16_t>(PANEL_W - 64, below) + buttons[Buttons::BT_DETAILOPEN]->origin());
 
 		buttons[Buttons::BT_DETAILCLOSE]->set_position(
-			Point<int16_t>(PANEL_W - 64, below) - buttons[Buttons::BT_DETAILCLOSE]->origin());
+			Point<int16_t>(PANEL_W - 64, below) + buttons[Buttons::BT_DETAILCLOSE]->origin());
 		buttons[Buttons::BT_HYPERSTATOPEN]->set_active(false);
 
 		// Pale values, not the near-black the window used - they sit on a dark
@@ -200,6 +200,42 @@ namespace ms
 		// Claimed as wide as the panel so the page centres it at x 0, which is
 		// where the DETAIL column needs it to be.
 		dimension = Point<int16_t>(screen.x(), below + 26);
+	}
+
+	void UIStatsinfo::update()
+	{
+		UIElement::update();
+
+		// Watched rather than waited for.
+		//
+		// Losing HP arrives as a stat change that asks the whole sheet to be
+		// recalculated, and the recalculation is what refreshes these - so a
+		// number could sit stale while the bar above it had already moved.
+		// Comparing what is drawn against what the character actually has
+		// costs nothing and cannot fall out of step.
+		int32_t now[] = {
+			stats.get_stat(Maplestat::Id::HP),
+			stats.get_stat(Maplestat::Id::MAXHP),
+			stats.get_stat(Maplestat::Id::MP),
+			stats.get_stat(Maplestat::Id::MAXMP),
+			stats.get_stat(Maplestat::Id::AP)
+		};
+
+		Maplestat::Id which[] = {
+			Maplestat::Id::HP, Maplestat::Id::MAXHP,
+			Maplestat::Id::MP, Maplestat::Id::MAXMP,
+			Maplestat::Id::AP
+		};
+
+		for (int i = 0; i < 5; i++)
+		{
+			if (now[i] == watched[i])
+				continue;
+
+			watched[i] = now[i];
+
+			update_stat(which[i]);
+		}
 	}
 
 	void UIStatsinfo::draw_panel_list() const

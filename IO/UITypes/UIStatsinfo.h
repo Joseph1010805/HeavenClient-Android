@@ -39,6 +39,7 @@ namespace ms
 		void set_panel(Point<int16_t> screen);
 
 		void draw(float alpha) const override;
+		void update() override;
 
 		void send_key(int32_t keycode, bool pressed, bool escape) override;
 		bool is_in_range(Point<int16_t> cursorpos) const override;
@@ -86,6 +87,10 @@ namespace ms
 		Text panel_names[StatLabel::NUM_NORMAL];
 
 		void draw_panel_list() const;
+
+		// What the sheet last showed for HP, MAXHP, MP, MAXMP and AP, so a
+		// change can be noticed without waiting to be told about it.
+		int32_t watched[5] = { -1, -1, -1, -1, -1 };
 
 		void update_ap();
 		void update_simple(StatLabel label, Maplestat::Id stat);
