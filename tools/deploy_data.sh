@@ -38,7 +38,12 @@ fi
 V83="C:/Users/Deck/maple/wz-v83"
 V178="C:/Users/Deck/maple/wz-v178"
 CUSTOM="C:/Users/Deck/maple"
-REPO="$(cd "$(dirname "$0")/.." && pwd -W 2>/dev/null || cd "$(dirname "$0")/.." && pwd)"
+
+# Both forms of the repo path. adb needs the Windows one; the shell needs the
+# Unix one. `pwd -W` is a Git Bash extension, so fall back for other shells.
+REPO_UNIX="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$REPO_UNIX" && pwd -W 2>/dev/null)"
+[ -n "$REPO" ] || REPO="$REPO_UNIX"
 
 DIR=/sdcard/Android/data/org.heavenclient.android/files/HeavenClient
 STAGE=/sdcard/Download
@@ -121,7 +126,9 @@ echo
 echo "Fonts:"
 adb -s "$DEV" push "$REPO/fonts" "$DIR/" >/dev/null 2>&1
 if [ "$(sh "ls '$DIR/fonts' 2>/dev/null | wc -l" | tr -d '\r')" -gt 0 ]; then
-	sh "chmod -R 644 '$DIR/fonts'/*" >/dev/null 2>&1
+	# a+rX, not 644 - a flat 644 on the directory itself makes it
+	# untraversable and the fonts inside unreachable.
+	sh "chmod -R a+rX '$DIR/fonts'" >/dev/null 2>&1
 	echo "  ok"
 else
 	echo "  FAILED"
@@ -133,10 +140,11 @@ fi
 # the display anyway.
 echo
 echo "Settings (server $SERVER_IP):"
-printf 'ServerIP = %s\nServerPort = 8484\nWidth = 800\nHeight = 600\n' "$SERVER_IP" > /tmp/hc_settings
-adb -s "$DEV" push /tmp/hc_settings "$STAGE/Settings" >/dev/null 2>&1
-sh "mv '$STAGE/Settings' '$DIR/Settings' && chmod 644 '$DIR/Settings'" >/dev/null 2>&1
-rm -f /tmp/hc_settings
+# Staged in the repo rather than /tmp: adb is being given raw paths here, and
+# a Unix /tmp/... is exactly the thing it cannot resolve.
+printf 'ServerIP = %s\nServerPort = 8484\nWidth = 800\nHeight = 600\n' "$SERVER_IP" > "$REPO_UNIX/.Settings.tmp"
+adb -s "$DEV" push "$REPO/.Settings.tmp" "$DIR/Settings" >/dev/null 2>&1
+rm -f "$REPO_UNIX/.Settings.tmp"
 
 if [ "$(remote_size "$DIR/Settings")" -gt 0 ]; then
 	echo "  ok"
