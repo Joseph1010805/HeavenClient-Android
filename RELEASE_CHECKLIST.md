@@ -39,6 +39,7 @@ A running list. Tick things off, add to it as they come up.
 - [ ] **Parties do not work.** The client sends an invite and has no handler
       for the reply, so it never learns a party formed. The largest functional
       gap for playing together, and the first thing anyone else will hit.
+      OpenStory has this built - see PLAN.md. It is a port, not a rewrite.
 
 ## Worth checking before anyone else sees it
 

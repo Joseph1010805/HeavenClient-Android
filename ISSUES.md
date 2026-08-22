@@ -83,6 +83,27 @@ Wanted layout, left to right:
 - **The PC needs a static LAN IP.** `ServerIP` on the device and Cosmic's
   `HOST`/`LANHOST` are all pinned to 192.168.1.71; a DHCP change breaks both.
 
+### Client - the lower panel (Thor only)
+
+- **The pointer jumps about on the world map.** Not reproducible on demand.
+  Ruled out by measurement: page geometry, the coordinate conversion, the touch
+  queue and thread hand-off, a second contact, two input devices. A speed
+  filter in `SecondScreen.java` rejects impossible samples and it still
+  happens, so the cause is something not yet looked at. Say **RECORD!** and
+  frames of the panel are captured while it is reproduced.
+- **UNEQUIP is unverified.** Built, never seen working.
+- **The stat sheet's DETAIL column is unverified** at its new position, which
+  is the whole reason the stat list was redrawn by hand.
+- **Chat, hotkeys and quests are empty pages.** Chat wants the emotion buttons
+  along the top, the keyboard pinned underneath, and chat opening by itself.
+- **Ability and Skills use the stock layout.** Only their opacity was changed.
+
+### Client - sound
+
+- **The level-up sound plays twice.** One call site in the client, reached from
+  one handler, and it only fires when the new level is higher - so a repeated
+  packet cannot retrigger it. Unexplained.
+
 ## Planned
 
 - **Second screen (Thor branch).** Menus - map, skills, inventory - on the
