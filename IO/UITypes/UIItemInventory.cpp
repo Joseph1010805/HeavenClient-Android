@@ -803,6 +803,36 @@ namespace ms
 			return nullptr;
 	}
 
+	void UIItemInventory::set_panel(Point<int16_t> screen)
+	{
+		panel = true;
+
+		// The NARROW layout, not the wide one.
+		//
+		// The wide layout was the obvious choice - every slot at once - but its
+		// background is 594x363 while the grid of slots it draws runs on well
+		// past that, so on a 620x540 panel it overflowed the bottom and the
+		// right. It also covered the whole screen, which leaves nowhere for the
+		// page's own backdrop to show. The narrow one is 172x335, sits in the
+		// middle with the bag around it, and scrolls.
+		set_full(false);
+
+		// Nothing here to close, resize or drag.
+		buttons[Buttons::BT_CLOSE]->set_active(false);
+		buttons[Buttons::BT_SMALL_SM]->set_active(false);
+		buttons[Buttons::BT_FULL]->set_active(false);
+		buttons[Buttons::BT_FULL_SM]->set_active(false);
+		buttons[Buttons::BT_SMALL]->set_active(false);
+	}
+
+	bool UIItemInventory::indragrange(Point<int16_t> cursorpos) const
+	{
+		if (panel)
+			return false;
+
+		return UIDragElement::indragrange(cursorpos);
+	}
+
 	void UIItemInventory::set_full(bool enabled)
 	{
 		full_enabled = enabled;

@@ -34,6 +34,7 @@ LOGIN_VIDEO = 'login.mp4'
 CHARSEL_VIDEO = 'character selection.mp4'
 LOGO_IMAGE = 'LoginIcon.jpg'
 BOTTOM_IMAGE = 'bottomscreenbackground.jpg'
+INVENTORY_IMAGE = 'backpack.jpg'
 
 # The handheld's lower panel is 1240x1080. The client draws it in a design
 # space of half that, which has the same shape, so a layout written once is
@@ -246,6 +247,14 @@ def main():
     bottom = bottom_bgra(os.path.join(SRC, BOTTOM_IMAGE))
     builder.bitmap(custom, 'BottomBg', bottom, BOTTOM_W, BOTTOM_H, origin=(0, 0))
     print('  %-9s %dx%d' % ('BottomBg', BOTTOM_W, BOTTOM_H))
+
+    # The inventory page's own backdrop, cropped to the panel the same way.
+    # It is dimmed where it is DRAWN rather than here, so how far it sits
+    # behind the window is one number in SecondScreenPanel rather than a
+    # rebuild of this file.
+    inventory = bottom_bgra(os.path.join(SRC, INVENTORY_IMAGE))
+    builder.bitmap(custom, 'InvBg', inventory, BOTTOM_W, BOTTOM_H, origin=(0, 0))
+    print('  %-9s %dx%d' % ('InvBg', BOTTOM_W, BOTTOM_H))
 
     logo, lw, lh = logo_bgra(os.path.join(SRC, LOGO_IMAGE), 240)
     builder.bitmap(custom, 'Logo', logo, lw, lh, origin=(0, 0))

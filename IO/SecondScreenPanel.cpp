@@ -19,6 +19,7 @@
 
 #include "UI.h"
 
+#include "UITypes/UIItemInventory.h"
 #include "UITypes/UIMiniMap.h"
 #include "UITypes/UIWorldMap.h"
 
@@ -49,6 +50,10 @@ namespace ms
 
 		// The pages fill the panel, so there is no strip above them any more.
 		constexpr int16_t CONTENT_TOP = 0;
+
+		// How strongly a page's own backdrop shows through. It sits behind item
+		// slots and icons, so it has to stay a background.
+		constexpr float BACKDROP_FADE = 0.55f;
 	}
 
 	SecondScreenPanel::SecondScreenPanel()
@@ -101,6 +106,13 @@ namespace ms
 			map->set_panel(panel_screen);
 			map->set_panel_tooltip(&tooltip);
 			slot = std::move(map);
+			break;
+		}
+		case INVENTORY:
+		{
+			auto bag = std::make_unique<UIItemInventory>(Stage::get().get_player().get_inventory());
+			bag->set_panel(panel_screen);
+			slot = std::move(bag);
 			break;
 		}
 		default:
@@ -304,9 +316,32 @@ namespace ms
 		arrow_right.draw(DrawArgument(at_right, at_right, size, 1.0f, 1.0f, 1.0f, 0.0f));
 	}
 
+	const Texture* SecondScreenPanel::page_backdrop() const
+	{
+		// A page may bring its own backdrop instead of the panel's forest. The
+		// inventory does: it is a bag, and it reads as one.
+		if (current != INVENTORY)
+			return nullptr;
+
+		if (!backpack_tried)
+		{
+			backpack_tried = true;
+			backpack = nl::nx::map001["Custom"]["InvBg"];
+		}
+
+		return backpack.is_valid() ? &backpack : nullptr;
+	}
+
 	void SecondScreenPanel::draw(Point<int16_t> screen) const
 	{
 		panel_screen = screen;
+
+		// Behind the page, and dimmed - it is a background, and the slots and
+		// item icons on top of it have to stay readable. BACKDROP_FADE is the
+		// whole of that: turn it up to bring the bag forward.
+		if (const Texture* backdrop = page_backdrop())
+			backdrop->draw(DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(0, 0),
+				screen, 1.0f, 1.0f, BACKDROP_FADE, 0.0f));
 
 		UIElement* element = window();
 

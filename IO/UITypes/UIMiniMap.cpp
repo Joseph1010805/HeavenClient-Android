@@ -544,8 +544,12 @@ namespace ms
 
 		Point<int16_t> player = (Stage::get().get_player().get_position() + center_offset) / scale;
 
+		// The player sits a little ABOVE the middle rather than on it, which
+		// lifts the map and shows more of the ground ahead than of the sky
+		// behind. PANEL_LIFT is the whole of that adjustment - turn it up to
+		// raise the map further, down to centre the player again.
 		int16_t x = panel_screen.x() / 2 - static_cast<int16_t>(player.x() * panel_zoom);
-		int16_t y = panel_screen.y() / 2 - static_cast<int16_t>(player.y() * panel_zoom);
+		int16_t y = panel_screen.y() / 2 - PANEL_LIFT - static_cast<int16_t>(player.y() * panel_zoom);
 
 		// Stopped at the edges, so walking into a corner shows the corner
 		// rather than empty space beyond the map.

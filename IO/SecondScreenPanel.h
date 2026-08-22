@@ -87,6 +87,10 @@ namespace ms
 		// exists to avoid.
 		UIElement* window() const;
 
+		// A backdrop belonging to this page rather than to the panel, or null
+		// when the page is happy with the panel's own.
+		const Texture* page_backdrop() const;
+
 		// Where that window sits: centred in the room below the heading.
 		Point<int16_t> window_position(Point<int16_t> screen) const;
 
@@ -126,6 +130,10 @@ namespace ms
 		// select screen's own page arrows.
 		Texture arrow_left;
 		Texture arrow_right;
+
+		// The inventory page's bag, loaded the first time that page is shown.
+		mutable Texture backpack;
+		mutable bool backpack_tried = false;
 
 		// Shown while there is no map loaded and so no page to show.
 		OutlinedText loading;

@@ -75,6 +75,12 @@ namespace ms
 		static constexpr int16_t BTN_MIN_Y = 4;
 		static constexpr int16_t ML_MR_Y = 17;
 		static constexpr int16_t MAX_ADJ = 40;
+
+		// How far above the middle of the panel the player rides. Applied
+		// before the map is clamped to its own edges, so it can never pull the
+		// view off the map - at the top or bottom of a map it simply stops
+		// mattering.
+		static constexpr int16_t PANEL_LIFT = 34;
 		static constexpr int16_t M_START = 36;
 		static constexpr int16_t LISTNPC_ITEM_HEIGHT = 17;
 		static constexpr int16_t LISTNPC_ITEM_WIDTH = 140;

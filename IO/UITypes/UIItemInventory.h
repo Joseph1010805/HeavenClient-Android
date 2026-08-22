@@ -34,6 +34,14 @@ namespace ms
 
 		UIItemInventory(const Inventory& inventory);
 
+		// Show this copy on the lower panel rather than over the game.
+		//
+		// The wide layout is used there and nothing else changes: at 594x363 it
+		// fits the panel with room to spare, and it shows every slot at once
+		// instead of a column of six - which is the whole reason to give the
+		// inventory a screen of its own.
+		void set_panel(Point<int16_t> screen);
+
 		void draw(float inter) const override;
 		void update() override;
 
@@ -52,6 +60,12 @@ namespace ms
 		void clear_new();
 
 	protected:
+		// Pinned to the panel, so there is nothing to drag - and a drag that
+		// moves the window while the panel puts it back every frame is what
+		// made the pointer lose track of what it was over on the map.
+		bool indragrange(Point<int16_t> cursorpos) const override;
+
+
 		Button::State button_pressed(uint16_t buttonid) override;
 
 	private:
@@ -156,6 +170,9 @@ namespace ms
 
 		bool sort_enabled;
 		bool full_enabled;
+
+		// Set when this copy is the one on the lower panel.
+		bool panel = false;
 		Texture backgrnd;
 		Texture backgrnd2;
 		Texture backgrnd3;
