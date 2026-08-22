@@ -33,10 +33,42 @@ namespace ms
 		dead = false;
 		hittable = false;
 
-		for (auto sub : src[0])
-			if (sub.name() == "event")
-				if (sub["0"]["type"].get_integer() == 0)
+		// A reactor is hittable if ANY of its states defines an `event` block -
+		// the data's flag for "reacts to being hit". This used to look only at
+		// the SPAWN state, so a reactor the server spawned in a state whose
+		// node happens to carry no event read as un-hittable, and Combat then
+		// skipped it entirely. That is why the Amherst boxes broke sometimes
+		// and ignored you other times: it depended on the state they spawned
+		// in. Scanning every state can only make more reactors hittable, never
+		// fewer, and the server validates the real hit anyway.
+		for (auto st : src)
+		{
+			bool is_number = !st.name().empty();
+
+			for (char c : st.name())
+				if (c < '0' || c > '9')
+				{
+					is_number = false;
+					break;
+				}
+
+			if (!is_number)
+				continue;	// info, and other non-state nodes
+
+			for (auto sub : st)
+				if (sub.name() == "event")
+				{
 					hittable = true;
+					break;
+				}
+
+			if (hittable)
+				break;
+		}
+
+		nl::node sndsrc = nl::nx::sound["Reactor.img"][strid];
+		hitsound = sndsrc["hit"];
+		diesound = sndsrc["break"];
 	}
 
 	void Reactor::draw(double viewx, double viewy, float alpha) const
@@ -51,7 +83,15 @@ namespace ms
 		}
 		else
 		{
-			animations.at(state - 1).draw(DrawArgument(absp - shift), 1.0);
+			// A state of 0, or one past the reactor's last frame, would make
+			// .at() throw and take the client down with it. The server picks
+			// the state, so this is not ours to guarantee.
+			auto it = animations.find(state - 1);
+
+			if (it != animations.end())
+				it->second.draw(DrawArgument(absp - shift), 1.0);
+			else
+				normal.draw(absp - shift, alpha);
 		}
 	}
 
@@ -60,7 +100,10 @@ namespace ms
 		physics.move_object(phobj);
 
 		if (!animation_ended)
-			animation_ended = animations.at(state - 1).update();
+		{
+			auto it = animations.find(state - 1);
+			animation_ended = (it != animations.end()) ? it->second.update() : true;
+		}
 
 		if (animation_ended && dead)
 			deactivate();
@@ -70,7 +113,8 @@ namespace ms
 
 	void Reactor::set_state(int8_t state)
 	{
-		// TODO: hit/break sounds
+		hitsound.play();
+
 		if (hittable)
 		{
 			animations[this->state] = src[this->state]["hit"];
@@ -82,6 +126,7 @@ namespace ms
 
 	void Reactor::destroy(int8_t, Point<int16_t>)
 	{
+		diesound.play();
 		animations[this->state] = src[this->state]["hit"];
 		state++;
 		dead = true;

@@ -152,7 +152,19 @@ namespace ms
 
 			if (reactor_targets.size())
 				if (Optional<Reactor> reactor = reactor_objs->get(reactor_targets.at(0)))
-					DamageReactorPacket(reactor->get_oid(), player.get_position(), 0, 0).dispatch();
+				{
+					// The stance must not be 0 or 2. Cosmic's hitReactor
+					// refuses to advance a type-2 reactor - which is what
+					// most breakable boxes are - for either of those values,
+					// and says nothing about it: the hit is simply ignored.
+					// We were hardcoding 0, so those boxes could never break.
+					int16_t stance = static_cast<int16_t>(result.stance);
+
+					if (stance == 0 || stance == 2)
+						stance = attack.toleft ? 1 : 3;
+
+					DamageReactorPacket(reactor->get_oid(), player.get_position(), stance, 0).dispatch();
+				}
 		}
 		else
 		{

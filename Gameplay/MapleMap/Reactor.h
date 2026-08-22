@@ -19,6 +19,7 @@
 
 #include "MapObject.h"
 
+#include "../Audio/Audio.h"
 #include "../Graphics/Animation.h"
 
 #include "../Gameplay/Physics/Physics.h"
@@ -63,5 +64,8 @@ namespace ms
 		bool dead;
 
 		Animation normal;
+
+		Sound hitsound;
+		Sound diesound;
 	};
 }
