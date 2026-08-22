@@ -340,6 +340,16 @@ namespace ms
 			}
 		}
 
+		UIElement* hosted(UIElement::Type type)
+		{
+			// Deliberately not get_panel(): asking whether a window exists must
+			// not be what brings the panel into being.
+			if (!panel_ptr)
+				return nullptr;
+
+			return panel_ptr->hosted(type);
+		}
+
 		Point<int16_t> cursor()
 		{
 			if (width <= 0 || height <= 0)

@@ -72,5 +72,14 @@ namespace ms
 		// Where the last touch was, in panel pixels.
 		Point<int16_t> cursor();
 
+		// The panel's copy of a window, if it hosts one.
+		//
+		// The rest of the client finds its windows through UI::get_element,
+		// and a window living on the panel is not in UI's list - so every
+		// notification the server sends about, say, the inventory went to a
+		// window that may not even exist while the panel's copy went on showing
+		// what it had. This is how those find their way here.
+		UIElement* hosted(UIElement::Type type);
+
 	}
 }

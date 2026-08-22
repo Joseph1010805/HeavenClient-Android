@@ -61,6 +61,10 @@ namespace ms
 
 		Page page() const;
 
+		// The hosted window of this type, if one has been built. Null
+		// otherwise - this never builds one, it only reports.
+		UIElement* hosted(UIElement::Type type) const;
+
 	private:
 		void turn_to(int16_t next);
 

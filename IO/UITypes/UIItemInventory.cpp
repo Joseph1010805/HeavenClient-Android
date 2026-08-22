@@ -27,6 +27,7 @@
 #include "../Character/Player.h"
 #include "../Gameplay/Stage.h"
 #include "../Data/EquipData.h"
+#include "../../Graphics/GraphicsGL.h"
 
 #include "../IO/UITypes/UIKeyConfig.h"
 #include "../Net/Packets/InventoryPackets.h"
@@ -145,7 +146,50 @@ namespace ms
 		Point<int16_t> mesolabel_pos = position + Point<int16_t>(127, 262);
 		Point<int16_t> maplepointslabel_pos = position + Point<int16_t>(159, 279);
 
-		if (full_enabled)
+		if (panel)
+		{
+			// The window's own artwork is not drawn at all here.
+			//
+			// It is one picture carrying a black frame and a white body, so it
+			// cannot be made to lose the frame and keep the body at half
+			// strength - the two are the same pixels. The grid is drawn
+			// instead: plain translucent cells, no frame, and the icons and
+			// numbers on top of them at full strength.
+			Point<int16_t> origin = position + grid_origin();
+
+			int16_t held = inventory.get_slotmax(tab);
+
+			for (int16_t row = 0; row < visible_rows(); row++)
+			{
+				for (int16_t col = 0; col < columns(); col++)
+				{
+					// Only slots the character actually has. The window
+					// normally stamps a crossed-out square on the rest, which
+					// on a grid sized to the screen rather than to the bag
+					// meant a wall of crosses.
+					if (row * columns() + col >= held)
+						continue;
+
+					GraphicsGL::get().drawrectangle(
+						origin.x() + col * ICON_WIDTH + 1,
+						origin.y() + row * ICON_HEIGHT + 1,
+						ICON_WIDTH - 2, ICON_HEIGHT - 2,
+						1.0f, 1.0f, 1.0f, 0.5f);
+				}
+			}
+
+			// What is picked, marked by a brighter cell rather than by fading
+			// everything else - nothing here is ever greyed out.
+			if (selected && is_visible(selected))
+			{
+				Point<int16_t> at = position + get_slotpos(selected);
+
+				GraphicsGL::get().drawrectangle(
+					at.x() + 1, at.y() + 1, ICON_WIDTH - 2, ICON_HEIGHT - 2,
+					1.0f, 0.92f, 0.45f, 0.85f);
+			}
+		}
+		else if (full_enabled)
 		{
 			full_backgrnd.draw(position);
 			full_backgrnd2.draw(position);
@@ -185,7 +229,7 @@ namespace ms
 			}
 			else
 			{
-				if (i > numslots && i <= lastslot)
+				if (!panel && i > numslots && i <= lastslot)
 					disabled.draw(position + slotpos);
 			}
 		}
@@ -204,6 +248,31 @@ namespace ms
 		}
 
 		UIElement::draw_buttons(alpha);
+
+		if (panel)
+		{
+			// EQUIP or USE, whichever this tab means. Drawn rather than built
+			// from artwork: there is no button in the game's own files that
+			// says either of these things.
+			Rectangle<int16_t> act = action_bounds();
+
+			if (act.width() > 0)
+			{
+				bool ready = selected != 0;
+
+				GraphicsGL::get().drawrectangle(
+					position.x() + act.left(), position.y() + act.top(),
+					act.width(), act.height(),
+					ready ? 0.16f : 0.10f,
+					ready ? 0.42f : 0.16f,
+					ready ? 0.18f : 0.10f,
+					ready ? 0.92f : 0.55f);
+
+				action_text.draw(Point<int16_t>(
+					position.x() + act.left() + act.width() / 2,
+					position.y() + act.top() + 4));
+			}
+		}
 	}
 
 	void UIItemInventory::update()
@@ -319,8 +388,16 @@ namespace ms
 
 		if (tab != oldtab)
 		{
-			uint16_t row = slotrange.at(tab).first / COLUMNS;
-			slider.setrows(row, 6, 1 + inventory.get_slotmax(tab) / COLUMNS);
+			// Nothing carries across a tab: the slot numbers mean something
+			// different here, and the button says a different word.
+			selected = 0;
+
+			if (panel)
+				if (const char* label = action_label())
+					action_text.change_text(label);
+
+			uint16_t row = slotrange.at(tab).first / columns();
+			slider.setrows(row, 6, 1 + inventory.get_slotmax(tab) / columns());
 
 			buttons[button_by_tab(oldtab)]->set_state(Button::State::NORMAL);
 			buttons[button_by_tab(tab)]->set_state(Button::State::PRESSED);
@@ -397,7 +474,11 @@ namespace ms
 
 		Point<int16_t> cursor_relative = cursorpos - position;
 
-		if (!full_enabled && slider.isenabled())
+		// The panel shows every slot at once, so there is nothing to scroll -
+		// but the slider was still live and still answering to the cursor. It
+		// sits right where the action button now is, and it was swallowing the
+		// press before the button ever saw it.
+		if (!panel && !full_enabled && slider.isenabled())
 		{
 			Cursor::State sstate = slider.send_cursor(cursor_relative, pressed);
 
@@ -409,6 +490,23 @@ namespace ms
 			}
 		}
 
+		if (panel)
+		{
+			// The action button first, so a press on it is not read as a press
+			// on whatever the grid has underneath.
+			Rectangle<int16_t> act = action_bounds();
+
+			if (act.width() > 0 && act.contains(cursor_relative))
+			{
+				if (pressed && selected)
+					activate_slot(selected);
+
+				clear_tooltip();
+
+				return Cursor::State::CANCLICK;
+			}
+		}
+
 		int16_t slot = slot_by_position(cursor_relative);
 		Icon* icon = get_icon(slot);
 		bool is_icon = icon && is_visible(slot);
@@ -417,6 +515,22 @@ namespace ms
 		{
 			if (pressed)
 			{
+				if (panel)
+				{
+					// PICKED, not dragged.
+					//
+					// start_drag fades the slot it came from and hands the UI a
+					// pointer it holds until the item is dropped somewhere.
+					// A touch never drops it, so every item tapped stayed
+					// faded and the pointer stayed open-handed. Here the tap
+					// simply marks the slot and the pointer closes on it.
+					selected = slot;
+
+					clear_tooltip();
+
+					return Cursor::State::GRABBING;
+				}
+
 				Point<int16_t> slotpos = get_slotpos(slot);
 				icon->start_drag(cursor_relative - slotpos);
 				UI::get().drag_icon(icon);
@@ -429,7 +543,11 @@ namespace ms
 			{
 				show_item(slot);
 
-				return Cursor::State::CANGRAB;
+				// Closed over the one that is picked, open over the rest, so
+				// the pointer says which item the action button will act on.
+				return (panel && slot == selected)
+					? Cursor::State::GRABBING
+					: Cursor::State::CANGRAB;
 			}
 			else
 			{
@@ -725,6 +843,24 @@ namespace ms
 
 	int16_t UIItemInventory::slot_by_position(Point<int16_t> cursorpos) const
 	{
+		if (panel)
+		{
+			Point<int16_t> origin = grid_origin();
+
+			int16_t px = cursorpos.x() - origin.x();
+			int16_t py = cursorpos.y() - origin.y();
+
+			if (px < 0 || py < 0
+				|| px >= columns() * ICON_WIDTH
+				|| py >= visible_rows() * ICON_HEIGHT)
+				return 0;
+
+			int16_t at = slotrange.at(tab).first
+				+ (px / ICON_WIDTH) + columns() * (py / ICON_HEIGHT);
+
+			return is_visible(at) ? at : 0;
+		}
+
 		int16_t xoff = cursorpos.x() - 11;
 		int16_t yoff = cursorpos.y() - 51;
 
@@ -739,6 +875,11 @@ namespace ms
 	Point<int16_t> UIItemInventory::get_slotpos(int16_t slot) const
 	{
 		int16_t absslot = slot - slotrange.at(tab).first;
+
+		if (panel)
+			return grid_origin() + Point<int16_t>(
+				(absslot % columns()) * ICON_WIDTH,
+				(absslot / columns()) * ICON_HEIGHT);
 
 		return Point<int16_t>(
 			10 + (absslot % COLUMNS) * ICON_WIDTH,
@@ -807,22 +948,146 @@ namespace ms
 	{
 		panel = true;
 
-		// The NARROW layout, not the wide one.
-		//
-		// The wide layout was the obvious choice - every slot at once - but its
-		// background is 594x363 while the grid of slots it draws runs on well
-		// past that, so on a 620x540 panel it overflowed the bottom and the
-		// right. It also covered the whole screen, which leaves nowhere for the
-		// page's own backdrop to show. The narrow one is 172x335, sits in the
-		// middle with the bag around it, and scrolls.
+		panel_screen = screen;
+
+		// Neither of the stock layouts - a wide one of our own. The narrow
+		// window is four columns and eight rows, which on a screen wider than
+		// it is tall leaves most of the space empty; the stock wide one draws
+		// a grid that runs past its own background. This lays the slots out
+		// across instead, and draws the grid rather than using the artwork.
 		set_full(false);
 
-		// Nothing here to close, resize or drag.
-		buttons[Buttons::BT_CLOSE]->set_active(false);
-		buttons[Buttons::BT_SMALL_SM]->set_active(false);
-		buttons[Buttons::BT_FULL]->set_active(false);
-		buttons[Buttons::BT_FULL_SM]->set_active(false);
-		buttons[Buttons::BT_SMALL]->set_active(false);
+		layout_panel();
+	}
+
+	void UIItemInventory::layout_panel()
+	{
+		if (!panel)
+			return;
+
+		// As many whole columns as the panel is wide enough for.
+		panel_columns = (panel_screen.x() - PANEL_SIDE * 2) / ICON_WIDTH;
+
+		if (panel_columns < 1)
+			panel_columns = 1;
+
+		// As wide as the panel, and only as tall as the grid, the tabs above it
+		// and the action button below it need.
+		dimension = Point<int16_t>(
+			panel_screen.x(),
+			PANEL_GRID_TOP + PANEL_ROWS * ICON_HEIGHT + PANEL_ACTION_H + 22);
+
+		// Everything the window normally carries is furniture for a window:
+		// a close box, resize handles, sort and gather and the rest. Off.
+		for (auto& entry : buttons)
+			if (entry.second)
+				entry.second->set_active(false);
+
+		// The tabs, spread across the top of the grid.
+		Buttons tabs[] = {
+			Buttons::BT_TAB_EQUIP, Buttons::BT_TAB_USE, Buttons::BT_TAB_ETC,
+			Buttons::BT_TAB_SETUP, Buttons::BT_TAB_CASH
+		};
+
+		int16_t x = grid_origin().x();
+
+		for (Buttons id : tabs)
+		{
+			buttons[id]->set_active(true);
+			buttons[id]->set_position(Point<int16_t>(x, PANEL_TAB_TOP));
+
+			x += 31;
+		}
+
+		buttons[button_by_tab(tab)]->set_state(Button::State::PRESSED);
+
+		// Every slot the grid can hold is on screen at once, so there is
+		// nothing to scroll and no slider to draw.
+		int16_t shown = columns() * visible_rows();
+
+		for (auto& entry : slotrange)
+			entry.second = { 1, shown };
+
+		action_text = OutlinedText(Text::Font::A12B, Text::Alignment::CENTER,
+			Color::Name::WHITE, Color::Name::TUNA);
+
+		if (const char* label = action_label())
+			action_text.change_text(label);
+	}
+
+	int16_t UIItemInventory::columns() const
+	{
+		return panel ? panel_columns : COLUMNS;
+	}
+
+	int16_t UIItemInventory::visible_rows() const
+	{
+		return panel ? PANEL_ROWS : ROWS;
+	}
+
+	Point<int16_t> UIItemInventory::grid_origin() const
+	{
+		// Centred across the window, which is itself the full width of the
+		// panel - so the grid uses the space the narrow window left empty.
+		return Point<int16_t>(
+			(panel_screen.x() - columns() * ICON_WIDTH) / 2,
+			PANEL_GRID_TOP);
+	}
+
+	Rectangle<int16_t> UIItemInventory::action_bounds() const
+	{
+		if (!panel || !action_label())
+			return Rectangle<int16_t>();
+
+		int16_t top = PANEL_GRID_TOP + PANEL_ROWS * ICON_HEIGHT + 10;
+		int16_t left = (panel_screen.x() - PANEL_ACTION_W) / 2;
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(left, top),
+			Point<int16_t>(left + PANEL_ACTION_W, top + PANEL_ACTION_H));
+	}
+
+	const char* UIItemInventory::action_label() const
+	{
+		switch (tab)
+		{
+		case InventoryType::Id::EQUIP:
+			return "EQUIP";
+		case InventoryType::Id::USE:
+			return "USE";
+		default:
+			// Nothing sensible to do with an etc item or a chair from here.
+			return nullptr;
+		}
+	}
+
+	void UIItemInventory::activate_slot(int16_t slot)
+	{
+		if (!icons.count(slot) || !is_visible(slot))
+			return;
+
+		int32_t item_id = inventory.get_item_id(tab, slot);
+
+		if (!item_id)
+			return;
+
+		switch (tab)
+		{
+		case InventoryType::Id::EQUIP:
+			if (can_wear_equip(slot))
+			{
+				EquipItemPacket(slot, inventory.find_equipslot(item_id)).dispatch();
+
+				// The same sound the real client makes when an item lands in an
+				// equip slot - there is no separate "equipped" one.
+				Sound(Sound::Name::DRAGEND).play();
+			}
+
+			break;
+		case InventoryType::Id::USE:
+			UseItemPacket(slot, item_id).dispatch();
+			break;
+		}
 	}
 
 	bool UIItemInventory::indragrange(Point<int16_t> cursorpos) const

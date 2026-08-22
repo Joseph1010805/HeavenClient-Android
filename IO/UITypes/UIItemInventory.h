@@ -21,6 +21,7 @@
 
 #include "../Components/Slider.h"
 #include "../Graphics/Text.h"
+#include "../../Graphics/SpecialText.h"
 
 namespace ms
 {
@@ -112,6 +113,25 @@ namespace ms
 		static constexpr uint16_t COLUMNS = 4;
 		static constexpr uint16_t MAXSLOTS = ROWS * COLUMNS;
 		static constexpr uint16_t MAXFULLSLOTS = COLUMNS * MAXSLOTS;
+		// The panel's grid: wide and shallow, to use a screen that is wider
+		// than it is tall - the narrow window's four columns leave most of it
+		// empty.
+		//
+		// How many columns is worked out from the panel's actual width rather
+		// than fixed. The panel is laid out in a space 300 high, whatever the
+		// display's real pixels, so its width is not something to guess at -
+		// guessing 620 when it is 344 put nine columns of the grid off the
+		// sides of the screen.
+		static constexpr uint16_t PANEL_ROWS = 4;
+		static constexpr int16_t PANEL_SIDE = 8;
+
+		// Where that grid starts inside the window, and how much room the tabs
+		// above and the action button below need.
+		static constexpr int16_t PANEL_GRID_TOP = 46;
+		static constexpr int16_t PANEL_TAB_TOP = 8;
+		static constexpr int16_t PANEL_ACTION_H = 26;
+		static constexpr int16_t PANEL_ACTION_W = 96;
+
 		static constexpr uint16_t ICON_WIDTH = 36;
 		static constexpr uint16_t ICON_HEIGHT = 35;
 
@@ -173,6 +193,39 @@ namespace ms
 
 		// Set when this copy is the one on the lower panel.
 		bool panel = false;
+		Point<int16_t> panel_screen;
+		int16_t panel_columns = 4;
+
+		// Work out the wide layout: how many columns fit, where the grid
+		// starts, and where the tabs and the action button sit around it.
+		void layout_panel();
+
+		// Which slot is picked, 0 for none.
+		//
+		// The stock window has no notion of a selected item - a press starts a
+		// DRAG and a double click acts on it. Neither survives a touch screen:
+		// the drag greys the slot it came from and never ends, so tapping two
+		// items in turn leaves both greyed, and a tap is not a double click.
+		// Here a tap picks, and the action button acts on what is picked.
+		int16_t selected = 0;
+
+		// Equip it, or use it - whichever this tab means. Shared with the
+		// double click, so both do the same thing.
+		void activate_slot(int16_t slot);
+
+		// Where the action button sits, in this window's own coordinates, and
+		// what it says. Empty when the tab has no action.
+		Rectangle<int16_t> action_bounds() const;
+		const char* action_label() const;
+
+		Point<int16_t> grid_origin() const;
+
+		// How the grid is arranged. The narrow window stacks four to a row and
+		// scrolls; the panel is wide and short, so it lays them out across.
+		int16_t columns() const;
+		int16_t visible_rows() const;
+
+		OutlinedText action_text;
 		Texture backgrnd;
 		Texture backgrnd2;
 		Texture backgrnd3;

@@ -77,6 +77,15 @@ namespace ms
 		return current;
 	}
 
+	UIElement* SecondScreenPanel::hosted(UIElement::Type type) const
+	{
+		for (auto& page : pages)
+			if (page && page->get_type() == type)
+				return page.get();
+
+		return nullptr;
+	}
+
 	UIElement* SecondScreenPanel::window() const
 	{
 		auto& slot = const_cast<std::unique_ptr<UIElement>&>(pages[current]);
@@ -256,6 +265,22 @@ namespace ms
 		if (up)
 		{
 			touching = false;
+
+			// One tap does it, everywhere except the world map.
+			//
+			// The map reads first and travels second on purpose: tapping a
+			// place there takes you to another map, and doing that by accident
+			// while trying to read a name is a nuisance. A button is not like
+			// that - pressing EQUIP twice to equip once is just wrong.
+			if (current != WORLDMAP)
+			{
+				element->send_cursor(true, at);
+
+				cursor_state = element->send_cursor(false, at);
+				highlighted = false;
+
+				return;
+			}
 
 			bool same_place = highlighted && std::abs(highlight_at.x() - position.x()) < 24
 				&& std::abs(highlight_at.y() - position.y()) < 24;

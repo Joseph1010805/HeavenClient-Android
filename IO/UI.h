@@ -24,6 +24,7 @@
 #include "Components/Icon.h"
 #include "Components/Textfield.h"
 #include "Components/ScrollingNotice.h"
+#include "SecondScreen.h"
 
 #include "../Template/Singleton.h"
 #include "../Template/Optional.h"
@@ -149,6 +150,13 @@ namespace ms
 	{
 		UIElement::Type type = T::TYPE;
 		UIElement* element = state->get(type);
+
+		// Then the lower panel. A window hosted down there is not in the
+		// state's list, so without this every piece of code that keeps a
+		// window up to date - the inventory handlers above all - would be
+		// talking to a window that is not the one on screen.
+		if (!element)
+			element = SecondScreen::hosted(type);
 
 		return static_cast<T*>(element);
 	}
