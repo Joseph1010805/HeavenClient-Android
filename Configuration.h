@@ -456,6 +456,12 @@ namespace ms
 		PosNOTICE() : PointEntry("PosNOTICE", "(400, 285)") {}
 	};
 
+	// The default position of the party panel.
+	struct PosPARTYHUD : public Configuration::PointEntry
+	{
+		PosPARTYHUD() : PointEntry("PosPARTYHUD", "(10, 80)") {}
+	};
+
 	// The default position of the maple chat.
 	struct PosMAPLECHAT : public Configuration::PointEntry
 	{

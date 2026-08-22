@@ -22,6 +22,7 @@
 #include "Inventory/Weapon.h"
 #include "Look/Afterimage.h"
 #include "Look/CharLook.h"
+#include "Party.h"
 #include "Look/PetLook.h"
 
 #include "../Graphics/EffectLayer.h"
@@ -110,6 +111,10 @@ namespace ms
 		// makes the character flinch and go briefly invincible, which is right
 		// for being hit and wrong for standing still and getting better.
 		void show_recovery(int32_t amount);
+		// Shows an HP gauge over this character's head. Party members only -
+		// the party HUD stamps these each frame and clears them on leaving.
+		void set_party_hp(int32_t hp, int32_t maxhp);
+		void clear_party_hp();
 		// Display a chat bubble with the specified line in it.
 		void speak(const std::string& line);
 		// Change a part of the character's look.
@@ -166,6 +171,7 @@ namespace ms
 	private:
 		Text namelabel;
 		ChatBalloon chatballoon;
+		PartyHpBar partybar;
 		EffectLayer effects;
 		Afterimage afterimage;
 		TimedBool invincible;

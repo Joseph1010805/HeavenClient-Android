@@ -64,6 +64,8 @@ namespace ms
 
 		// If ever changing code for namelabel confirm placements with map 10000
 		namelabel.draw(absp + Point<int16_t>(0, -4));
+		partybar.draw(absp);
+
 		chatballoon.draw(absp - Point<int16_t>(0, 85));
 
 		effects.drawabove(absp, alpha);
@@ -199,6 +201,16 @@ namespace ms
 		int16_t x = phobj.get_x() - 10;
 
 		damagenumbers.emplace_back(DamageNumber::Type::RECOVERY, amount, start_y, x);
+	}
+
+	void Char::set_party_hp(int32_t hp, int32_t maxhp)
+	{
+		partybar.set(hp, maxhp);
+	}
+
+	void Char::clear_party_hp()
+	{
+		partybar.clear();
 	}
 
 	void Char::speak(const std::string& line)

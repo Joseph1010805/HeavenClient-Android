@@ -340,6 +340,8 @@ set(HEAVEN_SOURCES
         IO/UITypes/UIMiniMap.h
         IO/UITypes/UINotice.cpp
         IO/UITypes/UINotice.h
+        IO/UITypes/UIPartyHUD.cpp
+        IO/UITypes/UIPartyHUD.h
         IO/UITypes/UINpcTalk.cpp
         IO/UITypes/UINpcTalk.h
         IO/UITypes/UIOptionMenu.cpp
