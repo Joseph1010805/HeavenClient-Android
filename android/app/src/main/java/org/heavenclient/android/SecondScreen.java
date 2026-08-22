@@ -106,19 +106,79 @@ public class SecondScreen extends Presentation
         });
     }
 
+    /**
+     * The contact being followed, by pointer ID rather than by index.
+     *
+     * getX() with no argument means pointer INDEX 0, and an index is not an
+     * identity: it is a slot in whatever set of contacts the screen currently
+     * reports. Let a second contact appear for a single frame - a knuckle, a
+     * rejected palm sample, a digitizer ghost - and index 0 can become the
+     * other one, so the reported position jumps to it and back again. That is
+     * the pointer wandering about; nothing needs to be pressed on purpose for
+     * it to happen.
+     *
+     * An ID belongs to one contact for as long as it lasts, so following the
+     * ID follows the finger.
+     */
+    private int activePointer = -1;
+
     @Override
     public boolean onTouchEvent(MotionEvent event)
     {
         // Touches on this display are delivered here, not to SDL, so they are
         // forwarded by hand and tagged as belonging to the second screen.
         int action = event.getActionMasked();
-        boolean down = action == MotionEvent.ACTION_DOWN
-            || action == MotionEvent.ACTION_POINTER_DOWN;
-        boolean up = action == MotionEvent.ACTION_UP
-            || action == MotionEvent.ACTION_POINTER_UP
-            || action == MotionEvent.ACTION_CANCEL;
+        int index = event.getActionIndex();
 
-        nativeTouch(event.getX(), event.getY(), down, up);
+        if (event.getPointerCount() > 1)
+            android.util.Log.i("HeavenClient",
+                "[cursor] " + event.getPointerCount() + " contacts, following id "
+                + activePointer);
+
+        switch (action)
+        {
+        case MotionEvent.ACTION_DOWN:
+            activePointer = event.getPointerId(index);
+            nativeTouch(event.getX(index), event.getY(index), true, false);
+            return true;
+
+        case MotionEvent.ACTION_MOVE:
+        {
+            // Where OUR contact is now, whatever slot it has ended up in.
+            int at = event.findPointerIndex(activePointer);
+
+            if (at >= 0)
+                nativeTouch(event.getX(at), event.getY(at), false, false);
+
+            return true;
+        }
+
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+        {
+            int at = event.findPointerIndex(activePointer);
+
+            if (at >= 0)
+                nativeTouch(event.getX(at), event.getY(at), false, true);
+
+            activePointer = -1;
+            return true;
+        }
+
+        case MotionEvent.ACTION_POINTER_DOWN:
+            // Someone else's finger. Not a press, and not ours to follow.
+            return true;
+
+        case MotionEvent.ACTION_POINTER_UP:
+            // Only if the one that left is the one we were following.
+            if (event.getPointerId(index) == activePointer)
+            {
+                nativeTouch(event.getX(index), event.getY(index), false, true);
+                activePointer = -1;
+            }
+
+            return true;
+        }
 
         return true;
     }
