@@ -31,7 +31,17 @@ namespace ms
 	UIMiniMap::UIMiniMap(const CharStats& st) : UIDragElement<PosMINIMAP>(Point<int16_t>(128, 20)),
 		stats(st), big_map(true), has_map(false), panel(false), panel_zoom(1.0f), listNpc_enabled(false), listNpc_dimensions(Point<int16_t>(150, 170)), listNpc_offset(0), selected(-1)
 	{
+		// The largest of the three layouts, unless a size was chosen before.
+		//
+		// This is the only minimap now - the panel used to carry a big one and
+		// no longer does - so it opens at the biggest the artwork offers rather
+		// than the smallest. There is no larger version in the data: MAX is the
+		// end of what the game ships.
 		type = Setting<MiniMapType>::get().load();
+
+		if (type < Type::MAX)
+			type = Type::MAX;
+
 		user_type = type;
 		simpleMode = Setting<MiniMapSimpleMode>::get().load();
 

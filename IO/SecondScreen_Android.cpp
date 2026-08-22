@@ -340,6 +340,14 @@ namespace ms
 			}
 		}
 
+		void draw_top_tooltip()
+		{
+			if (!available() || !panel_ptr)
+				return;
+
+			panel_ptr->draw_top_tooltip();
+		}
+
 		UIElement* hosted(UIElement::Type type)
 		{
 			// Deliberately not get_panel(): asking whether a window exists must

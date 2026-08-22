@@ -507,6 +507,17 @@ namespace ms
 		base_img = WorldMap["BaseImg"][0];
 		parent_map = std::string(WorldMap["info"]["parentMap"]);
 
+		// Temporary: the pointer is reported to go astray after the map is
+		// refreshed, so say when that happens and what the map became.
+		if (panel)
+		{
+			Point<int16_t> image = base_img.get_dimensions();
+
+			printf("[cursor] worldmap -> '%s' image=%dx%d panel=%dx%d pos=%d,%d\n",
+				map.c_str(), image.x(), image.y(),
+				panel_screen.x(), panel_screen.y(), position.x(), position.y());
+		}
+
 		// Each region's picture is its own size, so the scale that covers the
 		// panel is not the same one as the last region's.
 		layout_panel();

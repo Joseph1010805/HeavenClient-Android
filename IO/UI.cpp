@@ -60,7 +60,10 @@ namespace ms
 	{
 		state->draw(alpha, cursor.get_position());
 
-		scrollingnotice.draw(alpha);
+		// The server broadcasts a welcome the moment you log in, and it lands
+		// in a bar across the top of the screen and stays there. Not drawn.
+		// Restore this line to get every server notice back.
+		// scrollingnotice.draw(alpha);
 
 		if (cursor_visible)
 			cursor.draw(alpha);

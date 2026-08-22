@@ -40,7 +40,6 @@ namespace ms
 		enum Page
 		{
 			WORLDMAP,
-			MINIMAP,
 			INVENTORY,
 			EQUIPMENT,
 			STATS,
@@ -54,6 +53,10 @@ namespace ms
 		~SecondScreenPanel();
 
 		void draw(Point<int16_t> screen) const;
+
+		// Draw the hovered thing's information on the MAIN screen, in that
+		// screen's coordinates. Called from the main pass, not this one.
+		void draw_top_tooltip() const;
 		void update();
 
 		// A touch in panel pixels.

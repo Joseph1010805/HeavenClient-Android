@@ -115,6 +115,14 @@ namespace ms
 		Window::get().begin();
 		Stage::get().draw(alpha);
 		UI::get().draw(alpha);
+
+#if defined(PLATFORM_ANDROID)
+		// What the lower panel is pointing at, shown up HERE where there is
+		// room to read it. Inside the main screen's pass, or it would be drawn
+		// after the frame had already been sent.
+		SecondScreen::draw_top_tooltip();
+#endif
+
 		Window::get().end();
 
 #if defined(PLATFORM_ANDROID)

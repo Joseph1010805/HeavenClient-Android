@@ -20,9 +20,9 @@
 #include "UI.h"
 
 #include "UITypes/UIItemInventory.h"
-#include "UITypes/UIMiniMap.h"
 #include "UITypes/UIWorldMap.h"
 
+#include "../Constants.h"
 #include "../Gameplay/Stage.h"
 
 #include <cmath>
@@ -105,14 +105,10 @@ namespace ms
 		{
 			auto map = std::make_unique<UIWorldMap>();
 			map->set_panel(panel_screen);
-			map->set_panel_tooltip(&tooltip);
-			slot = std::move(map);
-			break;
-		}
-		case MINIMAP:
-		{
-			auto map = std::make_unique<UIMiniMap>(Stage::get().get_player().get_stats());
-			map->set_panel(panel_screen);
+
+			// Its own tooltip still - the two maps must not fight over the
+			// shared one - but drawn on the MAIN screen, which is bigger and
+			// is not the thing being covered up. See draw_top_tooltip.
 			map->set_panel_tooltip(&tooltip);
 			slot = std::move(map);
 			break;
@@ -243,6 +239,22 @@ namespace ms
 		// place highlights it the way hovering does. The press is sent when the
 		// finger lifts on somewhere already highlighted, which is the second
 		// touch - so a place is read first and entered second.
+		// Temporary, while the pointer is still going astray on the map.
+		//
+		// Every touch reports what it was, where the page thinks it is, how big
+		// the page thinks it is, and what came back. When the pointer stops
+		// lining up, the line logged at that moment says which of those changed
+		// - rather than it having to be guessed at from a screenshot.
+		{
+			Point<int16_t> where = element ? element->get_position() : Point<int16_t>();
+			Point<int16_t> size = element ? element->get_dimension() : Point<int16_t>();
+
+			printf("[cursor] page=%d touch=%d,%d screen=%d,%d elem@%d,%d size=%dx%d %s\n",
+				(int)current, position.x(), position.y(), screen.x(), screen.y(),
+				where.x(), where.y(), size.x(), size.y(),
+				down ? "DOWN" : (up ? "UP" : "move"));
+		}
+
 		// The touch is handed over in the PANEL's coordinates, not the window's.
 		//
 		// A window hit-tests by asking each of its buttons for bounds() at the
@@ -309,6 +321,18 @@ namespace ms
 			// concerned - which is what makes a region light up.
 			cursor_state = element->send_cursor(false, at);
 		}
+	}
+
+	void SecondScreenPanel::draw_top_tooltip() const
+	{
+		// Parked rather than following a cursor. The pointer that asked for
+		// this is on the OTHER screen, so there is nowhere sensible on this one
+		// for the box to hang off - a fixed corner is at least always in the
+		// same place.
+		tooltip.draw_within(Point<int16_t>(24, 60),
+			Point<int16_t>(
+				Constants::Constants::get().get_viewwidth(),
+				Constants::Constants::get().get_viewheight()));
 	}
 
 	void SecondScreenPanel::draw_chrome(Point<int16_t> screen) const
@@ -412,15 +436,10 @@ namespace ms
 		// There is one cursor between the two screens. If the main screen has
 		// taken it back - it does that the moment it is touched - then it is
 		// not here any more.
+		// The hover box is NOT drawn here - see draw_top_tooltip. Reading it
+		// meant looking down at the small screen while the thing it describes
+		// is on the big one, and it covered a third of the map besides.
 		if (cursor_here && !UI::get().is_cursor_visible())
-		{
-			// The place name, its level range and what lives there - the same
-			// box the top screen shows, drawn here because this is where the
-			// pointer is. Under the cursor rather than over it, so the finger
-			// is not covering what it just asked for.
-			tooltip.draw_within(cursor_at + Point<int16_t>(0, 22), screen);
-
 			UI::get().draw_cursor_at(cursor_at, 1.0f, cursor_state);
-		}
 	}
 }

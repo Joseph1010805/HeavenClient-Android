@@ -81,5 +81,9 @@ namespace ms
 		// what it had. This is how those find their way here.
 		UIElement* hosted(UIElement::Type type);
 
+		// Draw the panel's hover information on the MAIN screen. Called from
+		// the main screen's own pass, so it lands in that screen's pixels.
+		void draw_top_tooltip();
+
 	}
 }
