@@ -36,13 +36,15 @@ A running list. Tick things off, add to it as they come up.
       the calls.
 - [ ] **Boxes in Amherst do not break reliably, and make no sound.** Reactor
       handling. Never investigated.
-- [ ] **Parties do not work.** The client sends an invite and has no handler
-      for the reply, so it never learns a party formed. The largest functional
-      gap for playing together, and the first thing anyone else will hit.
-      OpenStory has this built - see PLAN.md. It is a port, not a rewrite.
+- [ ] **Parties are built but untested.** The handler, the panel, the overhead
+      gauges and the `/party` commands are all in. None of it has been seen
+      working, because it takes two characters logged in at once. Test that
+      first, with two devices - it is the reason the port was done.
 
 ## Worth checking before anyone else sees it
 
+- [ ] Everything about parties, which needs two characters at once: forming
+      one, the invite prompt, the panel, the overhead gauges, expelling.
 - [ ] UNEQUIP on the equipment page - added but never seen working.
 - [ ] The stat sheet's DETAIL column at its new position - the whole reason the
       list was redrawn by hand, and unverified.

@@ -21,9 +21,9 @@ equipment pages are drawn by hand rather than using the window artwork, so they
 can be transparent over a backdrop; the stat sheet is a compact list of our own
 so the detail column has room to open. Each page has its own picture behind it.
 
-What is NOT built: parties, quest completion, pets, summons, doors, mists,
-chairs, and other players' skill effects. None of them crash - they simply
-never happen.
+What is NOT built: quest completion, pets, summons, doors, mists, chairs, and
+other players' skill effects. None of them crash - they simply never happen.
+Parties are now built but have never been tested.
 
 ## The thing that changed the plan
 
@@ -73,12 +73,22 @@ Read-only `MAP_SHARED` should be fine, but that is the thing to test first, and
 it answers itself in minutes: either the login screen draws or the first map
 throws. Reverting is one `git checkout` of one directory.
 
-**3. Parties.** The largest thing standing between three people and playing
-together, and now there is a working implementation to follow. `Party.cpp/h`,
-`SocialHandlers`, `UIPartyHUD`, `UIPartyInvite`, and the opcode entries. Mostly
-logic rather than rendering, so it should port more cleanly than anything that
-touches the renderer - theirs has moved on to an FBO design that ours is not
-built on.
+**3. Parties.** DONE, and untested. `Character/Party`, `SocialHandlers` on
+PARTY_OPERATION (62), `UIPartyHUD` with overhead gauges on each member, and
+`/party create | leave | invite | expel | leader | list` in the chat bar
+because nothing else could reach any of it.
+
+`UIPartyInvite` and `UIUserList` were NOT ported - those are the real party
+windows, and the typed commands do the same job for now.
+
+Two of the packet layouts are not what the v83 documentation implies, and
+both are commented where they are read: the leader id sits between the
+channels and the map ids, and leave/expel/disband share one status byte
+rather than two booleans - reading it as two crashes the client on a disband.
+Both came from OpenStory having already hit them against Cosmic.
+
+**The next thing to do is test it**, which takes two characters logged in at
+once. Nothing here has been seen working.
 
 ## After that
 
