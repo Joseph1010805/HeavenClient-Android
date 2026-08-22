@@ -71,7 +71,19 @@ namespace ms
 		// file uses, and split per state rather than into hit/break. The code
 		// here previously asked for "hit" and "break" under the padded id;
 		// none of those three names exist, so it silently found nothing.
-		nl::node sndsrc = nl::nx::sound["Reactor.img"][std::to_string(rid)];
+		int32_t soundid = rid;
+
+		// TEST ALIAS - reactor 2001, the Amherst boxes, has no sound entry of
+		// its own; 2000 does, and Reactor.nx carries 0002000.img and
+		// 0002001.img as two variants of the same crate, so they very likely
+		// shared a noise. This is a guess made to prove the sound path works
+		// at all. If some other reactor elsewhere is silent too, the fault is
+		// in this code and the alias is hiding it - so treat a working box
+		// here as evidence about 2001 only.
+		if (soundid == 2001)
+			soundid = 2000;
+
+		nl::node sndsrc = nl::nx::sound["Reactor.img"][std::to_string(soundid)];
 
 		for (auto state_node : sndsrc)
 		{
