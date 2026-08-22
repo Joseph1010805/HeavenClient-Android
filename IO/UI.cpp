@@ -175,20 +175,11 @@ namespace ms
 		return cursor_visible;
 	}
 
-	void UI::draw_cursor_at(Point<int16_t> pos, float alpha) const
+	void UI::draw_cursor_at(Point<int16_t> pos, float alpha, Cursor::State state) const
 	{
-		cursor.draw_at(pos, alpha);
+		cursor.draw_at(pos, alpha, state);
 	}
 
-	void UI::draw_tooltip_at(Point<int16_t> pos, Point<int16_t> bounds) const
-	{
-		state->draw_tooltip(pos, bounds);
-	}
-
-	void UI::set_cursor_state(Cursor::State state)
-	{
-		cursor.set_state(state);
-	}
 
 	void UI::send_cursor(Point<int16_t> pos)
 	{

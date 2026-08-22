@@ -24,6 +24,7 @@
 #include "../Gameplay/Stage.h"
 
 #include "../Components/MapleButton.h"
+#include "../Components/MapTooltip.h"
 #include "../Components/AreaButton.h"
 #include "../Components/Slider.h"
 
@@ -56,10 +57,20 @@ namespace ms
 		// this is a mode rather than a change to the window.
 		void set_panel(Point<int16_t> screen);
 
+		// Place names go into THIS tooltip rather than the main UI's single
+		// shared one - see UIWorldMap::set_panel_tooltip.
+		void set_panel_tooltip(MapTooltip* tooltip);
+
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
 
 	private:
+		// Where place names go, when this copy is not to use the shared one.
+		MapTooltip* panel_tooltip = nullptr;
+
+		// Fill whichever tooltip this copy owns.
+		void show_place(std::string name, std::string description, int32_t mapid);
+
 		static constexpr int16_t CENTER_START_X = 64;
 		static constexpr int16_t BTN_MIN_Y = 4;
 		static constexpr int16_t ML_MR_Y = 17;

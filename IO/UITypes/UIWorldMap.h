@@ -20,6 +20,7 @@
 #include "../UIDragElement.h"
 
 #include "../Components/AreaButton.h"
+#include "../Components/MapTooltip.h"
 #include "../Components/Textfield.h"
 
 namespace ms
@@ -52,6 +53,14 @@ namespace ms
 		// it is left exactly as it was, which is why this is a mode rather than a
 		// change to the window.
 		void set_panel(Point<int16_t> screen);
+
+		// Write place names into THIS tooltip instead of the main UI's.
+		//
+		// There is one MapTooltip in the client, and when a map is open on each
+		// screen at once both write to it and each wipes the other's - which,
+		// with one shared cursor on top, is the pointer losing track of what it
+		// is over. A map on the panel gets its own, so the two never meet.
+		void set_panel_tooltip(MapTooltip* tooltip);
 
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
@@ -148,6 +157,9 @@ namespace ms
 		Point<int16_t> bg_search_dimensions;
 		Point<int16_t> background_dimensions;
 		Point<int16_t> base_position;
+
+		// Where place names go, when this copy is not to use the shared one.
+		MapTooltip* panel_tooltip = nullptr;
 
 		// Set when this copy is the one on the lower panel.
 		bool panel;

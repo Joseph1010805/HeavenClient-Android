@@ -19,6 +19,8 @@
 
 #include "UIElement.h"
 
+#include "Components/MapTooltip.h"
+
 #include "../Graphics/SpecialText.h"
 #include "../Graphics/Texture.h"
 #include "../Template/Point.h"
@@ -59,11 +61,6 @@ namespace ms
 
 		Page page() const;
 
-		// Turn to the page that hosts this window, if there is one. Says
-		// whether it did, so the caller knows whether to open the window on the
-		// main screen instead.
-		bool show_window(UIElement::Type type);
-
 	private:
 		void turn_to(int16_t next);
 
@@ -74,8 +71,15 @@ namespace ms
 		// Which arrow a point is on: -1 back, 1 forward, 0 neither.
 		int16_t arrow_at(Point<int16_t> position, Point<int16_t> screen) const;
 
-		// Take back any tooltip a page asked the main UI to show.
-		void clear_leaked_tooltips() const;
+		// Everything the panel points at.
+		//
+		// The client has ONE cursor and ONE map tooltip, and while a map is
+		// open on each screen at once both copies write to them and each wipes
+		// the other's - which is the pointer losing track of what it is over.
+		// So the panel keeps its own of each and never touches the shared ones
+		// except to say which screen the pointer is on.
+		mutable MapTooltip tooltip;
+		Cursor::State cursor_state = Cursor::State::IDLE;
 
 		// The page's window, built the first time that page is shown. They are
 		// the game's own windows, but owned here rather than by UI - a window

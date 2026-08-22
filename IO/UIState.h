@@ -38,12 +38,6 @@ namespace ms
 
 		virtual void draw(float inter, Point<int16_t> cursor) const = 0;
 
-		// Draw whatever tooltip is pending at a point of someone else's
-		// choosing, rather than at the main screen's cursor. The lower panel
-		// hosts the game's own windows, and their tooltips belong over there
-		// with them - that is where the map's place names and monster levels
-		// come from.
-		virtual void draw_tooltip(Point<int16_t> pos, Point<int16_t> bounds) const {}
 		virtual void update() = 0;
 
 		virtual void doubleclick(Point<int16_t> pos) = 0;

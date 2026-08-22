@@ -19,7 +19,6 @@
 #include "UIWorldMap.h"
 
 #include "../UI.h"
-#include "../SecondScreen.h"
 
 #include "../Components/MapleButton.h"
 
@@ -206,7 +205,10 @@ namespace ms
 
 		listNpc_slider.remove_cursor();
 
-		UI::get().clear_tooltip(Tooltip::Parent::MINIMAP);
+		if (panel_tooltip)
+			panel_tooltip->reset();
+		else
+			UI::get().clear_tooltip(Tooltip::Parent::MINIMAP);
 	}
 
 	Cursor::State UIMiniMap::send_cursor(bool clicked, Point<int16_t> cursorpos)
@@ -260,7 +262,7 @@ namespace ms
 				std::string name = n->get_name();
 				std::string func = n->get_func();
 
-				UI::get().show_map(Tooltip::Parent::MINIMAP, name, func, {}, false);
+				show_place(name, func, {});
 				break;
 			}
 		}
@@ -284,7 +286,7 @@ namespace ms
 					{
 						found = true;
 
-						UI::get().show_map(Tooltip::Parent::MINIMAP, portal_name, "", portal_tm, false);
+						show_place(portal_name, "", portal_tm);
 						break;
 					}
 				}
@@ -334,12 +336,7 @@ namespace ms
 			toggle_buttons();
 			break;
 		case BT_MAP:
-			// On the panel's page rather than over the game, when there is a
-			// panel to put it on. See SecondScreen::show_window.
-			if (SecondScreen::show_window(UIElement::Type::WORLDMAP))
-				UI::get().remove(UIElement::Type::WORLDMAP);
-			else
-				UI::get().emplace<UIWorldMap>();
+			UI::get().emplace<UIWorldMap>();
 			break;
 		case BT_NPC:
 			set_npclist_active(!listNpc_enabled);
@@ -464,6 +461,25 @@ namespace ms
 		combined_text.change_text(map_info.full_name);
 		region_text.change_text(map_info.name);
 		town_text.change_text(map_info.street_name);
+	}
+
+	void UIMiniMap::set_panel_tooltip(MapTooltip* tooltip)
+	{
+		panel_tooltip = tooltip;
+	}
+
+	void UIMiniMap::show_place(std::string name, std::string description, int32_t mapid)
+	{
+		if (panel_tooltip)
+		{
+			panel_tooltip->set_name(Tooltip::Parent::MINIMAP, name, false);
+			panel_tooltip->set_desc(description);
+			panel_tooltip->set_mapid(mapid);
+
+			return;
+		}
+
+		UI::get().show_map(Tooltip::Parent::MINIMAP, name, description, mapid, false);
 	}
 
 	void UIMiniMap::set_panel(Point<int16_t> screen)

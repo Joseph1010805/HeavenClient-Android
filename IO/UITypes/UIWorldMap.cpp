@@ -122,6 +122,11 @@ namespace ms
 		layout_panel();
 	}
 
+	void UIWorldMap::set_panel_tooltip(MapTooltip* tooltip)
+	{
+		panel_tooltip = tooltip;
+	}
+
 	void UIWorldMap::layout_panel()
 	{
 		if (!panel)
@@ -425,7 +430,10 @@ namespace ms
 	{
 		UIDragElement::remove_cursor();
 
-		UI::get().clear_tooltip(Tooltip::Parent::WORLDMAP);
+		if (panel_tooltip)
+			panel_tooltip->reset();
+		else
+			UI::get().clear_tooltip(Tooltip::Parent::WORLDMAP);
 
 		show_path_img = false;
 	}
@@ -451,7 +459,18 @@ namespace ms
 				path_img = path.second.path;
 				show_path_img = path_img.is_valid();
 
-				UI::get().show_map(Tooltip::Parent::WORLDMAP, path.second.title, path.second.description, path.second.map_ids[0], path.second.bolded);
+				if (panel_tooltip)
+				{
+					// Its own, so the map on the other screen keeps whatever it
+					// was showing.
+					panel_tooltip->set_name(Tooltip::Parent::WORLDMAP, path.second.title, path.second.bolded);
+					panel_tooltip->set_desc(path.second.description);
+					panel_tooltip->set_mapid(path.second.map_ids[0]);
+				}
+				else
+				{
+					UI::get().show_map(Tooltip::Parent::WORLDMAP, path.second.title, path.second.description, path.second.map_ids[0], path.second.bolded);
+				}
 				break;
 			}
 		}

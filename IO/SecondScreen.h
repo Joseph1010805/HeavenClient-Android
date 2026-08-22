@@ -72,17 +72,5 @@ namespace ms
 		// Where the last touch was, in panel pixels.
 		Point<int16_t> cursor();
 
-		// Ask the panel to show a window, and say whether it took it.
-		//
-		// The panel exists so these windows open DOWN HERE rather than over the
-		// game, so when it hosts one, the key that opens it must turn the panel
-		// to that page instead of building a second copy on the main screen.
-		// Two copies of one window is not just untidy: there is one cursor and
-		// one tooltip between the two screens, so both copies fight over them
-		// and the pointer flicks from screen to screen as each is touched.
-		//
-		// False when there is no second screen, or the panel does not host that
-		// window yet - the caller then opens it the ordinary way.
-		bool show_window(UIElement::Type type);
 	}
 }

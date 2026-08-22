@@ -48,9 +48,12 @@ namespace ms
 			animations[state].draw(position, alpha);
 	}
 
-	void Cursor::draw_at(Point<int16_t> pos, float alpha) const
+	void Cursor::draw_at(Point<int16_t> pos, float alpha, State at_state) const
 	{
-		animations[state].draw(pos, alpha);
+		// The state is passed in rather than read from this object: the lower
+		// panel tracks its own, so that a window there and a window on the main
+		// screen do not keep changing the pointer out from under each other.
+		animations[at_state].draw(pos, alpha);
 	}
 
 	void Cursor::update()

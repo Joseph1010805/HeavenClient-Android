@@ -72,24 +72,6 @@ namespace ms
 		return current;
 	}
 
-	bool SecondScreenPanel::show_window(UIElement::Type type)
-	{
-		// Only the pages that are actually built here. The rest still open on
-		// the main screen until they are hosted, which is why this answers
-		// rather than assuming.
-		switch (type)
-		{
-		case UIElement::Type::WORLDMAP:
-			current = WORLDMAP;
-			return true;
-		case UIElement::Type::MINIMAP:
-			current = MINIMAP;
-			return true;
-		default:
-			return false;
-		}
-	}
-
 	UIElement* SecondScreenPanel::window() const
 	{
 		auto& slot = const_cast<std::unique_ptr<UIElement>&>(pages[current]);
@@ -109,6 +91,7 @@ namespace ms
 		{
 			auto map = std::make_unique<UIWorldMap>();
 			map->set_panel(panel_screen);
+			map->set_panel_tooltip(&tooltip);
 			slot = std::move(map);
 			break;
 		}
@@ -116,6 +99,7 @@ namespace ms
 		{
 			auto map = std::make_unique<UIMiniMap>(Stage::get().get_player().get_stats());
 			map->set_panel(panel_screen);
+			map->set_panel_tooltip(&tooltip);
 			slot = std::move(map);
 			break;
 		}
@@ -184,28 +168,6 @@ namespace ms
 		return 0;
 	}
 
-	void SecondScreenPanel::clear_leaked_tooltips() const
-	{
-		// Called BEFORE the page is given the cursor, not after.
-		//
-		// A page here is one of the game's own windows, and those ask the main
-		// UI to show their tooltips. Those used to be thrown away, because they
-		// were drawn over the game on the other screen where their coordinates
-		// mean nothing - the white box of monster names that kept appearing up
-		// there. Now they are drawn on this panel instead, so what is wanted is
-		// a clean slate each time rather than no tooltip at all: the page then
-		// sets one if the cursor is over something, and sets nothing if it is
-		// not, so the box appears and disappears with the pointer.
-		//
-		// Clearing first is also what makes a SECOND place readable. MapTooltip
-		// ignores a new name while its parent is unchanged, so without the
-		// reset the first place hovered would be the only one it ever showed.
-		UI::get().clear_tooltip(Tooltip::Parent::WORLDMAP);
-		UI::get().clear_tooltip(Tooltip::Parent::MINIMAP);
-		UI::get().clear_tooltip(Tooltip::Parent::ITEMINVENTORY);
-		UI::get().clear_tooltip(Tooltip::Parent::SKILLBOOK);
-	}
-
 	void SecondScreenPanel::send_touch(Point<int16_t> position, Point<int16_t> screen, bool down, bool up)
 	{
 		panel_screen = screen;
@@ -264,8 +226,13 @@ namespace ms
 		Point<int16_t> at = position - origin;
 
 		// A clean slate before the page is asked, so what it sets is what gets
-		// drawn - and so a second place can replace the first.
-		clear_leaked_tooltips();
+		// drawn - and so a second place can replace the first. MapTooltip
+		// ignores a new name while its parent is unchanged, so without this the
+		// first place hovered would be the only one it ever showed.
+		//
+		// Ours, not the shared one: the map on the top screen keeps whatever it
+		// was showing.
+		tooltip.reset();
 
 		if (up)
 		{
@@ -278,7 +245,7 @@ namespace ms
 			{
 				element->send_cursor(true, at);
 
-				UI::get().set_cursor_state(element->send_cursor(false, at));
+				cursor_state = element->send_cursor(false, at);
 
 				highlighted = false;
 			}
@@ -289,14 +256,14 @@ namespace ms
 
 				// Still a hover, so the place under the finger stays lit and
 				// the pointer keeps saying it can be clicked.
-				UI::get().set_cursor_state(element->send_cursor(false, at));
+				cursor_state = element->send_cursor(false, at);
 			}
 		}
 		else
 		{
 			// Moving, pressed or not, is a hover as far as the page is
 			// concerned - which is what makes a region light up.
-			UI::get().set_cursor_state(element->send_cursor(false, at));
+			cursor_state = element->send_cursor(false, at);
 		}
 	}
 
@@ -384,9 +351,9 @@ namespace ms
 			// box the top screen shows, drawn here because this is where the
 			// pointer is. Under the cursor rather than over it, so the finger
 			// is not covering what it just asked for.
-			UI::get().draw_tooltip_at(cursor_at + Point<int16_t>(0, 22), screen);
+			tooltip.draw_within(cursor_at + Point<int16_t>(0, 22), screen);
 
-			UI::get().draw_cursor_at(cursor_at, 1.0f);
+			UI::get().draw_cursor_at(cursor_at, 1.0f, cursor_state);
 		}
 	}
 }

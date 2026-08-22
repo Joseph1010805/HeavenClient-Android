@@ -17,7 +17,6 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIStateGame.h"
 #include "UI.h"
-#include "SecondScreen.h"
 
 #include "UITypes/UIStatusMessenger.h"
 #include "UITypes/UIStatusbar.h"
@@ -77,11 +76,10 @@ namespace ms
 				element->draw(inter);
 		}
 
-		// Only when the pointer is on THIS screen. When it is on the lower
-		// panel the tooltip belongs there, drawn by the panel - otherwise the
-		// map's place names appear over the game, at coordinates that mean
-		// nothing there.
-		if (tooltip && UI::get().is_cursor_visible())
+		// Not gated on which screen has the pointer. The lower panel keeps its
+		// own tooltip and never writes to this one, so a window up here goes on
+		// showing what it was showing while the panel is being used.
+		if (tooltip)
 			tooltip->draw(cursor + Point<int16_t>(0, 22));
 
 		if (draggedicon)
@@ -250,17 +248,7 @@ namespace ms
 					}
 					break;
 					case KeyAction::Id::WORLDMAP:
-						// The lower panel shows this, so turn it to that page
-						// rather than opening a second copy over the game. Two
-						// copies share one cursor and one tooltip and fight
-						// over both, which is the pointer flicking between the
-						// screens. Falls back to the normal window on a device
-						// with no second screen.
-						if (SecondScreen::show_window(UIElement::Type::WORLDMAP))
-							remove(UIElement::Type::WORLDMAP);
-						else
-							emplace<UIWorldMap>();
-
+						emplace<UIWorldMap>();
 						break;
 					case KeyAction::Id::MAPLECHAT:
 					{
@@ -453,12 +441,6 @@ namespace ms
 	void UIStateGame::drag_icon(Icon* drgic)
 	{
 		draggedicon = drgic;
-	}
-
-	void UIStateGame::draw_tooltip(Point<int16_t> pos, Point<int16_t> bounds) const
-	{
-		if (tooltip)
-			tooltip->draw_within(pos, bounds);
 	}
 
 	void UIStateGame::clear_tooltip(Tooltip::Parent parent)
