@@ -154,6 +154,7 @@ namespace ms
 		bool levelup_playing = false;
 
 		// Shown while there is no map loaded and so no page to show.
-		OutlinedText loading;
+		mutable Texture logo;
+		mutable bool logo_tried = false;
 	};
 }

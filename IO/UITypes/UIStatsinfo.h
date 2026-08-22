@@ -52,6 +52,7 @@ namespace ms
 		bool indragrange(Point<int16_t> cursorpos) const override;
 
 		bool panel = false;
+
 		static constexpr float PANEL_FADE = 0.6f;
 
 
@@ -67,6 +68,24 @@ namespace ms
 			// Total
 			NUM_LABELS
 		};
+
+		// The panel draws its own compact list instead of the window's.
+		//
+		// The artwork is 212 across and the DETAIL column that opens beside it
+		// is another 213 - 425 on a panel 344 wide, so the detail was always
+		// going to be off the screen. Every row of that artwork is mostly
+		// blank, so the list is drawn here at 130 across and DETAIL moves in to
+		// meet it: 130 + 213 is 343, which fits with a pixel to spare.
+		static constexpr int16_t PANEL_W = 130;
+		static constexpr int16_t PANEL_ROW_H = 16;
+		static constexpr int16_t PANEL_TOP = 8;
+		static constexpr int16_t PANEL_NAME_X = 5;
+		static constexpr int16_t PANEL_VALUE_X = 48;
+
+		// The row headings, which the artwork used to supply.
+		Text panel_names[StatLabel::NUM_NORMAL];
+
+		void draw_panel_list() const;
 
 		void update_ap();
 		void update_simple(StatLabel label, Maplestat::Id stat);

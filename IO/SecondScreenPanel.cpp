@@ -69,8 +69,7 @@ namespace ms
 		arrow_left = CharSelect["pageL"]["normal"]["0"];
 		arrow_right = CharSelect["pageR"]["normal"]["0"];
 
-		loading = OutlinedText(Text::Font::A12B, Text::Alignment::LEFT, Color::Name::WHITE, Color::Name::TUNA);
-		loading.change_text("Welcome to MapleStory DS");
+
 	}
 
 	SecondScreenPanel::~SecondScreenPanel() {}
@@ -485,11 +484,21 @@ namespace ms
 
 		if (!Stage::get().is_active())
 		{
-			// Centred by measuring it: the centre alignment a Text can be given
-			// needs a width to centre within, which this has not got.
-			loading.draw(Point<int16_t>(
-				(screen.x() - loading.width()) / 2,
-				screen.y() / 2 - 8));
+			// The wordmark rather than a line of text.
+			if (!logo_tried)
+			{
+				logo_tried = true;
+				logo = nl::nx::map001["Custom"]["DsLogo"];
+			}
+
+			if (logo.is_valid())
+			{
+				Point<int16_t> size = logo.get_dimensions();
+
+				logo.draw(Point<int16_t>(
+					(screen.x() - size.x()) / 2,
+					(screen.y() - size.y()) / 2));
+			}
 
 			return;
 		}

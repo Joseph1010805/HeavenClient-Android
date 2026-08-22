@@ -34,6 +34,8 @@ LOGIN_VIDEO = 'login.mp4'
 CHARSEL_VIDEO = 'character selection.mp4'
 LEVELUP_VIDEO = 'newlevelup.mp4'
 LOGO_IMAGE = 'LoginIcon.jpg'
+DS_LOGO_IMAGE = 'maplestorydslogo.png'
+WORLDSELECT_IMAGE = 'worldselect.jpg'
 BOTTOM_IMAGE = 'bottomscreenbackground.jpg'
 # One backdrop per page. Wide 16:9 artwork with the character in the LEFT
 # corner, so they are cropped from the left rather than the middle - centring
@@ -208,6 +210,45 @@ def bottom_bgra(path, anchor='center'):
     return Image.merge('RGBA', (b, g, r, a)).tobytes()
 
 
+def keep_alpha_bgra(path, target_width):
+    """An image that already has its own transparency, scaled to a width.
+
+    Unlike the sign, nothing has to be keyed out here - the artwork arrives
+    with an alpha channel, and all that would do is damage it.
+    """
+    img = Image.open(path).convert('RGBA')
+
+    ratio = target_width / img.width
+    img = img.resize((target_width, max(1, round(img.height * ratio))),
+                     Image.LANCZOS)
+
+    r, g, b, a = img.split()
+    return Image.merge('RGBA', (b, g, r, a)).tobytes(), img.width, img.height
+
+
+def fit_bgra(path, width, height):
+    """Crop to a shape and scale to it, keeping the middle."""
+    img = Image.open(path).convert('RGB')
+    w, h = img.size
+
+    band = round(w * height / width)
+
+    if band < h:
+        top = (h - band) // 2
+        img = img.crop((0, top, w, top + band))
+    else:
+        band = round(h * width / height)
+        left = (w - band) // 2
+        img = img.crop((left, 0, left + band, h))
+
+    img = img.resize((width, height), Image.LANCZOS)
+
+    r, g, b = img.split()
+    a = Image.new('L', img.size, 255)
+
+    return Image.merge('RGBA', (b, g, r, a)).tobytes()
+
+
 def animation(builder, parent, name, data, delay, zigzag=True, w=None, h=None):
     node = parent.child(name)
 
@@ -249,9 +290,17 @@ def main():
     animation(builder, custom, 'LoginBg', login, delay=DELAY)
     animation(builder, custom, 'CharBg', charsel, delay=DELAY)
 
-    # World select gets a still from the same scene, so the two screens match.
-    builder.bitmap(custom, 'WorldBg', charsel[0], W, H, origin=(0, 0))
-    print('  %-9s 1 still' % 'WorldBg')
+    # World select has a picture of its own now rather than a frame borrowed
+    # from the character-select video.
+    worldbg = fit_bgra(os.path.join(SRC, WORLDSELECT_IMAGE), W, H)
+    builder.bitmap(custom, 'WorldBg', worldbg, W, H, origin=(0, 0))
+    print('  %-9s %dx%d  %s' % ('WorldBg', W, H, WORLDSELECT_IMAGE))
+
+    # The wordmark the lower panel shows while the game is loading, in place
+    # of a line of text. Its own transparency is kept as it arrives.
+    ds, dw, dh = keep_alpha_bgra(os.path.join(SRC, DS_LOGO_IMAGE), 240)
+    builder.bitmap(custom, 'DsLogo', ds, dw, dh, origin=(0, 0))
+    print('  %-9s %dx%d' % ('DsLogo', dw, dh))
 
     bottom = bottom_bgra(os.path.join(SRC, BOTTOM_IMAGE))
     builder.bitmap(custom, 'BottomBg', bottom, BOTTOM_W, BOTTOM_H, origin=(0, 0))
