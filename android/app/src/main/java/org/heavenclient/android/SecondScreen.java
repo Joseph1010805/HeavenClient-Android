@@ -222,22 +222,6 @@ public class SecondScreen extends Presentation
         int action = event.getActionMasked();
         int index = event.getActionIndex();
 
-        // Temporary. The converted coordinates were seen jumping about, and
-        // reading the raw ones back from them has been guesswork twice over -
-        // once wrongly. So this is what Android actually handed us, before
-        // anything here touches it: the event, the raw position, how many
-        // contacts there are, and the size of the view those coordinates are
-        // measured against. If the raw stream is smooth then the fault is
-        // downstream of this line; if it jumps, it is not ours at all.
-        android.util.Log.i("HeavenClient",
-            "[raw] a=" + action + " id=" + activePointer
-            + " n=" + event.getPointerCount()
-            + " xy=" + (int) event.getX() + "," + (int) event.getY()
-            + " view=" + (view == null ? 0 : view.getWidth())
-            + "x" + (view == null ? 0 : view.getHeight())
-            + " src=" + event.getSource() + " tool=" + event.getToolType(0)
-            + " dev=" + event.getDeviceId());
-
         switch (action)
         {
         case MotionEvent.ACTION_DOWN:

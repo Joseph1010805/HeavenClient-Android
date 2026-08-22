@@ -295,22 +295,6 @@ namespace ms
 		// place highlights it the way hovering does. The press is sent when the
 		// finger lifts on somewhere already highlighted, which is the second
 		// touch - so a place is read first and entered second.
-		// Temporary, while the pointer is still going astray on the map.
-		//
-		// Every touch reports what it was, where the page thinks it is, how big
-		// the page thinks it is, and what came back. When the pointer stops
-		// lining up, the line logged at that moment says which of those changed
-		// - rather than it having to be guessed at from a screenshot.
-		{
-			Point<int16_t> where = element ? element->get_position() : Point<int16_t>();
-			Point<int16_t> size = element ? element->get_dimension() : Point<int16_t>();
-
-			printf("[cursor] page=%d touch=%d,%d screen=%d,%d elem@%d,%d size=%dx%d %s\n",
-				(int)current, position.x(), position.y(), screen.x(), screen.y(),
-				where.x(), where.y(), size.x(), size.y(),
-				down ? "DOWN" : (up ? "UP" : "move"));
-		}
-
 		// The touch is handed over in the PANEL's coordinates, not the window's.
 		//
 		// A window hit-tests by asking each of its buttons for bounds() at the
