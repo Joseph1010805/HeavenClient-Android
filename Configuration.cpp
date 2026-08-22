@@ -62,6 +62,8 @@ namespace ms
 		settings.emplace<MiniMapType>();
 		settings.emplace<MiniMapSimpleMode>();
 		settings.emplace<MiniMapDefaultHelpers>();
+		settings.emplace<PosPARTYHUD>();
+		settings.emplace<AllowPartyInvite>();
 
 		settings.emplace<Joystick_Y>();
 		settings.emplace<Joystick_X>();
@@ -143,10 +145,25 @@ namespace ms
 		if (config.is_open())
 		{
 			// Save settings line by line.
+			//
+			// The null check is not paranoia. TypeMap::get() reaches the map
+			// through operator[], which inserts a default-constructed - that
+			// is, NULL - unique_ptr for any type that was declared but never
+			// registered in the constructor above. Reading such a setting
+			// once is enough to plant one.
+			//
+			// Without this guard the consequence is far worse than a crash:
+			// opening the stream has already truncated the file, so dying
+			// part-way through writes a HALF a settings file. The next launch
+			// fills the missing half with defaults and saves those, and the
+			// cycle repeats until the server address and the window size are
+			// gone - which is exactly what happened when PosPARTYHUD was
+			// added to the header and not to the list.
 			for (auto& setting : settings)
-				config << setting.second->to_string() << "\n";
-			}
+				if (setting.second)
+					config << setting.second->to_string() << "\n";
 		}
+	}
 
 	void Configuration::BoolEntry::save(bool b)
 	{
