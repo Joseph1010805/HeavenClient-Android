@@ -62,7 +62,7 @@ namespace ms
 
 		// How much of the window's own white shows through on the panel. The
 		// gear on top of it is drawn at full strength.
-		static constexpr float PANEL_FADE = 0.5f;
+		static constexpr float PANEL_FADE = 0.4f;
 
 
 		Button::State button_pressed(uint16_t buttonid) override;

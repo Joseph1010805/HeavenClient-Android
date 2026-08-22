@@ -123,64 +123,81 @@ public class SecondScreen extends Presentation
     private int activePointer = -1;
 
     /**
-     * The last three raw positions, and the median of them is what gets used.
+     * The last position accepted as real, and when it was accepted.
      *
-     * The screen emits the occasional wild sample in the middle of a stroke -
-     * measured at 258 pixels in 8 milliseconds, which no finger does. One bad
-     * sample, then straight back to where the finger really is. That is the
-     * pointer jumping about, and it comes from the digitizer: the log shows it
-     * arriving that way from Android, with a single contact reported the whole
-     * time.
+     * The screen emits wild samples in the middle of a stroke - measured at
+     * 258 pixels in 8 milliseconds, and steps of 128, 97 and 70 inside a
+     * single stroke. No finger moves like that. The log shows them arriving
+     * that way from Android, one contact throughout, one input device, so this
+     * is the hardware and not something the client is doing to itself.
      *
-     * A median throws away outliers completely while passing real movement
-     * through untouched - unlike an average, which would drag the pointer part
-     * of the way towards every bad sample.
+     * A median of the last few samples was tried first and only helped: it
+     * discards outliers that come ALONE, and these arrive in runs.
      *
-     * Five samples, not three. Three removes a SINGLE bad sample, and measuring
-     * the stream showed the bad ones are not always alone: steps of 128, 97, 70
-     * and 70 pixels came through in one stroke. Five survives two bad samples
-     * in a row. The cost is two samples of lag, about 16ms.
+     * So a sample is judged on the speed it implies instead. Anything faster
+     * than a finger can move is not a finger, however many of them arrive in a
+     * row, so this holds for a run of any length.
      */
-    private static final int WINDOW = 5;
+    private float steadyX = 0.0f;
+    private float steadyY = 0.0f;
+    private long steadyWhen = 0L;
+    private int rejected = 0;
 
-    private final float[] recentX = new float[WINDOW];
-    private final float[] recentY = new float[WINDOW];
-    private final float[] scratch = new float[WINDOW];
-    private int recentCount = 0;
+    /**
+     * The fastest a real finger travels, in panel pixels per millisecond.
+     *
+     * A hard flick crosses this 1240-wide screen in about a fifth of a second,
+     * which is a little over 6. SLACK is added on top so that a sample arriving
+     * in the same millisecond as the last is not judged against a budget of
+     * nothing.
+     */
+    private static final float MAX_SPEED = 6.0f;
+    private static final float SLACK = 24.0f;
 
-    private void remember(float x, float y)
+    /**
+     * How many suspect samples in a row before one is believed anyway.
+     *
+     * Without this, a genuine fast movement that the rule dislikes would leave
+     * the pointer stuck where it was for as long as the movement lasted. Three
+     * samples is around 25ms, so a real flick catches up almost at once while a
+     * burst of nonsense is still thrown away.
+     */
+    private static final int RESYNC_AFTER = 3;
+
+    private void accept(float x, float y, long when)
     {
-        for (int i = WINDOW - 1; i > 0; i--)
+        steadyX = x;
+        steadyY = y;
+        steadyWhen = when;
+        rejected = 0;
+    }
+
+    /**
+     * Take this sample if a finger could have got there, and say whether it was
+     * taken.
+     */
+    private boolean plausible(float x, float y, long when)
+    {
+        float dx = x - steadyX;
+        float dy = y - steadyY;
+
+        float moved = (float) Math.sqrt(dx * dx + dy * dy);
+        float budget = SLACK + MAX_SPEED * Math.max(0L, when - steadyWhen);
+
+        if (moved <= budget)
         {
-            recentX[i] = recentX[i - 1];
-            recentY[i] = recentY[i - 1];
+            accept(x, y, when);
+            return true;
         }
 
-        recentX[0] = x;
-        recentY[0] = y;
+        // Not believed - but not ignored forever either.
+        if (++rejected >= RESYNC_AFTER)
+        {
+            accept(x, y, when);
+            return true;
+        }
 
-        if (recentCount < WINDOW)
-            recentCount++;
-    }
-
-    private float middle(float[] from)
-    {
-        int n = recentCount;
-
-        System.arraycopy(from, 0, scratch, 0, n);
-        java.util.Arrays.sort(scratch, 0, n);
-
-        return scratch[n / 2];
-    }
-
-    private float steadyX()
-    {
-        return recentCount == 0 ? 0.0f : middle(recentX);
-    }
-
-    private float steadyY()
-    {
-        return recentCount == 0 ? 0.0f : middle(recentY);
+        return false;
     }
 
     @Override
@@ -215,10 +232,9 @@ public class SecondScreen extends Presentation
             // A press is taken exactly where it landed. There is no history to
             // judge it against, and delaying a tap to be sure of it would be
             // worse than the occasional bad one.
-            recentCount = 0;
-            remember(event.getX(index), event.getY(index));
+            accept(event.getX(index), event.getY(index), event.getEventTime());
 
-            nativeTouch(event.getX(index), event.getY(index), true, false);
+            nativeTouch(steadyX, steadyY, true, false);
             return true;
 
         case MotionEvent.ACTION_MOVE:
@@ -226,12 +242,10 @@ public class SecondScreen extends Presentation
             // Where OUR contact is now, whatever slot it has ended up in.
             int at = event.findPointerIndex(activePointer);
 
-            if (at >= 0)
-            {
-                remember(event.getX(at), event.getY(at));
-
-                nativeTouch(steadyX(), steadyY(), false, false);
-            }
+            // Nothing is sent for a sample that is not believed: the pointer
+            // simply stays where it was, which is where the finger still is.
+            if (at >= 0 && plausible(event.getX(at), event.getY(at), event.getEventTime()))
+                nativeTouch(steadyX, steadyY, false, false);
 
             return true;
         }
@@ -243,13 +257,14 @@ public class SecondScreen extends Presentation
 
             if (at >= 0)
             {
-                // Where the finger steadily WAS, not where the last sample
-                // claimed - a bad one on the way up would move the click.
-                nativeTouch(steadyX(), steadyY(), false, true);
+                // Where the finger was last believed to be, not where the last
+                // sample claimed - a bad one on the way up would move the
+                // click to somewhere it was never pressed.
+                nativeTouch(steadyX, steadyY, false, true);
             }
 
             activePointer = -1;
-            recentCount = 0;
+            rejected = 0;
             return true;
         }
 
@@ -261,8 +276,9 @@ public class SecondScreen extends Presentation
             // Only if the one that left is the one we were following.
             if (event.getPointerId(index) == activePointer)
             {
-                nativeTouch(event.getX(index), event.getY(index), false, true);
+                nativeTouch(steadyX, steadyY, false, true);
                 activePointer = -1;
+                rejected = 0;
             }
 
             return true;
