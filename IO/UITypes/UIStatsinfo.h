@@ -98,6 +98,10 @@ namespace ms
 		static constexpr size_t PANEL_LEFT_COUNT = 11;
 		static constexpr size_t PANEL_RIGHT_COUNT = 13;
 
+		// The heading for a row. A switch, not an array: see the comment where
+		// it is defined.
+		static const char* heading_for(StatLabel label);
+
 		// Where a row was drawn, so a button can be put beside it.
 		int16_t panel_row_y(size_t row) const;
 

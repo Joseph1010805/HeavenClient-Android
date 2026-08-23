@@ -154,6 +154,38 @@ namespace ms
 		StatLabel::DEFENSE, StatLabel::SPEED, StatLabel::JUMP, StatLabel::HONOR
 	};
 
+	const char* UIStatsinfo::heading_for(StatLabel label)
+	{
+		switch (label)
+		{
+		case StatLabel::NAME:                 return "NAME";
+		case StatLabel::JOB:                  return "CLASS";
+		case StatLabel::GUILD:                return "GUILD";
+		case StatLabel::FAME:                 return "FAME";
+		case StatLabel::DAMAGE:               return "DAMAGE";
+		case StatLabel::HP:                   return "HP";
+		case StatLabel::MP:                   return "MP";
+		case StatLabel::AP:                   return "AP";
+		case StatLabel::STR:                  return "STR";
+		case StatLabel::DEX:                  return "DEX";
+		case StatLabel::INT:                  return "INT";
+		case StatLabel::LUK:                  return "LUK";
+		case StatLabel::DAMAGE_BONUS:         return "DMG BONUS";
+		case StatLabel::BOSS_DAMAGE:          return "BOSS DMG";
+		case StatLabel::FINAL_DAMAGE:         return "FINAL DMG";
+		case StatLabel::IGNORE_DEFENSE:       return "IGNORE DEF";
+		case StatLabel::CRITICAL_RATE:        return "CRIT RATE";
+		case StatLabel::CRITICAL_DAMAGE:      return "CRIT DMG";
+		case StatLabel::STATUS_RESISTANCE:    return "STATUS RES";
+		case StatLabel::KNOCKBACK_RESISTANCE: return "KNOCKBACK";
+		case StatLabel::DEFENSE:              return "DEFENSE";
+		case StatLabel::SPEED:                return "SPEED";
+		case StatLabel::JUMP:                 return "JUMP";
+		case StatLabel::HONOR:                return "HONOUR";
+		default:                              return "";
+		}
+	}
+
 	int16_t UIStatsinfo::panel_row_y(size_t row) const
 	{
 		return PANEL_TOP + static_cast<int16_t>(row) * PANEL_ROW_H;
@@ -179,18 +211,17 @@ namespace ms
 		buttons[Buttons::BT_ABILITY]->set_active(false);
 
 		// The headings the artwork used to carry, now that none of it is drawn.
-		static const char* HEADINGS[StatLabel::NUM_LABELS] = {
-			"NAME", "CLASS", "GUILD", "FAME", "DAMAGE",
-			"HP", "MP", "AP", "STR", "DEX", "INT", "LUK",
-			"",
-			"DAMAGE", "BOSS DMG", "FINAL DMG", "IGNORE DEF",
-			"CRIT RATE", "CRIT DMG", "STATUS RES", "KNOCKBACK",
-			"DEFENSE", "SPEED", "JUMP", "HONOUR"
-		};
-
+		//
+		// Written as a switch rather than an array literal on purpose.
+		// StatLabel puts NUM_NORMAL in the MIDDLE of its own enumerators, so
+		// the values are not contiguous and NUM_LABELS is one larger than the
+		// number of real labels. A positional list silently shifts from that
+		// point on and leaves the last entry null - which is a crash inside
+		// strlen the moment the page is opened, and exactly what happened.
+		// Naming each one cannot drift.
 		for (size_t i = 0; i < StatLabel::NUM_LABELS; i++)
 			panel_names[i] = Text(Text::Font::A11M, Text::Alignment::LEFT,
-				Color::Name::WHITE, HEADINGS[i]);
+				Color::Name::WHITE, heading_for(static_cast<StatLabel>(i)));
 
 		// The four attributes and the two gauges take a point each.
 		struct Spend { Buttons button; StatLabel row; };
