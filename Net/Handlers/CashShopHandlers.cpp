@@ -172,7 +172,14 @@ namespace ms
 			{
 				GraphicsGL::get().clear();
 
-				Stage::get().load(-1, 0);
+				// No map is loaded. OpenStory asks for map -1 here, meaning
+				// "nowhere", but ours takes that literally: load_map(-1)
+				// builds a name out of a negative id, finds no such node, and
+				// puts together a map with no footholds and no portals - and
+				// then respawn() goes looking for the portal to stand on.
+				//
+				// Nothing needs it. UIStateCashShop draws its elements and
+				// nothing else; there is no world behind the shop.
 
 				GraphicsGL::get().unlock();
 
