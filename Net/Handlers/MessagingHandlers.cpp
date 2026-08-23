@@ -122,8 +122,9 @@ namespace ms
 			recv.read_int();	// bonus 2
 			recv.read_bool();	// 'event or party'
 			recv.read_int();	// bonus 3
-			recv.read_int();	// bonus 4
-			recv.read_int();	// bonus 5
+			recv.read_int();	// bonus 4 - equip
+			recv.read_int();	// bonus 5 - internet cafe
+			recv.read_int();	// rainbow week - was left unread
 
 			std::string message = "You have gained experience (+" + std::to_string(gain) + ")";
 

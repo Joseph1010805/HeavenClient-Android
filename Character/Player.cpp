@@ -102,9 +102,20 @@ namespace ms
 		keysdown[action] = down;
 	}
 
+	Weapon::Type Player::real_weapontype() const
+	{
+		int32_t weapon_id = inventory.get_item_id(
+			InventoryType::Id::EQUIPPED, Equipslot::Id::WEAPON);
+
+		if (weapon_id <= 0)
+			return Weapon::Type::NONE;
+
+		return WeaponData::get(weapon_id).get_type();
+	}
+
 	void Player::recalc_stats(bool equipchanged)
 	{
-		Weapon::Type weapontype = get_weapontype();
+		Weapon::Type weapontype = real_weapontype();
 
 		stats.set_weapontype(weapontype);
 		stats.init_totalstats();
@@ -354,7 +365,7 @@ namespace ms
 			return SpecialMove::ForbidReason::FBR_COOLDOWN;
 
 		int32_t level = skillbook.get_level(move.get_id());
-		Weapon::Type weapon = get_weapontype();
+		Weapon::Type weapon = real_weapontype();
 		const Job& job = stats.get_job();
 		uint16_t hp = stats.get_stat(Maplestat::Id::HP);
 		uint16_t mp = stats.get_stat(Maplestat::Id::MP);

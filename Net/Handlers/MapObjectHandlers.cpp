@@ -305,6 +305,12 @@ namespace ms
 		int32_t oid = recv.read_int();
 		int8_t animation = recv.read_byte();
 
+		// The server writes the animation byte TWICE. Read the second one -
+		// leaving it behind is harmless in itself, but a handler that stops
+		// short of the end of its packet is exactly the shape of a parser
+		// that has drifted, and every one of them should be accounted for.
+		recv.read_byte();
+
 		Stage::get().get_mobs().remove(oid, animation);
 	}
 

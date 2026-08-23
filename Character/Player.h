@@ -67,6 +67,17 @@ namespace ms
 		void recalc_stats(bool equipchanged);
 		// Change the equipment at the specified slot and recalculate stats.
 		void change_equip(int16_t slot);
+
+		// What is actually being fought with.
+		//
+		// `Char::get_weapontype` reads the LOOK, which is right for everyone
+		// else on the map - the look is all we are ever told about them. It
+		// is wrong for us, now that a cosmetic weapon can sit in the look's
+		// weapon slot: a cash sword would set the attack speed, the attack
+		// animation and the ammunition type of whatever it is dressed up as,
+		// while the real weapon underneath is what the server resolves the
+		// hit with. A cosmetic changes how you LOOK and nothing else.
+		Weapon::Type real_weapontype() const;
 		// Use the item from the player's inventory with the given id.
 		void use_item(int32_t itemid);
 
