@@ -383,6 +383,8 @@ namespace ms
 		case Buttons::BT_TOAD:
 		case Buttons::BT_TOAD_SM:
 		case Buttons::BT_CASHSHOP:
+			OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
+
 			return Button::State::NORMAL;
 		}
 

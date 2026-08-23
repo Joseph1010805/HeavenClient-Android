@@ -602,6 +602,9 @@ namespace ms
 		switch (id)
 		{
 		case Buttons::BT_CASHSHOP:
+			// The server answers with SET_CASH_SHOP, which is what actually
+			// changes state - the client only asks.
+			OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
 			break;
 		case Buttons::BT_MENU:
 			toggle_menu();
