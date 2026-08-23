@@ -137,6 +137,28 @@ namespace ms
 		showdetail = false;
 	}
 
+	// Who the character is, and what can be spent. The spend arrows sit
+	// beside the four attributes and HP/MP.
+	const UIStatsinfo::StatLabel UIStatsinfo::PANEL_LEFT[] = {
+		StatLabel::NAME, StatLabel::JOB, StatLabel::GUILD, StatLabel::FAME,
+		StatLabel::AP, StatLabel::HP, StatLabel::MP,
+		StatLabel::STR, StatLabel::DEX, StatLabel::INT, StatLabel::LUK
+	};
+
+	// Everything worked out from the above.
+	const UIStatsinfo::StatLabel UIStatsinfo::PANEL_RIGHT[] = {
+		StatLabel::DAMAGE, StatLabel::DAMAGE_BONUS, StatLabel::BOSS_DAMAGE,
+		StatLabel::FINAL_DAMAGE, StatLabel::IGNORE_DEFENSE,
+		StatLabel::CRITICAL_RATE, StatLabel::CRITICAL_DAMAGE,
+		StatLabel::STATUS_RESISTANCE, StatLabel::KNOCKBACK_RESISTANCE,
+		StatLabel::DEFENSE, StatLabel::SPEED, StatLabel::JUMP, StatLabel::HONOR
+	};
+
+	int16_t UIStatsinfo::panel_row_y(size_t row) const
+	{
+		return PANEL_TOP + static_cast<int16_t>(row) * PANEL_ROW_H;
+	}
+
 	void UIStatsinfo::set_panel(Point<int16_t> screen)
 	{
 		panel = true;
@@ -144,52 +166,78 @@ namespace ms
 		// Nothing to close and nothing to drag on a page.
 		buttons[Buttons::BT_CLOSE]->set_active(false);
 
-		// The headings the artwork used to draw, now that it is not drawn.
-		// Same order as StatLabel.
-		static const char* HEADINGS[StatLabel::NUM_NORMAL] = {
+		// Everything at once. The Detail button is what this page exists
+		// without - there is no reason to hide half a character sheet behind a
+		// toggle on a screen that is always showing.
+		showdetail = true;
+
+		buttons[Buttons::BT_DETAILOPEN]->set_active(false);
+		buttons[Buttons::BT_DETAILCLOSE]->set_active(false);
+		buttons[Buttons::BT_DETAIL_DETAILCLOSE]->set_active(false);
+		buttons[Buttons::BT_HYPERSTATOPEN]->set_active(false);
+		buttons[Buttons::BT_HYPERSTATCLOSE]->set_active(false);
+		buttons[Buttons::BT_ABILITY]->set_active(false);
+
+		// The headings the artwork used to carry, now that none of it is drawn.
+		static const char* HEADINGS[StatLabel::NUM_LABELS] = {
 			"NAME", "CLASS", "GUILD", "FAME", "DAMAGE",
-			"HP", "MP", "AP", "STR", "DEX", "INT", "LUK"
+			"HP", "MP", "AP", "STR", "DEX", "INT", "LUK",
+			"",
+			"DAMAGE", "BOSS DMG", "FINAL DMG", "IGNORE DEF",
+			"CRIT RATE", "CRIT DMG", "STATUS RES", "KNOCKBACK",
+			"DEFENSE", "SPEED", "JUMP", "HONOUR"
 		};
 
-		for (size_t i = 0; i < StatLabel::NUM_NORMAL; i++)
+		for (size_t i = 0; i < StatLabel::NUM_LABELS; i++)
 			panel_names[i] = Text(Text::Font::A11M, Text::Alignment::LEFT,
 				Color::Name::WHITE, HEADINGS[i]);
 
-		// The spend arrows move to the end of the row they belong to.
-		Buttons spend[] = { Buttons::BT_HP, Buttons::BT_MP, Buttons::BT_STR,
-			Buttons::BT_DEX, Buttons::BT_INT, Buttons::BT_LUK };
+		// The four attributes and the two gauges take a point each.
+		struct Spend { Buttons button; StatLabel row; };
 
-		StatLabel rows[] = { StatLabel::HP, StatLabel::MP, StatLabel::STR,
-			StatLabel::DEX, StatLabel::INT, StatLabel::LUK };
+		static const Spend SPEND[] = {
+			{ Buttons::BT_HP,  StatLabel::HP  },
+			{ Buttons::BT_MP,  StatLabel::MP  },
+			{ Buttons::BT_STR, StatLabel::STR },
+			{ Buttons::BT_DEX, StatLabel::DEX },
+			{ Buttons::BT_INT, StatLabel::INT },
+			{ Buttons::BT_LUK, StatLabel::LUK }
+		};
 
-		// A button is drawn at its position MINUS its artwork's origin, so to
-		// land somewhere the origin is ADDED to it, not taken off. Subtracting
-		// it doubles the offset instead, which is how these ended up on the
-		// far side of the screen.
-		for (int i = 0; i < 6; i++)
+		// A button draws at its position MINUS its artwork's origin, so to
+		// land somewhere the origin is ADDED. Subtracting doubles the offset,
+		// which is how these once ended up off the side of the screen.
+		for (const Spend& s : SPEND)
 		{
-			Point<int16_t> at = Point<int16_t>(
-				PANEL_W - 16, PANEL_TOP + rows[i] * PANEL_ROW_H - 3);
+			// Find which row of the left column this stat is on.
+			size_t row = 0;
 
-			buttons[spend[i]]->set_position(at + buttons[spend[i]]->origin());
+			for (size_t i = 0; i < PANEL_LEFT_COUNT; i++)
+				if (PANEL_LEFT[i] == s.row)
+					row = i;
+
+			Point<int16_t> at = Point<int16_t>(
+				PANEL_LEFT_X + PANEL_ARROW_X, panel_row_y(row) - 3);
+
+			buttons[s.button]->set_position(at + buttons[s.button]->origin());
+
+			// Always there, whether or not anything can be spent. A button
+			// that comes and goes is one the player has to hunt for, and its
+			// disabled state already says it cannot be used.
+			buttons[s.button]->set_active(true);
 		}
 
-		// Auto-assign and the detail toggle go under the list.
-		int16_t below = PANEL_TOP + StatLabel::NUM_NORMAL * PANEL_ROW_H + 4;
+		Point<int16_t> auto_at = Point<int16_t>(
+			PANEL_LEFT_X, panel_row_y(PANEL_LEFT_COUNT) + 4);
 
 		buttons[Buttons::BT_AUTO]->set_position(
-			Point<int16_t>(PANEL_NAME_X, below) + buttons[Buttons::BT_AUTO]->origin());
+			auto_at + buttons[Buttons::BT_AUTO]->origin());
 
-		buttons[Buttons::BT_DETAILOPEN]->set_position(
-			Point<int16_t>(PANEL_W - 64, below) + buttons[Buttons::BT_DETAILOPEN]->origin());
-
-		buttons[Buttons::BT_DETAILCLOSE]->set_position(
-			Point<int16_t>(PANEL_W - 64, below) + buttons[Buttons::BT_DETAILCLOSE]->origin());
-		buttons[Buttons::BT_HYPERSTATOPEN]->set_active(false);
+		buttons[Buttons::BT_AUTO]->set_active(true);
 
 		// Pale values, not the near-black the window used - they sit on a dark
 		// plate here rather than on white artwork.
-		for (size_t i = StatLabel::NAME; i < StatLabel::NUM_NORMAL; i++)
+		for (size_t i = 0; i < StatLabel::NUM_LABELS; i++)
 			statlabels[i] = Text(Text::Font::A11M, Text::Alignment::LEFT,
 				Color::Name::WHITE);
 
@@ -197,9 +245,10 @@ namespace ms
 		update_stat(Maplestat::Id::JOB);
 		update_stat(Maplestat::Id::FAME);
 
-		// Claimed as wide as the panel so the page centres it at x 0, which is
-		// where the DETAIL column needs it to be.
-		dimension = Point<int16_t>(screen.x(), below + 26);
+		// The whole panel, so the page centres it at x 0 and both columns land
+		// where they were measured from.
+		dimension = Point<int16_t>(screen.x(),
+			panel_row_y(PANEL_LEFT_COUNT) + 30);
 	}
 
 	void UIStatsinfo::update()
@@ -240,18 +289,34 @@ namespace ms
 
 	void UIStatsinfo::draw_panel_list() const
 	{
-		// A plate behind the list so pale text has something to sit on, and
+		// A plate behind the sheet so pale text has something to sit on, and
 		// nothing else - the window's own picture is not drawn at all.
 		GraphicsGL::get().drawrectangle(
-			position.x(), position.y(), PANEL_W, dimension.y(),
+			position.x(), position.y(), dimension.x(), dimension.y(),
 			0.0f, 0.0f, 0.0f, 0.45f);
 
-		for (size_t i = 0; i < StatLabel::NUM_NORMAL; i++)
-		{
-			int16_t y = position.y() + PANEL_TOP + static_cast<int16_t>(i) * PANEL_ROW_H;
+		// A hairline between the columns, so the eye knows there are two.
+		GraphicsGL::get().drawrectangle(
+			position.x() + PANEL_RIGHT_X - 6, position.y() + PANEL_TOP,
+			1, PANEL_RIGHT_COUNT * PANEL_ROW_H,
+			1.0f, 1.0f, 1.0f, 0.18f);
 
-			panel_names[i].draw(Point<int16_t>(position.x() + PANEL_NAME_X, y));
-			statlabels[i].draw(Point<int16_t>(position.x() + PANEL_VALUE_X, y));
+		for (size_t i = 0; i < PANEL_LEFT_COUNT; i++)
+		{
+			StatLabel row = PANEL_LEFT[i];
+			int16_t y = position.y() + panel_row_y(i);
+
+			panel_names[row].draw(Point<int16_t>(position.x() + PANEL_LEFT_X, y));
+			statlabels[row].draw(Point<int16_t>(position.x() + PANEL_LEFT_X + PANEL_VALUE_X, y));
+		}
+
+		for (size_t i = 0; i < PANEL_RIGHT_COUNT; i++)
+		{
+			StatLabel row = PANEL_RIGHT[i];
+			int16_t y = position.y() + panel_row_y(i);
+
+			panel_names[row].draw(Point<int16_t>(position.x() + PANEL_RIGHT_X, y));
+			statlabels[row].draw(Point<int16_t>(position.x() + PANEL_RIGHT_X + PANEL_VALUE_X + 20, y));
 		}
 	}
 
@@ -273,12 +338,11 @@ namespace ms
 		else
 			UIElement::draw_sprites(alpha);
 
-		if (showdetail)
+		// The panel's sheet is drawn whole by draw_panel_list, including every
+		// value - none of the artwork below belongs to it.
+		if (showdetail && !panel)
 		{
-			// Hard against the list on the panel, rather than beyond the width
-			// of a window that is no longer being drawn.
-			Point<int16_t> detail_pos(position
-				+ Point<int16_t>(panel ? PANEL_W : 212, 0));
+			Point<int16_t> detail_pos(position + Point<int16_t>(212, 0));
 
 			// The same treatment as the window it opens beside - otherwise the
 			// detail column arrives as a solid white slab next to a faint one.
@@ -296,19 +360,19 @@ namespace ms
 			inner_ability[false].draw(DrawArgument(detail_pos + Point<int16_t>(0, 38), fade));
 		}
 
-		// On the panel the first twelve are already drawn, in the compact
-		// layout - only the detail column's labels are left to place.
-		size_t first = panel ? StatLabel::NUM_NORMAL : 0;
-		size_t last = showdetail ? StatLabel::NUM_LABELS : StatLabel::NUM_NORMAL;
-
-		for (size_t i = first; i < last; i++)
+		if (!panel)
 		{
-			Point<int16_t> labelpos = position + statoffsets[i];
+			size_t last = showdetail ? StatLabel::NUM_LABELS : StatLabel::NUM_NORMAL;
 
-			if (i >= StatLabel::NUM_NORMAL)
-				labelpos.shift_x(panel ? PANEL_W : 213);
+			for (size_t i = 0; i < last; i++)
+			{
+				Point<int16_t> labelpos = position + statoffsets[i];
 
-			statlabels[i].draw(labelpos);
+				if (i >= StatLabel::NUM_NORMAL)
+					labelpos.shift_x(213);
+
+				statlabels[i].draw(labelpos);
+			}
 		}
 
 		UIElement::draw_buttons(alpha);

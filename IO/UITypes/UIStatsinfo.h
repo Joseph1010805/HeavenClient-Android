@@ -77,14 +77,32 @@ namespace ms
 		// going to be off the screen. Every row of that artwork is mostly
 		// blank, so the list is drawn here at 130 across and DETAIL moves in to
 		// meet it: 130 + 213 is 343, which fits with a pixel to spare.
-		static constexpr int16_t PANEL_W = 130;
-		static constexpr int16_t PANEL_ROW_H = 16;
-		static constexpr int16_t PANEL_TOP = 8;
-		static constexpr int16_t PANEL_NAME_X = 5;
-		static constexpr int16_t PANEL_VALUE_X = 48;
+		// The page is a two-column sheet: who the character is and what can be
+		// spent on the left, everything derived from it on the right. Nothing
+		// is behind a button - the Detail toggle is gone and all of it shows at
+		// once, which is the whole point of a screen that is always open.
+		static constexpr int16_t PANEL_ROW_H = 15;
+		static constexpr int16_t PANEL_TOP = 26;
+		static constexpr int16_t PANEL_COL_W = 166;
+		static constexpr int16_t PANEL_LEFT_X = 6;
+		static constexpr int16_t PANEL_RIGHT_X = 176;
+
+		// Where a value sits within its column, and where the spend arrow
+		// after it goes.
+		static constexpr int16_t PANEL_VALUE_X = 54;
+		static constexpr int16_t PANEL_ARROW_X = 148;
+
+		// Which rows appear in which column, in order.
+		static const StatLabel PANEL_LEFT[];
+		static const StatLabel PANEL_RIGHT[];
+		static constexpr size_t PANEL_LEFT_COUNT = 11;
+		static constexpr size_t PANEL_RIGHT_COUNT = 13;
+
+		// Where a row was drawn, so a button can be put beside it.
+		int16_t panel_row_y(size_t row) const;
 
 		// The row headings, which the artwork used to supply.
-		Text panel_names[StatLabel::NUM_NORMAL];
+		Text panel_names[StatLabel::NUM_LABELS];
 
 		void draw_panel_list() const;
 
