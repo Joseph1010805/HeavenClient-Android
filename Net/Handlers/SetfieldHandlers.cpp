@@ -25,6 +25,7 @@
 #include "../Constants.h"
 #include "../Timer.h"
 #include "../Audio/Audio.h"
+#include "../Character/Look/Equipslot.h"
 #include "../Gameplay/Stage.h"
 #include "../Graphics/GraphicsGL.h"
 #include "../IO/UI.h"
@@ -148,6 +149,27 @@ namespace ms
 
 		recv.skip(8);
 
+		// Three blocks, each ended by a zero, and which block an item is in is
+		// the ONLY thing that says what it is:
+		//
+		//   0  what is worn
+		//   1  what is worn as a COSMETIC over it
+		//   2  the equip bag
+		//
+		// The catch is block 1. A cosmetic lives in a slot 100 above the real
+		// one - a cash hat is slot 101 - but the server writes it here with
+		// the 100 taken off, so a cash hat arrives as "1", the same number
+		// the real hat uses. Every other packet in the game, including the
+		// one sent when you put a cosmetic ON, uses 101.
+		//
+		// Reading it as written left the client holding cash equips under two
+		// different numbers depending on where it heard about them: at the
+		// real slot after logging in, and at the cash slot after equipping
+		// one. So a mask went on, drew, and then vanished from the whole
+		// interface the next time the character loaded - it had quietly
+		// displaced the real face slot it was pretending to be.
+		//
+		// Put the 100 back, and a cosmetic has one slot number everywhere.
 		for (size_t i = 0; i < 3; i++)
 		{
 			InventoryType::Id inv = (i == 0) ? InventoryType::EQUIPPED : InventoryType::EQUIP;
@@ -155,7 +177,9 @@ namespace ms
 
 			while (pos != 0)
 			{
-				int16_t slot = (i == 1) ? -pos : pos;
+				// A negative slot tells the item parser this is worn rather
+				// than carried; block 1 is worn AND cosmetic.
+				int16_t slot = (i == 1) ? -(pos + Equipslot::CASH_OFFSET) : pos;
 				ItemParser::parse_item(recv, inv, slot, invent);
 				pos = recv.read_short();
 			}

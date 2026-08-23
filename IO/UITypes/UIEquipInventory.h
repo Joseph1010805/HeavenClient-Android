@@ -92,6 +92,8 @@ namespace ms
 		void show_equip(Equipslot::Id slot);
 		void clear_tooltip();
 		void load_icons();
+		// Refreshes BOTH boxes for a slot - the real equip and the cosmetic
+		// over it. Takes the base slot; a cash slot is folded down to it.
 		void update_slot(Equipslot::Id slot);
 		Equipslot::Id slot_by_position(Point<int16_t> position) const;
 
@@ -113,6 +115,27 @@ namespace ms
 		static const PanelSlot PANEL_SLOTS[];
 		static const size_t PANEL_SLOT_COUNT;
 
+		// The CASH tab's own boxes.
+		//
+		// A cosmetic is worn in a slot 100 above the real one and covers it
+		// without taking it off, so it needs a place of its own to be seen
+		// and taken off from. Sharing the real slot's box was tried and is
+		// worse: it hides the item underneath, and there is then nowhere to
+		// look for something you are certain you bought.
+		//
+		// Only the slots that can actually take one - there is no cosmetic
+		// ring or medal.
+		static const PanelSlot CASH_SLOTS[];
+		static const size_t CASH_SLOT_COUNT;
+
+		// True while the CASH tab is the one showing.
+		bool on_cash_tab() const;
+
+		// The icon a box is currently showing - real gear or cosmetic,
+		// following the tab. The non-const one is for picking it up.
+		const Icon* shown_icon(Equipslot::Id slot) const;
+		Icon* shown_icon(Equipslot::Id slot);
+
 		// Lays the grid out and puts every slot's position in iconpositions,
 		// which is what slot_by_position already reads - so hit-testing
 		// follows the boxes without being told about them separately.
@@ -120,8 +143,8 @@ namespace ms
 
 		mutable Text panel_slot_names[Equipslot::Id::LENGTH];
 		void change_tab(uint16_t tabid);
-		// The slot actually being worn on top of this box: the cash one when
-		// there is a cosmetic covering it, otherwise the real one.
+		// The slot a box acts on: the cosmetic one while the CASH tab is
+		// showing, the real one otherwise.
 		int16_t worn_slot(Equipslot::Id slot) const;
 
 		class EquipIcon : public Icon::Type
@@ -160,6 +183,13 @@ namespace ms
 
 		EnumMap<Equipslot::Id, Point<int16_t>> iconpositions;
 		EnumMap<Equipslot::Id, std::unique_ptr<Icon>> icons;
+
+		// The cosmetics, keyed by the BASE slot they cover - a cash hat is
+		// under HAT here, not under 101. `EnumMap` is an array sized by the
+		// enum, so 101 has no home in one; folding to the base keeps both
+		// sets in the containers that already exist.
+		EnumMap<Equipslot::Id, Point<int16_t>> cash_iconpositions;
+		EnumMap<Equipslot::Id, std::unique_ptr<Icon>> cash_icons;
 
 		uint16_t tab;
 		std::string tab_source[Buttons::BT_TABE];

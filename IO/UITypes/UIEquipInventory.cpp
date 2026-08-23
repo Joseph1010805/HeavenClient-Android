@@ -163,6 +163,30 @@ namespace ms
 	const size_t UIEquipInventory::PANEL_SLOT_COUNT =
 		sizeof(PANEL_SLOTS) / sizeof(PANEL_SLOTS[0]);
 
+	// The slots a cosmetic can be worn in. Rings, medals and the rest have no
+	// cash counterpart, so promising a box for one would be a lie.
+	const UIEquipInventory::PanelSlot UIEquipInventory::CASH_SLOTS[] = {
+		{ Equipslot::Id::HAT,    "HAT"    },
+		{ Equipslot::Id::FACE,   "FACE"   },
+		{ Equipslot::Id::EYEACC, "EYE"    },
+		{ Equipslot::Id::EARACC, "EAR"    },
+		{ Equipslot::Id::TOP,    "TOP"    },
+		{ Equipslot::Id::BOTTOM, "BOTTOM" },
+		{ Equipslot::Id::SHOES,  "SHOES"  },
+		{ Equipslot::Id::GLOVES, "GLOVE"  },
+		{ Equipslot::Id::CAPE,   "CAPE"   },
+		{ Equipslot::Id::SHIELD, "SHIELD" },
+		{ Equipslot::Id::WEAPON, "WEAPON" }
+	};
+
+	const size_t UIEquipInventory::CASH_SLOT_COUNT =
+		sizeof(CASH_SLOTS) / sizeof(CASH_SLOTS[0]);
+
+	bool UIEquipInventory::on_cash_tab() const
+	{
+		return tab == Buttons::BT_TAB1;
+	}
+
 	void UIEquipInventory::build_panel_grid()
 	{
 		int16_t grid_w = PANEL_COLS * PANEL_CELL_W;
@@ -186,6 +210,25 @@ namespace ms
 			panel_slot_names[PANEL_SLOTS[i].slot] = Text(
 				Text::Font::A11M, Text::Alignment::CENTER,
 				Color::Name::WHITE, PANEL_SLOTS[i].name);
+		}
+
+		// The CASH tab's boxes, on the same grid. They are a different TAB,
+		// not a different place, so they can reuse every coordinate.
+		for (auto iter : cash_iconpositions)
+			iter.second = Point<int16_t>(-1000, -1000);
+
+		for (size_t i = 0; i < CASH_SLOT_COUNT; i++)
+		{
+			int16_t col = static_cast<int16_t>(i % PANEL_COLS);
+			int16_t row = static_cast<int16_t>(i / PANEL_COLS);
+
+			cash_iconpositions[CASH_SLOTS[i].slot] = Point<int16_t>(
+				left + col * PANEL_CELL_W + PANEL_ICON_X,
+				PANEL_GRID_TOP + row * PANEL_CELL_H);
+
+			panel_slot_names[CASH_SLOTS[i].slot] = Text(
+				Text::Font::A11M, Text::Alignment::CENTER,
+				Color::Name::WHITE, CASH_SLOTS[i].name);
 		}
 	}
 
@@ -261,7 +304,7 @@ namespace ms
 		if (selected == Equipslot::Id::NONE)
 			return;
 
-		if (!icons[selected])
+		if (!shown_icon(selected))
 			return;
 
 		// Exactly what a double click does on a desktop: find a free bag slot
@@ -308,14 +351,19 @@ namespace ms
 			// as the bag rather than the character-shaped rack, whose labels
 			// live in artwork that is not drawn here.
 			//
-			// Only on the Equip tab. Cash, Pet and Android are later-version
-			// features with nothing behind them here - one icon map covers the
-			// whole window and only this tab ever reads it - so drawing
-			// captioned boxes on them would promise slots that can never fill.
-			for (size_t i = 0; tab == Buttons::BT_TAB0 && i < PANEL_SLOT_COUNT; i++)
+			// EQUIP shows the real gear; CASH shows the cosmetics worn over
+			// it. Pet and Android are later-version features with nothing
+			// behind them here, so they get no boxes - promising a slot that
+			// can never fill is worse than an empty page.
+			const PanelSlot* shown = on_cash_tab() ? CASH_SLOTS : PANEL_SLOTS;
+			size_t shown_count = on_cash_tab() ? CASH_SLOT_COUNT : PANEL_SLOT_COUNT;
+			bool has_boxes = (tab == Buttons::BT_TAB0) || on_cash_tab();
+
+			for (size_t i = 0; has_boxes && i < shown_count; i++)
 			{
-				Equipslot::Id id = PANEL_SLOTS[i].slot;
-				Point<int16_t> at = position + iconpositions[id];
+				Equipslot::Id id = shown[i].slot;
+				Point<int16_t> at = position + (on_cash_tab()
+					? cash_iconpositions[id] : iconpositions[id]);
 
 				GraphicsGL::get().drawrectangle(
 					at.x(), at.y(), 32, 32, 1.0f, 1.0f, 1.0f, 0.14f);
@@ -327,7 +375,8 @@ namespace ms
 			// What is picked, marked rather than faded - nothing here greys out.
 			if (selected != Equipslot::Id::NONE)
 			{
-				Point<int16_t> at = position + iconpositions[selected];
+				Point<int16_t> at = position + (on_cash_tab()
+					? cash_iconpositions[selected] : iconpositions[selected]);
 
 				GraphicsGL::get().drawrectangle(at.x() + 1, at.y() + 1, 32, 32,
 					1.0f, 0.92f, 0.45f, 0.85f);
@@ -354,14 +403,17 @@ namespace ms
 				disabled.draw(DrawArgument(position + iconpositions[Equipslot::Id::POCKET],
 					panel ? PANEL_FADE : 1.0f));
 
-			for (auto iter : icons)
+			for (auto iter : (on_cash_tab() ? cash_icons : icons))
 				if (iter.second)
-					iter.second->draw(position + iconpositions[iter.first] + Point<int16_t>(4, 4));
+					iter.second->draw(position
+						+ (on_cash_tab() ? cash_iconpositions[iter.first]
+							: iconpositions[iter.first])
+						+ Point<int16_t>(4, 4));
 		}
-		if (panel && tab == Buttons::BT_TAB0)
+		if (panel && (tab == Buttons::BT_TAB0 || on_cash_tab()))
 		{
 			Rectangle<int16_t> act = action_bounds();
-			bool ready = selected != Equipslot::Id::NONE && icons[selected];
+			bool ready = selected != Equipslot::Id::NONE && shown_icon(selected);
 
 			GraphicsGL::get().drawrectangle(
 				act.left(), act.top(),
@@ -405,39 +457,59 @@ namespace ms
 		return Button::State::NORMAL;
 	}
 
-	// Which of the two slots behind a box is actually being worn on top.
-	//
-	// A cash equip sits 100 slots above the real one and covers it. The real
-	// item is NOT taken off - it stays equipped and keeps its stats - so the
-	// box shows the cash item while one is there, and taking that off reveals
-	// the real item still underneath.
+	// The icon a box is showing, which follows the tab the same way the slot
+	// it acts on does.
+	const Icon* UIEquipInventory::shown_icon(Equipslot::Id slot) const
+	{
+		return on_cash_tab() ? cash_icons[slot].get() : icons[slot].get();
+	}
+
+	Icon* UIEquipInventory::shown_icon(Equipslot::Id slot)
+	{
+		return on_cash_tab() ? cash_icons[slot].get() : icons[slot].get();
+	}
+
+	// Which slot a box acts on - decided by the TAB, not by what happens to be
+	// in it. The EQUIP tab is the real gear; the CASH tab is the cosmetics
+	// worn over it, 100 slots higher.
 	int16_t UIEquipInventory::worn_slot(Equipslot::Id slot) const
 	{
-		Equipslot::Id cash = Equipslot::cash_of(slot);
-
-		if (inventory.get_item_id(InventoryType::Id::EQUIPPED, cash))
-			return cash;
-
-		return slot;
+		return on_cash_tab() ? Equipslot::cash_of(slot) : slot;
 	}
 
 	void UIEquipInventory::update_slot(Equipslot::Id slot)
 	{
-		int16_t worn = worn_slot(slot);
+		// Both boxes for this place on the character, every time. They are
+		// two different items in two different slots and either can change
+		// without the other, so refreshing only "the one showing" leaves the
+		// other stale the moment the tab is switched.
+		Equipslot::Id base = Equipslot::base_of(slot);
 
-		if (int32_t item_id = inventory.get_item_id(InventoryType::Id::EQUIPPED, worn))
+		struct { EnumMap<Equipslot::Id, std::unique_ptr<Icon>>* into; int16_t from; }
+		pair[2] =
 		{
-			const Texture& texture = ItemData::get(item_id).get_icon(false);
+			{ &icons,      static_cast<int16_t>(base) },
+			{ &cash_icons, static_cast<int16_t>(Equipslot::cash_of(base)) }
+		};
 
-			icons[slot] = std::make_unique<Icon>(
-				std::make_unique<EquipIcon>(worn),
-				texture,
-				-1
-				);
-		}
-		else if (icons[slot])
+		for (auto& p : pair)
 		{
-			icons[slot].release();
+			auto& into = *p.into;
+
+			if (int32_t item_id = inventory.get_item_id(InventoryType::Id::EQUIPPED, p.from))
+			{
+				const Texture& texture = ItemData::get(item_id).get_icon(false);
+
+				into[base] = std::make_unique<Icon>(
+					std::make_unique<EquipIcon>(p.from),
+					texture,
+					-1
+					);
+			}
+			else if (into[base])
+			{
+				into[base].release();
+			}
 		}
 
 		clear_tooltip();
@@ -479,7 +551,7 @@ namespace ms
 
 		Equipslot::Id slot = slot_by_position(cursorpos);
 
-		if (auto icon = icons[slot].get())
+		if (auto icon = shown_icon(slot))
 		{
 			if (pressed)
 			{
@@ -558,7 +630,7 @@ namespace ms
 	{
 		Equipslot::Id slot = slot_by_position(cursorpos);
 
-		if (icons[slot])
+		if (shown_icon(slot))
 			if (int16_t freeslot = inventory.find_free_slot(InventoryType::Id::EQUIP))
 				UnequipItemPacket(worn_slot(slot), freeslot).dispatch();
 	}
@@ -580,8 +652,12 @@ namespace ms
 
 	void UIEquipInventory::modify(int16_t pos, int8_t mode, int16_t arg)
 	{
-		Equipslot::Id eqpos = Equipslot::by_id(pos);
-		Equipslot::Id eqarg = Equipslot::by_id(arg);
+		// A cosmetic arrives here as 101, 102, 103 - numbers no `Equipslot`
+		// has - and `by_id` answered NONE for every one of them, so putting a
+		// mask on refreshed nothing and the box it belonged in stayed empty.
+		// Fold to the base; update_slot does both halves anyway.
+		Equipslot::Id eqpos = Equipslot::base_of(pos);
+		Equipslot::Id eqarg = Equipslot::base_of(arg);
 
 		switch (mode)
 		{
@@ -608,10 +684,12 @@ namespace ms
 
 	Equipslot::Id UIEquipInventory::slot_by_position(Point<int16_t> cursorpos) const
 	{
-		if (tab != Buttons::BT_TAB0)
+		if (tab != Buttons::BT_TAB0 && !on_cash_tab())
 			return Equipslot::Id::NONE;
 
-		for (auto iter : iconpositions)
+		// Same boxes, different tab. The returned slot is always the BASE
+		// one; what it acts on is decided by worn_slot().
+		for (auto iter : (on_cash_tab() ? cash_iconpositions : iconpositions))
 		{
 			Rectangle<int16_t> iconrect = Rectangle<int16_t>(
 				position + iter.second,
