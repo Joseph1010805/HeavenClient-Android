@@ -23,7 +23,6 @@
 
 #include "../Gameplay/Movement.h"
 
-#include <queue>
 #include <vector>
 
 namespace ms
@@ -56,9 +55,17 @@ namespace ms
 	private:
 		uint16_t level;
 		int16_t job;
-		std::queue<Movement> movements;
+		// How much of the gap to the server's reported position to close each
+		// tick. Higher follows more tightly and jitters more; lower glides but
+		// trails. 0.18 spreads motion smoothly across the gaps between move
+		// packets, which arrive far less often than frames do.
+		static constexpr double FOLLOW_FACTOR = 0.18;
+
+		// Past this many pixels, stop easing and go straight there. Anything
+		// this far off is a teleport or a desync, not a walk.
+		static constexpr double SNAP_DISTANCE = 200.0;
+
 		Movement lastmove;
-		uint16_t timer;
 
 		std::unordered_map<int32_t, uint8_t> skilllevels;
 		uint8_t attackspeed;

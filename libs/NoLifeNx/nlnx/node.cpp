@@ -166,7 +166,17 @@ namespace nl {
         case type::real:
             return static_cast<int64_t>(to_real());
         case type::string:
-            return std::stoll(to_string());
+            // A string node need not hold a number. v83's quest data puts
+            // script NAMES in fields that are integers elsewhere, and stoll
+            // throws on those - out of a function whose whole signature says
+            // "give me a default if you cannot". Every caller reading a field
+            // whose type varies between entries was one bad row away from an
+            // uncaught exception.
+            try {
+                return std::stoll(to_string());
+            } catch (...) {
+                return def;
+            }
         default:
             throw std::runtime_error("Unknown node type");
         }
@@ -185,7 +195,12 @@ namespace nl {
         case type::real:
             return to_real();
         case type::string:
-            return std::stod(to_string());
+            // Same as get_integer: the default exists to be used.
+            try {
+                return std::stod(to_string());
+            } catch (...) {
+                return def;
+            }
         default:
             throw std::runtime_error("Unknown node type");
         }

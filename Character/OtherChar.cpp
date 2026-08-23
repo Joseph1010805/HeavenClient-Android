@@ -30,7 +30,6 @@ namespace ms
 		lastmove.xpos = pos.x();
 		lastmove.ypos = pos.y();
 		lastmove.newstate = st;
-		timer = 0;
 
 		attackspeed = 6;
 		attacking = false;
@@ -38,41 +37,24 @@ namespace ms
 
 	int8_t OtherChar::update(const Physics& physics)
 	{
-		if (timer > 1)
-		{
-			timer--;
-		}
-		else if (timer == 1)
-		{
-			if (!movements.empty())
-			{
-				// Normally one movement per tick. If a backlog has built up -
-				// a burst arrived, or the frame rate dipped - throw the excess
-				// away rather than walking through it, because playing every
-				// stale position back at one per tick means never catching up
-				// and staying permanently behind.
-				constexpr size_t MAX_BACKLOG = 8;
-
-				while (movements.size() > MAX_BACKLOG)
-					movements.pop();
-
-				lastmove = movements.front();
-				movements.pop();
-			}
-			else
-			{
-				timer = 0;
-			}
-		}
-
 		if (!attacking)
-		{
-			uint8_t laststate = lastmove.newstate;
-			set_state(laststate);
-		}
+			set_state(lastmove.newstate);
 
-		phobj.hspeed = lastmove.xpos - phobj.crnt_x();
-		phobj.vspeed = lastmove.ypos - phobj.crnt_y();
+		// Ease toward the last position the server reported, closing a share
+		// of the remaining gap each tick.
+		//
+		// This replaces a queue that played movements back one per tick behind
+		// a fixed delay. That model had to choose between lag and stutter: too
+		// short a delay and a burst of packets snapped, too long and everyone
+		// else was visibly behind - it was 400ms, which was most of the second
+		// of lag between two devices here. Following the newest position
+		// instead needs no such choice. Nothing queues, so nothing can fall
+		// behind and stay behind.
+		double dx = lastmove.xpos - phobj.crnt_x();
+		double dy = lastmove.ypos - phobj.crnt_y();
+
+		phobj.hspeed = dx * FOLLOW_FACTOR;
+		phobj.vspeed = dy * FOLLOW_FACTOR;
 		phobj.move();
 
 		physics.get_fht().update_fh(phobj);
@@ -87,20 +69,24 @@ namespace ms
 
 	void OtherChar::send_movement(const std::vector<Movement>& newmoves)
 	{
-		movements.push(newmoves.back());
+		if (newmoves.empty())
+			return;
 
-		if (timer == 0)
+		lastmove = newmoves.back();
+
+		// Easing is right for walking and wrong for everything else. A
+		// teleport, a flash jump, or a character that drifted out of sync
+		// would be slid across the map at walking pace, arriving somewhere
+		// they left long ago - so past a certain distance, go straight there.
+		double dx = lastmove.xpos - phobj.crnt_x();
+		double dy = lastmove.ypos - phobj.crnt_y();
+
+		if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE)
 		{
-			// Hold the first movement briefly so that a burst arriving at
-			// once plays back smoothly instead of snapping.
-			//
-			// This was 50 ticks. At an 8ms timestep that is 400ms of delay
-			// before another player is drawn where they already are, re-armed
-			// every time they pause - which is most of the second of lag
-			// between two devices on the same wifi. That much buffering only
-			// buys anything across the internet; on a LAN it is pure lag.
-			constexpr uint16_t DELAY = 6;
-			timer = DELAY;
+			phobj.set_x(lastmove.xpos);
+			phobj.set_y(lastmove.ypos);
+			phobj.hspeed = 0.0;
+			phobj.vspeed = 0.0;
 		}
 	}
 
