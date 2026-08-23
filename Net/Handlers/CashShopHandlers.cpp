@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "CashShopHandlers.h"
 
+#include "../PacketError.h"
+
 #include "../../Timer.h"
 
 #include "../../IO/UITypes/UIStatusMessenger.h"
@@ -33,41 +35,30 @@ namespace ms
 {
 	void SetCashShopHandler::handle(InPacket& recv) const
 	{
-		CashShopParser::parseCharacterInfo(recv);
-
-		recv.skip_byte();	// Not MTS
-		recv.skip_string();	// account_name
-		recv.skip_int();
-
-		int16_t specialcashitem_size = recv.read_short();
-
-		for (size_t i = 0; i < specialcashitem_size; i++)
+		// The character block is read for what it updates, but a failure here
+		// must NOT stop the screen changing.
+		//
+		// By the time this arrives the server has already removed the
+		// character from the channel and from the map. Throwing out of this
+		// handler does not mean "the shop did not open" - it means the player
+		// is left looking at a world they are no longer standing in, unable
+		// to walk or use a portal. Arriving at the shop with stale stats is
+		// recoverable; being stranded is not.
+		try
 		{
-			recv.skip_int();	// sn
-			recv.skip_int();	// mod
-			recv.skip_byte();	// info
+			CashShopParser::parseCharacterInfo(recv);
+		}
+		catch (const PacketError&)
+		{
+			// Deliberately swallowed. Whatever went unread only leaves stats
+			// stale for a screen that shows none of them.
 		}
 
-		recv.skip(121);
-
-		for (size_t cat = 1; cat <= 8; cat++)
-		{
-			for (size_t gender = 0; gender < 2; gender++)
-			{
-				for (size_t in = 0; in < 5; in++)
-				{
-					recv.skip_int(); // category
-					recv.skip_int(); // gender
-					recv.skip_int(); // commoditysn
-				}
-			}
-		}
-
-		recv.skip_int();
-		recv.skip_short();
-		recv.skip_byte();
-		recv.skip_int();
-
+		// The rest is the shop's own catalogue - a special-item list, the
+		// most-seller tables for eight tabs, and padding. This client reads
+		// none of it, so it is not read at all: keeping byte counts in step
+		// with a server layout for data we discard buys nothing and is one
+		// more thing that can throw.
 		transition();
 	}
 

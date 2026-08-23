@@ -210,7 +210,23 @@ namespace ms
 			{
 				int16_t qidl = quests.get_last_started();
 				quests.add_in_progress(qidl, qid, qdata);
-				i--;
+
+				// No `i--` here, though there used to be.
+				//
+				// A quest carrying an info number is written as TWO
+				// (id, data) pairs, and the server counts BOTH towards the
+				// size it announces:
+				//
+				//     if (qs.getInfoNumber() > 0) startedSize++;
+				//     startedSize++;
+				//
+				// Undoing the loop counter for the second pair meant reading
+				// one pair too many for every such quest, walking off the end
+				// of the packet. It never showed at login because everything
+				// after the quest log was simply parsed from the wrong offset
+				// and quietly wrong - rings, teleport rock, monster book. It
+				// only became a crash when the cash shop packet, which has
+				// less slack after the character block, ran out of bytes.
 			}
 			else
 			{

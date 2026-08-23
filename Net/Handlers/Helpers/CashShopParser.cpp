@@ -17,6 +17,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "CashShopParser.h"
 
+// TEMPORARY - chasing the SET_CASH_SHOP over-read
+#include <android/log.h>
+
 #include "../SetfieldHandlers.h"
 #include "LoginParser.h"
 
@@ -43,18 +46,33 @@ namespace ms
 			if (recv.read_bool())
 				recv.read_string(); // 'linkedname'
 
+			// TEMPORARY - which of these over-reads
+			#define CS_MARK(what) __android_log_print(ANDROID_LOG_INFO, \
+				"HeavenClient", "[cs] after %-14s %zu left", what, recv.length())
+
+			CS_MARK("stats");
 			CharacterParser::parse_inventory(recv, player.get_inventory());
+			CS_MARK("inventory");
 			CharacterParser::parse_skillbook(recv, player.get_skills());
+			CS_MARK("skillbook");
 			CharacterParser::parse_cooldowns(recv, player);
+			CS_MARK("cooldowns");
 			CharacterParser::parse_questlog(recv, player.get_quests());
+			CS_MARK("questlog");
 			CharacterParser::parse_minigame(recv);
+			CS_MARK("minigame");
 			CharacterParser::parse_ring1(recv);
 			CharacterParser::parse_ring2(recv);
 			CharacterParser::parse_ring3(recv);
+			CS_MARK("rings");
 			CharacterParser::parse_telerock(recv, player.get_telerock());
+			CS_MARK("telerock");
 			CharacterParser::parse_monsterbook(recv, player.get_monsterbook());
+			CS_MARK("monsterbook");
 			CharacterParser::parse_nyinfo(recv);
+			CS_MARK("nyinfo");
 			CharacterParser::parse_areainfo(recv);
+			CS_MARK("areainfo");
 
 			player.recalc_stats(true);
 
