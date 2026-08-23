@@ -25,7 +25,6 @@ below, which is a different kind of work and probably the more valuable.
 |---|---:|---:|---|
 | **Quests** | 7 | 3,879 | Ours is 121 lines to their 2,471. **needs Text engine** |
 | **Storage & player trading** | ~8 | ~3,100 | `UIStorage` 1,180 + `ShopStorageHandlers` 1,225 + `UITrade` 729 |
-| **Hired merchant & personal shop** | ~4 | ~1,200 | The market-stall half. Lower priority than the above |
 | **Party, full UI** | 12 | 2,022 | 2 already here |
 | **Cash shop** | 9 | 1,151 | |
 | **Monster book** | 7 | 1,759 | |
@@ -48,6 +47,7 @@ below, which is a different kind of work and probably the more valuable.
 | Ranking & report | 6 | 1,268 | Reporting players is meaningless here |
 | MTS | 5 | 815 | Cash item trading between accounts |
 | Misc infra | 36 | ~3,000 | Their `Gamepad` is built on GLFW and cannot work on Android; ours uses SDL's controller API already. `EmbeddedFonts` is 57,159 lines of font data, not work |
+| Hired merchant & personal shop | ~4 | ~1,200 | Running a market stall. No market here to run one in |
 
 ---
 
@@ -67,13 +67,21 @@ wrote down what used to be wrong. This is the only instrument that finds the
 reactor bugs in a file where OUR copy was the larger one. It found, in its
 first run:
 
-- `Player.cpp:316` - Cosmic **autobans** an HP heal above `77 * map recovery
-  * 1.5` and drops any MP heal >= 1000. We wrote standing regeneration.
-  Checked: ours peaks at 30 against a limit of 115 on a normal map, and heals
-  every 10s against a 1.5s fast-heal threshold, so we are inside both. The
-  limit scales with the map's own recovery rate, so a map below ~0.26 would
-  put us over - unlikely, saunas set it high, but it is the one thing here
-  that could ban a character.
+- `Player.cpp:316` - Cosmic checks an HP heal against `77 * map recovery *
+  1.5` and drops any MP heal >= 1000. We wrote standing regeneration.
+  **Chased down: there is no ban risk and never was.** `USE_AUTOBAN` is
+  `false` in this server's config, and both `AutobanFactory.autoban()` and
+  `AutobanManager.addPoint()` are gated on it, so nothing can ban anybody
+  here. Only the log is on.
+
+  What DOES still bite with autoban off is a handler that drops the action
+  after the check. There are exactly two:
+  `HealOvertimeHandler:56` discards an over-limit HP heal - ours peaks at 30
+  against a limit of 115, so it does not reach us unless a map sets its
+  recovery below ~0.26 - and **`AbstractDealDamageHandler:208` throws away an
+  entire attack that hits more mobs than the skill's declared mob count**,
+  silently, which is a live combat path worth remembering the next time
+  damage goes missing.
 - `MapNpcs.cpp:116` - Cosmic silently drops a TalkToNPC arriving within 500ms
   of the previous one. Mirror it client-side or rapid re-clicks wedge.
 - `Player.cpp:254` - server-driven HP loss (damage over time, magic) never
