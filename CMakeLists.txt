@@ -500,6 +500,8 @@ set(HEAVEN_SOURCES
         Util/QuadTree.h
         Util/Randomizer.h
         Util/ScreenResolution.h
+        Util/Silent.cpp
+        Util/Silent.h
         Util/TimedBool.h
         Configuration.cpp
         Configuration.h

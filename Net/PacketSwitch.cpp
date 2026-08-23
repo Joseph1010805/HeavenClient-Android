@@ -32,6 +32,7 @@
 
 #include "../Console.h"
 #include "../Configuration.h"
+#include "../Util/Silent.h"
 
 namespace ms
 {
@@ -323,6 +324,20 @@ namespace ms
 				try
 				{
 					handler->handle(recv);
+
+					// A handler that stopped early is a silent bug: it read
+					// a layout that is not the one the server wrote, and
+					// whatever it did not read is whatever it got wrong. The
+					// quest-log parser that broke character loading looked
+					// exactly like this from the outside - nothing.
+					//
+					// Some handlers stop on purpose (the cash shop catalogue
+					// is deliberately not read), so this is a place to look,
+					// not a fault on its own.
+					if (size_t left = recv.length())
+						Silent::report("PacketSwitch",
+							"opcode " + std::to_string(opcode) + " left "
+							+ std::to_string(left) + " bytes unread");
 				}
 				catch (const PacketError& err)
 				{
@@ -345,6 +360,13 @@ namespace ms
 
 	void PacketSwitch::warn(const std::string& message, size_t opcode) const
 	{
+		// This used to go only to `Console`, which is compiled to nothing
+		// unless PRINT_WARNINGS is set and writes to stdout even then - and
+		// stdout on Android goes nowhere. So the client has been telling
+		// itself about every packet it could not handle, into a void, for the
+		// whole life of this port.
+		Silent::report("PacketSwitch", message + ", opcode " + std::to_string(opcode));
+
 		Console::get().print(message + ", Opcode: " + std::to_string(opcode));
 	}
 }

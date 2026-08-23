@@ -20,6 +20,8 @@
 #include "../Data/EquipData.h"
 #include "../Data/WeaponData.h"
 
+#include "../../Util/Silent.h"
+
 #include <unordered_set>
 
 #include <nlnx/nx.hpp>
@@ -227,6 +229,49 @@ namespace ms
 		};
 
 		transparent = transparents.count(itemid) > 0;
+
+		// An equip that loaded no pictures at all will be worn and draw
+		// nothing - which is what every mask in the game did, for the whole
+		// life of this port, without printing a character. Say so.
+		//
+		// The transparent hat is empty on purpose and is not reported.
+		if (transparent)
+			return;
+
+		bool empty = true;
+
+		if (faceacc)
+		{
+			for (int half = 0; half < 2 && empty; half++)
+				for (auto iter : faceframes[half])
+					if (!iter.second.empty())
+					{
+						empty = false;
+						break;
+					}
+		}
+		else
+		{
+			for (auto stanceiter : stances)
+			{
+				for (auto layeriter : stanceiter.second)
+				{
+					if (layeriter.second.empty())
+						continue;
+
+					empty = false;
+					break;
+				}
+
+				if (!empty)
+					break;
+			}
+		}
+
+		if (empty)
+			Silent::report("Clothing",
+				"item " + std::to_string(itemid) + " (" + category
+				+ ") loaded no art - it will be worn and draw nothing");
 	}
 
 	void Clothing::add_faceframe(nl::node holder, Expression::Id expression, uint8_t frame)

@@ -54,6 +54,14 @@ namespace ms
 		const std::string& get_category() const;
 		// Returns one of the item's icons. For each item there is a 'raw' icon and an icon with a drop shadow.
 		const Texture& get_icon(bool raw) const;
+		// Whether "use" means anything for this item.
+		//
+		// An item's effect lives in its `spec` node. Arrows, throwing stars
+		// and a few other stack-in-the-USE-tab things have none - they are
+		// ammunition, not consumables - and asking the server to use one
+		// throws a NullPointerException inside its own handler, which is
+		// invisible from here. Ask this before sending USE_ITEM.
+		bool is_usable() const;
 
 	private:
 		// Allow the cache to use the constructor.
@@ -73,6 +81,7 @@ namespace ms
 		std::string name;
 		std::string desc;
 		std::string category;
+		bool usable;
 
 		bool valid;
 		bool untradable;

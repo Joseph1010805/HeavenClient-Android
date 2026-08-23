@@ -27,6 +27,7 @@
 #include "../Character/Player.h"
 #include "../Gameplay/Stage.h"
 #include "../Data/EquipData.h"
+#include "../Util/Silent.h"
 #include "../../Graphics/GraphicsGL.h"
 
 #include "../IO/UITypes/UIKeyConfig.h"
@@ -438,10 +439,17 @@ namespace ms
 
 					break;
 				case InventoryType::Id::USE:
-					UseItemPacket(slot, item_id).dispatch();
+					if (ItemData::get(item_id).is_usable())
+						UseItemPacket(slot, item_id).dispatch();
+
 					break;
 				case InventoryType::Id::CASH:
 					use_cash_item(slot, item_id);
+					break;
+				default:
+					Silent::report("UIItemInventory::doubleclick",
+						"tab=" + std::to_string(static_cast<int>(tab)) + " item=" + std::to_string(item_id)
+						+ " - no case for this tab");
 					break;
 				}
 			}
@@ -1109,6 +1117,19 @@ namespace ms
 
 			break;
 		case InventoryType::Id::USE:
+			// Not everything in this tab is a consumable. Arrows and
+			// throwing stars stack here and have no effect node, and asking
+			// the server to use one throws a NullPointerException inside its
+			// own handler - which never reaches the player. Ten of those
+			// went into the server log before anybody read it.
+			if (!ItemData::get(item_id).is_usable())
+			{
+				Silent::report("UIItemInventory::activate_slot",
+					"item " + std::to_string(item_id)
+					+ " is in the USE tab but has no effect - not usable");
+				break;
+			}
+
 			UseItemPacket(slot, item_id).dispatch();
 
 			selected = 0;
@@ -1117,6 +1138,14 @@ namespace ms
 			use_cash_item(slot, item_id);
 
 			selected = 0;
+			break;
+		default:
+			// No case for this tab. The whole CASH tab sat here doing exactly
+			// this, silently, until somebody bought something and wondered
+			// why tapping it achieved nothing.
+			Silent::report("UIItemInventory::activate_slot",
+				"tab=" + std::to_string(static_cast<int>(tab)) + " item=" + std::to_string(item_id)
+				+ " - nothing happens when this tab is tapped");
 			break;
 		}
 	}
@@ -1313,6 +1342,11 @@ namespace ms
 			break;
 		case InventoryType::Id::USE:
 			ScrollEquipPacket(source, eqslot).dispatch();
+			break;
+		default:
+			Silent::report("ItemIcon::drop_on_equips",
+				"tab=" + std::to_string(static_cast<int>(sourcetab)) + " item=" + std::to_string(item_id)
+				+ " dropped on slot " + std::to_string(static_cast<int>(eqslot)) + " - no case for this tab");
 			break;
 		}
 	}

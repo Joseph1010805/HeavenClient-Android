@@ -26,12 +26,18 @@ namespace ms
 	{
 		untradable = false;
 		unique = false;
+		usable = false;
 		unsellable = false;
 		cashitem = false;
 		gender = 0;
 
 		nl::node src;
 		nl::node strsrc;
+
+		// The item's own node, one above `src`. Kept because whether an item
+		// can be USED is decided by a sibling of `info`, not by anything
+		// inside it.
+		nl::node itemnode;
 
 		std::string strprefix = "0" + std::to_string(get_item_prefix(itemid));
 		std::string strid = "0" + std::to_string(itemid);
@@ -46,28 +52,37 @@ namespace ms
 			break;
 		case 2:
 			category = "Consume";
-			src = nl::nx::item["Consume"][strprefix + ".img"][strid]["info"];
+			itemnode = nl::nx::item["Consume"][strprefix + ".img"][strid];
+			src = itemnode["info"];
 			strsrc = nl::nx::string["Consume.img"][std::to_string(itemid)];
 			break;
 		case 3:
 			category = "Install";
-			src = nl::nx::item["Install"][strprefix + ".img"][strid]["info"];
+			itemnode = nl::nx::item["Install"][strprefix + ".img"][strid];
+			src = itemnode["info"];
 			strsrc = nl::nx::string["Ins.img"][std::to_string(itemid)];
 			break;
 		case 4:
 			category = "Etc";
-			src = nl::nx::item["Etc"][strprefix + ".img"][strid]["info"];
+			itemnode = nl::nx::item["Etc"][strprefix + ".img"][strid];
+			src = itemnode["info"];
 			strsrc = nl::nx::string["Etc.img"]["Etc"][std::to_string(itemid)];
 			break;
 		case 5:
 			category = "Cash";
-			src = nl::nx::item["Cash"][strprefix + ".img"][strid]["info"];
+			itemnode = nl::nx::item["Cash"][strprefix + ".img"][strid];
+			src = itemnode["info"];
 			strsrc = nl::nx::string["Cash.img"][std::to_string(itemid)];
 			break;
 		}
 
 		if (src)
 		{
+			// An item's effect lives in a `spec` node beside `info`.
+			// Ammunition (arrows, stars) has none, and asking the server to
+			// use one throws inside its own handler.
+			usable = static_cast<bool>(itemnode["spec"]);
+
 			icons[false] = src["icon"];
 			icons[true] = src["iconRaw"];
 			price = src["price"];
@@ -164,6 +179,11 @@ namespace ms
 	bool ItemData::is_cashitem() const
 	{
 		return cashitem;
+	}
+
+	bool ItemData::is_usable() const
+	{
+		return usable;
 	}
 
 	ItemData::operator bool() const
