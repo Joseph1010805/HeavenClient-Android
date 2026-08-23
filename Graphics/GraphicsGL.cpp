@@ -1185,6 +1185,18 @@ namespace ms
 		// Deliberately does NOT clear the queue, unlike begin_screen: this
 		// runs at the top of every main frame, and the frame's own clearing
 		// respects the lock held during fades.
+		// Read the size from Constants rather than the copy held here.
+		//
+		// That copy is only refreshed by reinit(), which runs once at startup.
+		// Anything changing the logical view size afterwards - the cash shop
+		// asks for 1024x768 - was therefore invisible to the renderer: the
+		// offscreen buffer and the viewport grew, and the shader went on
+		// mapping coordinates through an 800x600 screen. The picture stretched
+		// to fill the larger viewport and clipped in exactly the same place,
+		// which is why resizing the buffer appeared to change nothing at all.
+		VWIDTH = Constants::Constants::get().get_viewwidth();
+		VHEIGHT = Constants::Constants::get().get_viewheight();
+
 		SCREEN = Rectangle<int16_t>(0, VWIDTH, 0, VHEIGHT);
 
 		glUseProgram(shaderProgram);
