@@ -156,6 +156,8 @@ set(HEAVEN_SOURCES
         Data/JobData.h
         Data/SkillData.cpp
         Data/SkillData.h
+        Data/QuestData.cpp
+        Data/QuestData.h
         Data/WeaponData.cpp
         Data/WeaponData.h
         Gameplay/Combat/Attack.h

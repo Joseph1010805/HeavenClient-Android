@@ -68,6 +68,18 @@ namespace ms
 		// Change the equipment at the specified slot and recalculate stats.
 		void change_equip(int16_t slot);
 
+		// Whether this character could take, or hand in, a given quest right
+		// now - the whole question the client has to answer before an NPC can
+		// offer anything. The log knows what has been done; this adds the
+		// level, the job, the inventory and the kill counts.
+		Questlog::State quest_state(int16_t questid) const;
+		bool can_finish_quest(int16_t questid) const;
+
+		// What this NPC has for us, best first: a quest ready to hand in
+		// beats one ready to take. Zero means nothing.
+		int16_t quest_to_finish(int32_t npcid) const;
+		int16_t quest_to_start(int32_t npcid) const;
+
 		// What is actually being fought with.
 		//
 		// `Char::get_weapontype` reads the LOOK, which is right for everyone

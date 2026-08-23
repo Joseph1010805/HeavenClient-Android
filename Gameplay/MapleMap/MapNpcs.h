@@ -27,6 +27,8 @@
 
 namespace ms
 {
+	class Npc;
+
 	class MapNpcs
 	{
 	public:
@@ -49,6 +51,17 @@ namespace ms
 		Cursor::State send_cursor(bool pressed, Point<int16_t> position, Point<int16_t> viewpos);
 
 	private:
+		// Puts the right balloon over every NPC on the map, or none.
+		void refresh_quest_marks();
+		// Starts a quest, hands one in, or just talks - see the definition.
+		void talk_to(Npc& npc);
+
+		// About two seconds at the fixed timestep. Often enough that picking
+		// up the last item makes the balloon change while you watch, cheap
+		// enough that it does not matter what it costs.
+		static constexpr int16_t REFRESH_TICKS = 250;
+		int16_t until_refresh = 1;
+
 		MapObjects npcs;
 
 		std::queue<NpcSpawn> spawns;

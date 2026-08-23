@@ -17,19 +17,66 @@
 //////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#include <cstdint>
 #include <map>
+#include <string>
+#include <vector>
 
 namespace ms
 {
-	// Class that stores information on the questlog of an individual character.
+	// What this character has done, is doing, and could do about quests.
+	//
+	// It used to be three maps and a way to put things in them - nothing ever
+	// asked it a question, because nothing in the client could act on the
+	// answer. Now that the client is the side that decides what an NPC has to
+	// offer, this is where that decision is made.
 	class Questlog
 	{
 	public:
+		enum class State : uint8_t
+		{
+			// Never taken, and the requirements are not met.
+			UNAVAILABLE,
+			// Never taken, and it could be taken now.
+			AVAILABLE,
+			// Taken and not finished.
+			STARTED,
+			// Taken, finished, and cannot be taken again.
+			COMPLETED
+		};
+
 		void add_started(int16_t, const std::string& quest_data);
 		void add_in_progress(int16_t, int16_t, const std::string& quest_data);
 		void add_completed(int16_t, int64_t);
-		bool is_started(int16_t);
-		int16_t get_last_started();
+
+		// Called when the server says a quest changed state, so the log does
+		// not have to wait for the next character load to agree with it.
+		void set_started(int16_t qid, const std::string& progress);
+		void set_completed(int16_t qid, int64_t time);
+		void forget(int16_t qid);
+
+		bool is_started(int16_t) const;
+		bool is_completed(int16_t) const;
+		int16_t get_last_started() const;
+
+		// The progress string the server keeps for a started quest. For a
+		// kill-count quest it is a run of three-digit numbers, one per
+		// monster, in the order Check.img lists them - "005003" is five of
+		// the first and three of the second.
+		const std::string& get_progress(int16_t qid) const;
+
+		// How far along a kill requirement is. `which` is the position of the
+		// monster in the quest's own list.
+		int16_t killed(int16_t qid, size_t which) const;
+
+		// Every started quest, for the log window and the tracker.
+		std::vector<int16_t> all_started() const;
+		std::vector<int16_t> all_completed() const;
+
+		// Whether the requirements to take this quest are met right now.
+		// Needs the character, so it lives on Player rather than here - this
+		// only reports what the log itself knows.
+		State state_of(int16_t qid) const;
 
 	private:
 		std::map<int16_t, std::string> started;

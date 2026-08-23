@@ -23,6 +23,37 @@
 
 namespace ms
 {
+	namespace
+	{
+		// The two balloons, loaded once and shared by every NPC on the map.
+		//
+		// They come from the v178 UI - v83's has no QuestIcon node - and are
+		// animations rather than stills, which is why they are `Animation`
+		// and get updated below.
+		struct QuestMarkers
+		{
+			Animation available;
+			Animation completable;
+
+			QuestMarkers()
+			{
+				nl::node icons = nl::nx::ui["UIWindow.img"]["QuestIcon"];
+
+				available = icons["0"];
+				completable = icons["2"];
+			}
+		};
+
+		QuestMarkers& markers()
+		{
+			// Built on first use rather than at startup: nl::nx is not open
+			// yet when statics are initialised.
+			static QuestMarkers instance;
+
+			return instance;
+		}
+	}
+
 	Npc::Npc(int32_t id, int32_t o, bool fl, uint16_t f, bool cnt, Point<int16_t> position) : MapObject(o)
 	{
 		std::string strid = std::to_string(id);
@@ -88,6 +119,31 @@ namespace ms
 			namelabel.draw(absp + Point<int16_t>(0, -4));
 			funclabel.draw(absp + Point<int16_t>(0, 18));
 		}
+
+		// The balloon sits above the head, clear of the name.
+		Point<int16_t> over = absp + Point<int16_t>(0, -68);
+
+		switch (questmark)
+		{
+		case QuestMark::AVAILABLE:
+			markers().available.draw(DrawArgument(over), alpha);
+			break;
+		case QuestMark::COMPLETABLE:
+			markers().completable.draw(DrawArgument(over), alpha);
+			break;
+		default:
+			break;
+		}
+	}
+
+	void Npc::set_quest_mark(QuestMark mark)
+	{
+		questmark = mark;
+	}
+
+	int32_t Npc::get_npcid() const
+	{
+		return npcid;
 	}
 
 	int8_t Npc::update(const Physics& physics)
@@ -96,6 +152,12 @@ namespace ms
 			return phobj.fhlayer;
 
 		physics.move_object(phobj);
+
+		if (questmark != QuestMark::NONE)
+		{
+			markers().available.update();
+			markers().completable.update();
+		}
 
 		if (animations.count(stance))
 		{

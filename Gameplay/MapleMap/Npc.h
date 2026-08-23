@@ -52,6 +52,23 @@ namespace ms
 		// Returns the NPC's function description or title.
 		std::string get_func();
 
+		// What this NPC has to offer, drawn as a balloon over their head.
+		//
+		// The marker is decided entirely on this side: the client reads
+		// Quest.nx, checks the requirements against the character, and puts
+		// the balloon up itself. The server is never asked and never told.
+		enum class QuestMark : uint8_t
+		{
+			NONE,
+			// A quest that can be taken now.
+			AVAILABLE,
+			// One already taken whose requirements are now met.
+			COMPLETABLE
+		};
+
+		void set_quest_mark(QuestMark mark);
+		int32_t get_npcid() const;
+
 	private:
 		std::map<std::string, Animation> animations;
 		std::map<std::string, std::vector<std::string>> lines;
@@ -63,6 +80,7 @@ namespace ms
 		bool mouseonly;
 
 		int32_t npcid;
+		QuestMark questmark = QuestMark::NONE;
 		bool flip;
 		std::string stance;
 		bool control;

@@ -40,6 +40,26 @@ raised at the table gets quietly forgotten.
   monster waits for its animation to end and a counter to pass 200 updates,
   which at 125 a second is 1.6 seconds before its first move.
 
+### Client - combat, reported 23 August
+
+Both mild, both seen once, both worth a name so the next sighting is a second
+data point rather than a first one.
+
+- **A drop was slower to pick up than it should have been.** Once. Could be
+  the pickup range, the settle time before a drop becomes lootable, or the
+  loot packet being answered late.
+- **An attack hit a different monster than the one aimed at.** The client
+  chooses its own targets and tells the server which it hit, so this is ours,
+  not the server's. Look at how the attack picks its targets - nearest by
+  centre, by bounding box, or first in the map's object order - and whether
+  it prefers the one being faced.
+
+Ruled out already, from the packet instrument: neither is a parser stopping
+short. The only handler that discards a whole combat packet is
+MOVE_MOB_RESPONSE, which is a NullHandler on purpose - so **monster skills
+never happen at all**, since the controlling client is the one told to use
+them. Longstanding, and worth fixing on its own account.
+
 ### Client - controller mapping on the quickslot
 
 The slide-out quickslot at the bottom right has twelve empty slots, in two rows

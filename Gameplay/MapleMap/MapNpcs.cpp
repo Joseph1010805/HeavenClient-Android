@@ -18,7 +18,10 @@
 #include "MapNpcs.h"
 #include "Npc.h"
 
+#include "../Data/QuestData.h"
+#include "../Gameplay/Stage.h"
 #include "../Net/Packets/NpcInteractionPackets.h"
+#include "../Net/Packets/QuestPackets.h"
 
 namespace ms
 {
@@ -43,6 +46,44 @@ namespace ms
 		}
 
 		npcs.update(physics);
+
+		refresh_quest_marks();
+	}
+
+	// Who has something to offer.
+	//
+	// Recomputed every few seconds rather than every frame - it walks the
+	// quests attached to each NPC and checks level, job, prerequisites and
+	// inventory against each - and after anything that could change the
+	// answer, which is most of what a player does.
+	void MapNpcs::refresh_quest_marks()
+	{
+		if (--until_refresh > 0)
+			return;
+
+		until_refresh = REFRESH_TICKS;
+
+		const Player& player = Stage::get().get_player();
+
+		for (auto& map_object : npcs)
+		{
+			Npc* npc = static_cast<Npc*>(map_object.second.get());
+
+			if (!npc || !npc->is_active())
+				continue;
+
+			int32_t npcid = npc->get_npcid();
+
+			// Handing one in beats taking one: a player standing in front of
+			// an NPC who can finish their quest wants to be told that, not
+			// offered a new one.
+			if (player.quest_to_finish(npcid))
+				npc->set_quest_mark(Npc::QuestMark::COMPLETABLE);
+			else if (player.quest_to_start(npcid))
+				npc->set_quest_mark(Npc::QuestMark::AVAILABLE);
+			else
+				npc->set_quest_mark(Npc::QuestMark::NONE);
+		}
 	}
 
 	void MapNpcs::spawn(NpcSpawn&& spawn)
@@ -66,6 +107,46 @@ namespace ms
 		return &npcs;
 	}
 
+	// Talking to an NPC is not one thing.
+	//
+	// A quest is started or handed in by the CLIENT asking for it by number,
+	// and only then; the ordinary conversation packet does not carry a quest
+	// and the server will not volunteer one. So the quest comes first when
+	// there is one, and a plain chat otherwise.
+	void MapNpcs::talk_to(Npc& npc)
+	{
+		const Player& player = Stage::get().get_player();
+
+		int32_t npcid = npc.get_npcid();
+		Point<int16_t> at = player.get_position();
+
+		if (int16_t finishing = player.quest_to_finish(npcid))
+		{
+			const QuestData& data = QuestData::get(finishing);
+
+			QuestActionPacket(data.to_finish().scripted
+				? QuestActionPacket::SCRIPTED_END
+				: QuestActionPacket::COMPLETE,
+				finishing, npcid, at).dispatch();
+
+			return;
+		}
+
+		if (int16_t starting = player.quest_to_start(npcid))
+		{
+			const QuestData& data = QuestData::get(starting);
+
+			QuestActionPacket(data.to_start().scripted
+				? QuestActionPacket::SCRIPTED_START
+				: QuestActionPacket::START,
+				starting, npcid, at).dispatch();
+
+			return;
+		}
+
+		TalkToNPCPacket(npc.get_oid()).dispatch();
+	}
+
 	Cursor::State MapNpcs::send_cursor(bool pressed, Point<int16_t> position, Point<int16_t> viewpos)
 	{
 		for (auto& map_object : npcs)
@@ -76,8 +157,7 @@ namespace ms
 			{
 				if (pressed)
 				{
-					// TODO: Try finding dialog first
-					TalkToNPCPacket(npc->get_oid()).dispatch();
+					talk_to(*npc);
 
 					return Cursor::State::IDLE;
 				}

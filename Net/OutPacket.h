@@ -88,6 +88,12 @@ namespace ms
 			// tapped.
 			USE_CASH_ITEM = 79,
 
+			// Quests. In this version the CLIENT decides which quest an NPC
+			// is offering and asks for it; the server only validates. Nothing
+			// starts a quest except this packet, which is why no quest has
+			// ever been startable here.
+			QUEST_ACTION = 107,
+
 			// Player
 			// The client counts its own standing recovery and tells the server
 			// what it recovered - the server does not do this on its own. Note

@@ -21,6 +21,7 @@
 #include "../Audio/Audio.h"
 #include "../Constants.h"
 
+#include "../Data/QuestData.h"
 #include "../Data/WeaponData.h"
 #include "../IO/UI.h"
 #include "../IO/SecondScreen.h"
@@ -100,6 +101,131 @@ namespace ms
 			pst->send_action(*this, action, down);
 
 		keysdown[action] = down;
+	}
+
+	namespace
+	{
+		// Whether the character satisfies one phase of a quest's Check.img.
+		bool meets(const Player& player, const Questlog& log,
+			const QuestData::Requirements& need, int16_t questid, bool finishing)
+		{
+			const CharStats& stats = player.get_stats();
+			int16_t level = static_cast<int16_t>(stats.get_stat(Maplestat::Id::LEVEL));
+
+			if (need.lvmin && level < need.lvmin)
+				return false;
+
+			if (need.lvmax && level > need.lvmax)
+				return false;
+
+			if (!need.jobs.empty())
+			{
+				bool allowed = false;
+
+				for (int16_t job : need.jobs)
+					if (stats.get_job().is_sub_job(job))
+						allowed = true;
+
+				if (!allowed)
+					return false;
+			}
+
+			// Prerequisite quests. State 2 is finished, 1 is under way, 0 is
+			// untouched - and "untouched" is a real requirement, used to hide
+			// a quest once its alternative has been taken.
+			for (const auto& prereq : need.quests)
+			{
+				int8_t want = prereq.second;
+				bool done = log.is_completed(prereq.first);
+				bool doing = log.is_started(prereq.first);
+
+				if (want == 2 && !done)
+					return false;
+
+				if (want == 1 && !doing)
+					return false;
+
+				if (want == 0 && (done || doing))
+					return false;
+			}
+
+			// Items and kills are only asked for when handing in. A quest that
+			// wants an item to START is asking you to be carrying it already.
+			const Inventory& inventory = player.get_inventory();
+
+			for (const auto& want : need.items)
+			{
+				// Negative counts mean the quest TAKES the item, which is not
+				// something to be held to before starting.
+				if (want.second <= 0)
+					continue;
+
+				if (inventory.get_total_item_count(want.first) < want.second)
+					return false;
+			}
+
+			if (finishing)
+			{
+				size_t which = 0;
+
+				for (const auto& want : need.mobs)
+				{
+					if (log.killed(questid, which) < want.second)
+						return false;
+
+					which++;
+				}
+			}
+
+			return true;
+		}
+	}
+
+	Questlog::State Player::quest_state(int16_t questid) const
+	{
+		if (questlog.is_completed(questid))
+			return Questlog::State::COMPLETED;
+
+		if (questlog.is_started(questid))
+			return Questlog::State::STARTED;
+
+		const QuestData& data = QuestData::get(questid);
+
+		if (!data.is_valid())
+			return Questlog::State::UNAVAILABLE;
+
+		return meets(*this, questlog, data.to_start(), questid, false)
+			? Questlog::State::AVAILABLE
+			: Questlog::State::UNAVAILABLE;
+	}
+
+	bool Player::can_finish_quest(int16_t questid) const
+	{
+		if (!questlog.is_started(questid))
+			return false;
+
+		const QuestData& data = QuestData::get(questid);
+
+		return data.is_valid()
+			&& meets(*this, questlog, data.to_finish(), questid, true);
+	}
+
+	int16_t Player::quest_to_finish(int32_t npcid) const
+	{
+		for (int16_t questid : QuestData::quests_of_npc(npcid, true))
+			if (can_finish_quest(questid))
+				return questid;
+
+		return 0;
+	}
+
+	int16_t Player::quest_to_start(int32_t npcid) const
+	{
+		for (int16_t questid : QuestData::quests_of_npc(npcid, false))
+			if (quest_state(questid) == Questlog::State::AVAILABLE)
+				return questid;
+
+		return 0;
 	}
 
 	Weapon::Type Player::real_weapontype() const
