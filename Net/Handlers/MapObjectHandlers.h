@@ -146,4 +146,68 @@ namespace ms
 	{
 		void handle(InPacket& recv) const override;
 	};
+
+	// A mage's Mystic Door appears.
+	// Opcode: SPAWN_DOOR(275)
+	class SpawnDoorHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Opcode: REMOVE_DOOR(276)
+	class RemoveDoorHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// A lingering area effect - Poison Mist, Smokescreen and the like.
+	// Opcode: SPAWN_MIST(273)
+	class SpawnMistHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Opcode: REMOVE_MIST(274)
+	class RemoveMistHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Summons arrive as "special map objects" rather than under a name of
+	// their own.
+	// Opcode: SPAWN_SPECIAL_MAPOBJECT(175)
+	class SpawnSummonHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Opcode: REMOVE_SPECIAL_MAPOBJECT(176)
+	class RemoveSummonHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Opcode: MOVE_SUMMON(177)
+	class MoveSummonHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Opcode: SUMMON_ATTACK(178)
+	class SummonAttackHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Opcode: DAMAGE_SUMMON(179)
+	class DamageSummonHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Opcode: SUMMON_SKILL(180)
+	class SummonSkillHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
 }

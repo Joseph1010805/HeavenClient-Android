@@ -75,6 +75,17 @@ namespace ms
 		SORT_RESULT = 53,
 
 		// Player 3
+		SPAWN_SPECIAL_MAPOBJECT = 175,
+		REMOVE_SPECIAL_MAPOBJECT = 176,
+		MOVE_SUMMON = 177,
+		SUMMON_ATTACK = 178,
+		DAMAGE_SUMMON = 179,
+		SUMMON_SKILL = 180,
+		SPAWN_MIST = 273,
+		REMOVE_MIST = 274,
+		SPAWN_DOOR = 275,
+		REMOVE_DOOR = 276,
+
 		UPDATE_GENDER = 58,
 		PARTY_OPERATION = 62,
 		BUDDY_LIST = 63,
@@ -191,6 +202,18 @@ namespace ms
 		emplace<HIT_REACTOR, HitReactorHandler>();
 		emplace<SPAWN_REACTOR, SpawnReactorHandler>();
 		emplace<REMOVE_REACTOR, RemoveReactorHandler>();
+
+		// Doors, mists and summons
+		emplace<SPAWN_DOOR, SpawnDoorHandler>();
+		emplace<REMOVE_DOOR, RemoveDoorHandler>();
+		emplace<SPAWN_MIST, SpawnMistHandler>();
+		emplace<REMOVE_MIST, RemoveMistHandler>();
+		emplace<SPAWN_SPECIAL_MAPOBJECT, SpawnSummonHandler>();
+		emplace<REMOVE_SPECIAL_MAPOBJECT, RemoveSummonHandler>();
+		emplace<MOVE_SUMMON, MoveSummonHandler>();
+		emplace<SUMMON_ATTACK, SummonAttackHandler>();
+		emplace<DAMAGE_SUMMON, DamageSummonHandler>();
+		emplace<SUMMON_SKILL, SummonSkillHandler>();
 
 		// Attack handlers
 		emplace<ATTACKED_CLOSE, CloseAttackHandler>();

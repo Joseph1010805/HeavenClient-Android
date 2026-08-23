@@ -518,4 +518,156 @@ namespace ms
 
 		Stage::get().get_reactors().remove(oid, state, point);
 	}
+
+	void SpawnDoorHandler::handle(InPacket& recv) const
+	{
+		bool launched = recv.read_bool();
+		int32_t owner_id = recv.read_int();
+		Point<int16_t> pos = recv.read_point();
+
+		// A door is keyed by its owner rather than by an object id of its
+		// own: the server identifies it that way when removing it, and a
+		// character can only have one open at a time.
+		Stage::get().get_doors().spawn(
+			{ owner_id, owner_id, pos, launched }
+		);
+	}
+
+	void RemoveDoorHandler::handle(InPacket& recv) const
+	{
+		recv.read_byte();	// always 0
+		int32_t owner_id = recv.read_int();
+
+		Stage::get().get_doors().remove(owner_id);
+	}
+
+	void SpawnMistHandler::handle(InPacket& recv) const
+	{
+		int32_t oid = recv.read_int();
+		int32_t mist_type = recv.read_int();	// 0 mob, 1 poison, 2 smokescreen, 4 recovery
+		int32_t owner_id = recv.read_int();
+		int32_t skill_id = recv.read_int();
+		int8_t skill_level = recv.read_byte();
+
+		recv.read_short();	// delay
+
+		int32_t x1 = recv.read_int();
+		int32_t y1 = recv.read_int();
+		int32_t x2 = recv.read_int();
+		int32_t y2 = recv.read_int();
+
+		recv.read_int();	// unknown
+
+		Point<int16_t> pos1(static_cast<int16_t>(x1), static_cast<int16_t>(y1));
+		Point<int16_t> pos2(static_cast<int16_t>(x2), static_cast<int16_t>(y2));
+
+		Stage::get().get_mists().spawn(
+			{ oid, owner_id, pos1, pos2, skill_id, skill_level, static_cast<int8_t>(mist_type) }
+		);
+	}
+
+	void RemoveMistHandler::handle(InPacket& recv) const
+	{
+		int32_t oid = recv.read_int();
+
+		Stage::get().get_mists().remove(oid);
+	}
+
+	void SpawnSummonHandler::handle(InPacket& recv) const
+	{
+		int32_t owner_id = recv.read_int();
+		int32_t oid = recv.read_int();
+		int32_t skill_id = recv.read_int();
+
+		recv.skip(1);	// 0x0A marker
+
+		int8_t skill_level = recv.read_byte();
+		Point<int16_t> position = recv.read_point();
+		int8_t stance = recv.read_byte();
+
+		recv.skip(2);	// padding
+
+		int8_t move_type_val = recv.read_byte();
+		bool attacks = recv.read_bool();
+
+		Summon::MovementType move_type;
+
+		switch (move_type_val)
+		{
+		case 1:
+			move_type = Summon::MovementType::FOLLOW;
+			break;
+		case 3:
+			move_type = Summon::MovementType::CIRCLE_FOLLOW;
+			break;
+		default:
+			move_type = Summon::MovementType::STATIONARY;
+			break;
+		}
+
+		Stage::get().get_summons().spawn(
+			{ oid, owner_id, skill_id, skill_level, stance, position, move_type, attacks }
+		);
+	}
+
+	void RemoveSummonHandler::handle(InPacket& recv) const
+	{
+		recv.read_int();	// owner
+		int32_t oid = recv.read_int();
+		int8_t anim = recv.read_byte();
+
+		Stage::get().get_summons().remove(oid, anim == 4);
+	}
+
+	void MoveSummonHandler::handle(InPacket& recv) const
+	{
+		recv.read_int();	// owner
+		int32_t oid = recv.read_int();
+		Point<int16_t> start = recv.read_point();
+
+		std::vector<Movement> movements = MovementParser::parse_movements(recv);
+
+		Stage::get().get_summons().send_movement(oid, start, std::move(movements));
+	}
+
+	void SummonAttackHandler::handle(InPacket& recv) const
+	{
+		// Read but not acted on. The damage itself reaches us through the
+		// mobs' own HP updates, so the only job here is to consume the packet
+		// rather than let it be reported as unhandled.
+		recv.read_int();	// owner
+		recv.read_int();	// summon oid
+
+		recv.skip(1);		// character level
+		recv.skip(1);		// direction
+
+		int8_t num_targets = recv.read_byte();
+
+		for (int8_t i = 0; i < num_targets; i++)
+		{
+			recv.read_int();	// monster oid
+			recv.skip(1);
+			recv.read_int();	// damage
+		}
+	}
+
+	void DamageSummonHandler::handle(InPacket& recv) const
+	{
+		recv.read_int();	// owner
+		int32_t oid = recv.read_int();
+
+		recv.skip(1);
+
+		int32_t damage = recv.read_int();
+
+		Stage::get().get_summons().apply_damage(oid, damage);
+	}
+
+	void SummonSkillHandler::handle(InPacket& recv) const
+	{
+		// Purely the summon's own skill animation, which is not drawn yet.
+		recv.read_int();	// cid
+		recv.read_int();	// skill id
+		recv.read_byte();	// new stance
+	}
 }

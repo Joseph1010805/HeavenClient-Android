@@ -118,4 +118,40 @@ namespace ms
 		Point<int16_t> position;
 		LookEntry look;
 	};
+
+	// A mage's Mystic Door, waiting to be placed on the map.
+	class DoorSpawn
+	{
+	public:
+		DoorSpawn(int32_t oid, int32_t owner_id, Point<int16_t> position, bool launched);
+
+		int32_t get_oid() const;
+		std::unique_ptr<MapObject> instantiate(const Physics& physics) const;
+
+	private:
+		int32_t oid;
+		int32_t owner_id;
+		Point<int16_t> position;
+		bool launched;
+	};
+
+	// A lingering area effect - Poison Mist, Smokescreen and the like.
+	class MistSpawn
+	{
+	public:
+		MistSpawn(int32_t oid, int32_t owner_id, Point<int16_t> pos1, Point<int16_t> pos2,
+			int32_t skill_id, int8_t skill_level, int8_t mist_type);
+
+		int32_t get_oid() const;
+		std::unique_ptr<MapObject> instantiate(const Physics& physics) const;
+
+	private:
+		int32_t oid;
+		int32_t owner_id;
+		Point<int16_t> pos1;
+		Point<int16_t> pos2;
+		int32_t skill_id;
+		int8_t skill_level;
+		int8_t mist_type;
+	};
 }

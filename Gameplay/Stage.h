@@ -28,6 +28,9 @@
 #include "MapleMap/MapChars.h"
 #include "MapleMap/MapMobs.h"
 #include "MapleMap/MapReactors.h"
+#include "MapleMap/MapDoors.h"
+#include "MapleMap/MapMists.h"
+#include "MapleMap/MapSummons.h"
 #include "MapleMap/MapNpcs.h"
 #include "MapleMap/MapDrops.h"
 #include "MapleMap/MapEffect.h"
@@ -84,6 +87,12 @@ namespace ms
 		MapMobs& get_mobs();
 		// Returns a reference to the reactors on the current map.
 		MapReactors& get_reactors();
+		// Returns a reference to the mystic doors on the current map.
+		MapDoors& get_doors();
+		// Returns a reference to the lingering mists on the current map.
+		MapMists& get_mists();
+		// Returns a reference to the summons on the current map.
+		MapSummons& get_summons();
 		// Returns a reference to the drops on the current map.
 		MapDrops& get_drops();
 		// Returns a reference to the Player.
@@ -127,6 +136,9 @@ namespace ms
 		MapBackgrounds backgrounds;
 		MapPortals portals;
 		MapReactors reactors;
+		MapDoors doors;
+		MapMists mists;
+		MapSummons summons;
 		MapNpcs npcs;
 		MapChars chars;
 		MapMobs mobs;

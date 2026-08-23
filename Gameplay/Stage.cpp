@@ -72,6 +72,9 @@ namespace ms
 		mobs.clear();
 		drops.clear();
 		reactors.clear();
+		doors.clear();
+		mists.clear();
+		summons.clear();
 
 		PlayerMapTransferPacket().dispatch();
 	}
@@ -117,6 +120,9 @@ namespace ms
 		{
 			tilesobjs.draw(id, viewpos, alpha);
 			reactors.draw(id, viewx, viewy, alpha);
+			doors.draw(id, viewx, viewy, alpha);
+			mists.draw(id, viewx, viewy, alpha);
+			summons.draw(id, viewx, viewy, alpha);
 			npcs.draw(id, viewx, viewy, alpha);
 			mobs.draw(id, viewx, viewy, alpha);
 			chars.draw(id, viewx, viewy, alpha);
@@ -141,6 +147,9 @@ namespace ms
 		tilesobjs.update();
 
 		reactors.update(physics);
+		doors.update(physics);
+		mists.update(physics);
+		summons.update(physics);
 		npcs.update(physics);
 		mobs.update(physics);
 		chars.update(physics);
@@ -327,6 +336,21 @@ namespace ms
 	MapReactors& Stage::get_reactors()
 	{
 		return reactors;
+	}
+
+	MapDoors& Stage::get_doors()
+	{
+		return doors;
+	}
+
+	MapMists& Stage::get_mists()
+	{
+		return mists;
+	}
+
+	MapSummons& Stage::get_summons()
+	{
+		return summons;
 	}
 
 	MapDrops& Stage::get_drops()

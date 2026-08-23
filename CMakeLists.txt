@@ -205,6 +205,18 @@ set(HEAVEN_SOURCES
         Gameplay/MapleMap/MapObjects.h
         Gameplay/MapleMap/MapPortals.cpp
         Gameplay/MapleMap/MapPortals.h
+        Gameplay/MapleMap/Door.cpp
+        Gameplay/MapleMap/Door.h
+        Gameplay/MapleMap/MapDoors.cpp
+        Gameplay/MapleMap/MapDoors.h
+        Gameplay/MapleMap/MapMists.cpp
+        Gameplay/MapleMap/MapMists.h
+        Gameplay/MapleMap/MapSummons.cpp
+        Gameplay/MapleMap/MapSummons.h
+        Gameplay/MapleMap/Mist.cpp
+        Gameplay/MapleMap/Mist.h
+        Gameplay/MapleMap/Summon.cpp
+        Gameplay/MapleMap/Summon.h
         Gameplay/MapleMap/MapReactors.cpp
         Gameplay/MapleMap/MapReactors.h
         Gameplay/MapleMap/MapTilesObjs.cpp
