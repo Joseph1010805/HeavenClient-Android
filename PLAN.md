@@ -38,10 +38,30 @@ It is AGPL-3.0, the same licence as this, so it can be used with attribution.
 Cloned at `../OpenStory`.
 
 **It cannot be merged.** There is a common ancestor - `4fc96b0`, January 2020 -
-but they moved every file into `src/`, so a merge reads as deleting ours. And
-absorbing their tree wholesale would hand back the text-layout crash, which
-they still have at `GraphicsGL.cpp:1220`, and cost the Android port, the second
-screen and this session's fixes.
+but they moved every file into `src/`, so a merge reads as deleting ours.
+
+**Why not absorb their renderer** - re-checked 22 Aug, because the reason
+written here before was wrong and worth correcting rather than quietly
+deleting. It said their tree would hand back the text-layout crash. It will
+not: their `GraphicsGL` has been rewritten UTF-8 aware, with glyphs in a map
+materialised on demand by `ensure_glyph` and consumed-based advancement. Both
+crashes we patched are structurally impossible there. They solved them better
+than we did.
+
+The real obstacle is GLES2. Our `GraphicsGL.cpp` carries **15** Android
+adaptations to their **2**: BGRA formats that GLES2 will not convert, no
+`GL_QUADS` so quads become triangle pairs, no loader because Android links
+GLESv2 directly, precision qualifiers. Taking their renderer means re-doing
+all of it on unfamiliar code - which is the Android port itself. The second
+screen adds a second cost, reaching into `GraphicsGL` at 15 sites through
+hooks (`reinit`, `clear`, `lock`, `unlock`, `begin_screen`, `flush`) their
+tree has no equivalent of.
+
+What it would buy is real: proper UTF-8 instead of mapping non-ASCII to `?`,
+and inline images in text, which is what their fuller `UINpcTalk` is built on.
+So this is a WORTHWHILE PROJECT, not a closed door - a deliberate one, on a
+branch, with `known-good-2026-08-22` to fall back to. It is not something to
+drift into halfway through porting a subsystem.
 
 So: port from it by SUBSYSTEM. Parties as a set, doors as a set. Eight or ten
 batches rather than 175 edits, each built and tested on the device before the

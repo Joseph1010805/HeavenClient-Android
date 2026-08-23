@@ -66,6 +66,24 @@ namespace ms
 		TalkType get_by_value(int8_t value);
 		std::string format_text(const std::string& tx, const int32_t& npcid);
 
+		// One choice offered by a SENDSIMPLE dialog. The server writes these
+		// into the message as `#L<index>#the wording#l`, so they arrive as
+		// part of the prose and have to be cut back out of it.
+		struct Selection
+		{
+			int32_t index = 0;
+			Text label;
+			// Where the row was last drawn, so the cursor can be tested
+			// against it. Refreshed on every draw.
+			mutable Rectangle<int16_t> bounds;
+		};
+
+		// Lays the choices out under the body text and returns where they end.
+		int16_t draw_selections(Point<int16_t> at) const;
+
+		mutable std::vector<Selection> selections;
+		int32_t hovered_selection;
+
 		static constexpr int16_t MAX_HEIGHT = 248;
 
 		enum Buttons

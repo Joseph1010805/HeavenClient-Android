@@ -28,7 +28,7 @@
 
 namespace ms
 {
-	UINpcTalk::UINpcTalk() : offset(0), unitrows(0), rowmax(0), show_slider(false), draw_text(false), formatted_text(""), formatted_text_pos(0), timestep(0)
+	UINpcTalk::UINpcTalk() : offset(0), unitrows(0), rowmax(0), show_slider(false), draw_text(false), formatted_text(""), formatted_text_pos(0), timestep(0), hovered_selection(-1)
 	{
 		nl::node UIWindow2 = nl::nx::ui["UIWindow2.img"];
 		nl::node UtilDlgEx = UIWindow2["UtilDlgEx"];
@@ -106,8 +106,50 @@ namespace ms
 		else
 		{
 			int16_t y_adj = height - min_height;
-			text.draw(position + Point<int16_t>(166, 48 - y_adj));
+			Point<int16_t> body = position + Point<int16_t>(166, 48 - y_adj);
+
+			text.draw(body);
+			draw_selections(body + Point<int16_t>(0, text.height()));
 		}
+	}
+
+	// Lays the choices out one per row beneath the message, remembering where
+	// each landed so send_cursor can test the pointer against it.
+	int16_t UINpcTalk::draw_selections(Point<int16_t> at) const
+	{
+		if (selections.empty())
+			return at.y();
+
+		constexpr int16_t ROW_GAP = 2;
+		constexpr int16_t ROW_PAD = 1;
+
+		int16_t y = at.y() + ROW_GAP;
+
+		for (size_t i = 0; i < selections.size(); i++)
+		{
+			const Selection& sel = selections[i];
+			int16_t row_h = sel.label.height();
+
+			sel.bounds = Rectangle<int16_t>(
+				Point<int16_t>(at.x(), y),
+				Point<int16_t>(at.x() + sel.label.width(), y + row_h)
+			);
+
+			if (static_cast<int32_t>(i) == hovered_selection)
+			{
+				ColorBox highlight(
+					static_cast<int16_t>(sel.label.width() + ROW_PAD * 2),
+					row_h, Color::Name::LIGHTGREY, 0.45f);
+
+				highlight.draw(DrawArgument(Point<int16_t>(at.x() - ROW_PAD, y)));
+			}
+
+			sel.label.draw(Point<int16_t>(at.x(), y));
+
+			y = static_cast<int16_t>(y + row_h + ROW_GAP);
+		}
+
+		return y;
 	}
 
 	void UINpcTalk::update()
@@ -247,10 +289,41 @@ namespace ms
 			if (Cursor::State sstate = slider.send_cursor(cursor_relative, clicked))
 				return sstate;
 
+		// A choice takes precedence over the rest of the window: the rows sit
+		// over the message area, so testing them first is what makes them
+		// clickable at all.
+		if (!selections.empty() && !draw_text)
+		{
+			hovered_selection = -1;
+
+			for (size_t i = 0; i < selections.size(); i++)
+			{
+				if (!selections[i].bounds.contains(cursorpos))
+					continue;
+
+				hovered_selection = static_cast<int32_t>(i);
+
+				if (clicked)
+				{
+					int32_t chosen = selections[i].index;
+
+					deactivate();
+					NpcTalkMorePacket(chosen).dispatch();
+
+					return Cursor::State::CLICKING;
+				}
+
+				return Cursor::State::CANCLICK;
+			}
+		}
+
 		Cursor::State estate = UIElement::send_cursor(clicked, cursorpos);
 
 		if (estate == Cursor::State::CLICKING && clicked && draw_text)
 		{
+			// Skip the typewriter and show the whole message at once. The
+			// choices only become clickable once it has finished, so that a
+			// tap meant to hurry the text along cannot pick one by accident.
 			draw_text = false;
 			text.change_text(formatted_text);
 		}
@@ -281,53 +354,179 @@ namespace ms
 		return TalkType::NONE;
 	}
 
-	// TODO: Move this to GraphicsGL?
+	// Turns a raw NPC message into what should actually be shown, and pulls
+	// out any choices it offers along the way.
+	//
+	// The server writes these messages in a small markup the client is
+	// expected to understand:
+	//
+	//   #p<id>#   the NPC's name          #h #    the player's name
+	//   #t<id>#   an item's name          #m<id># a map's name
+	//   #L<n>#..#l  a selectable choice
+	//   #b #k #r #g #d #e #n #f #v #z #c  colour and style switches
+	//
+	// None of it was handled except the first three, and those by searching
+	// for a code and then for the NEXT '#' anywhere in the string - which in
+	// a message carrying several codes deletes whatever happens to lie
+	// between them. That is why choices arrived welded to the end of the
+	// sentence with their markers half-eaten: `#L1#Please` showed up as
+	// `?1lease`.
+	//
+	// This walks the string once instead, which is the only way to get it
+	// right when the codes can appear in any order.
 	std::string UINpcTalk::format_text(const std::string& tx, const int32_t& npcid)
 	{
-		std::string formatted_text = tx;
-		size_t begin = formatted_text.find("#p");
+		std::string out;
+		selections.clear();
 
-		if (begin != std::string::npos)
+		// Set while inside `#L<n>#...#l`, so the wording goes to the choice
+		// rather than into the body of the message.
+		bool in_selection = false;
+		int32_t selection_index = 0;
+		std::string selection_text;
+
+		auto emit = [&](const std::string& piece)
 		{
-			size_t end = formatted_text.find("#", begin + 1);
+			if (in_selection)
+				selection_text += piece;
+			else
+				out += piece;
+		};
 
-			if (end != std::string::npos)
+		for (size_t i = 0; i < tx.size(); )
+		{
+			if (tx[i] != '#' || i + 1 >= tx.size())
 			{
-				std::string namestr = nl::nx::string["Npc.img"][std::to_string(npcid)]["name"];
-				formatted_text.replace(begin, end - begin, namestr);
+				// A literal carriage return would draw as a stray glyph.
+				if (tx[i] != '\r')
+					emit(std::string(1, tx[i]));
+
+				i++;
+				continue;
 			}
+
+			char code = tx[i + 1];
+
+			// Codes that read a number up to a closing '#'.
+			if (code == 'p' || code == 't' || code == 'm' || code == 'o' || code == 'i')
+			{
+				size_t close = tx.find('#', i + 2);
+
+				if (close == std::string::npos)
+				{
+					emit(std::string(1, tx[i]));
+					i++;
+					continue;
+				}
+
+				std::string digits = tx.substr(i + 2, close - i - 2);
+				int32_t id = 0;
+
+				try
+				{
+					id = std::stoi(digits);
+				}
+				catch (...)
+				{
+					i = close + 1;
+					continue;
+				}
+
+				switch (code)
+				{
+				case 'p':
+					emit(nl::nx::string["Npc.img"][std::to_string(id)]["name"]);
+					break;
+				case 'm':
+					emit(nl::nx::string["Map.img"][std::to_string(id)]["mapName"]);
+					break;
+				default:
+					// Items live in one of several files depending on kind;
+					// the consumables one covers what quests hand out.
+					emit(nl::nx::string["Consume.img"][std::to_string(id)]["name"]);
+					break;
+				}
+
+				i = close + 1;
+				continue;
+			}
+
+			// A choice opens with #L<n># and closes with #l.
+			if (code == 'L')
+			{
+				size_t close = tx.find('#', i + 2);
+
+				if (close != std::string::npos)
+				{
+					try
+					{
+						selection_index = std::stoi(tx.substr(i + 2, close - i - 2));
+					}
+					catch (...)
+					{
+						selection_index = static_cast<int32_t>(selections.size());
+					}
+
+					in_selection = true;
+					selection_text.clear();
+					i = close + 1;
+					continue;
+				}
+			}
+
+			if (code == 'l')
+			{
+				if (in_selection)
+				{
+					Selection sel;
+					sel.index = selection_index;
+					sel.label = Text(Text::Font::A12M, Text::Alignment::LEFT,
+						Color::Name::BLUE, selection_text);
+					selections.push_back(std::move(sel));
+
+					in_selection = false;
+					selection_text.clear();
+				}
+
+				i += 2;
+				continue;
+			}
+
+			if (code == 'h')
+			{
+				emit(Stage::get().get_player().get_name());
+
+				// Written as `#h #`, so step over the trailing marker.
+				size_t close = tx.find('#', i + 2);
+				i = (close == std::string::npos) ? i + 2 : close + 1;
+				continue;
+			}
+
+			// Colour and style switches, which carry no text of their own.
+			if (std::string("bkrgdenfvzc").find(code) != std::string::npos)
+			{
+				i += 2;
+				continue;
+			}
+
+			// Anything unrecognised: drop the marker, keep the letter, so an
+			// unknown code costs a '#' rather than a word.
+			emit(std::string(1, code));
+			i += 2;
 		}
 
-		begin = formatted_text.find("#h");
-
-		if (begin != std::string::npos)
+		// An unterminated choice still counts - better a clickable line than
+		// wording that vanishes.
+		if (in_selection && !selection_text.empty())
 		{
-			size_t end = formatted_text.find("#", begin + 1);
-
-			if (end != std::string::npos)
-			{
-				std::string charstr = Stage::get().get_player().get_name();
-				formatted_text.replace(begin, end - begin, charstr);
-			}
+			Selection sel;
+			sel.index = selection_index;
+			sel.label = Text(Text::Font::A12M, Text::Alignment::LEFT,
+				Color::Name::BLUE, selection_text);
+			selections.push_back(std::move(sel));
 		}
 
-		begin = formatted_text.find("#t");
-
-		if (begin != std::string::npos)
-		{
-			size_t end = formatted_text.find("#", begin + 1);
-
-			if (end != std::string::npos)
-			{
-				size_t b = begin + 2;
-				int32_t itemid = std::stoi(formatted_text.substr(b, end - b));
-				std::string itemname = nl::nx::string["Consume.img"][itemid]["name"];
-
-				formatted_text.replace(begin, end - begin, itemname);
-			}
-		}
-
-		return formatted_text;
+		return out;
 	}
 
 	void UINpcTalk::change_text(int32_t npcid, int8_t msgtype, int16_t, int8_t speakerbyte, const std::string& tx)
