@@ -24,6 +24,7 @@ namespace ms
 	Configuration::Configuration()
 	{
 		settings.emplace<ServerIP>();
+		settings.emplace<HomeServerIP>();
 		settings.emplace<ServerPort>();
 		settings.emplace<Fullscreen>();
 		settings.emplace<Width>();

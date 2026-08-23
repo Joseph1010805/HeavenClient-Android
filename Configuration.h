@@ -283,6 +283,17 @@ namespace ms
 		ServerPort() : StringEntry("ServerPort", "8484") {}
 	};
 
+	// The server on the LAN, remembered while playing offline.
+	//
+	// `ServerIP` is the address actually used, and the offline toggle
+	// overwrites it with 127.0.0.1 - so without somewhere to keep the real one
+	// the way home would be lost the moment the switch was thrown, and would
+	// have to be typed back in by hand.
+	struct HomeServerIP : public Configuration::StringEntry
+	{
+		HomeServerIP() : StringEntry("HomeServerIP", "192.168.1.71") {}
+	};
+
 	// Whether to start in fullscreen mode.
 	struct Fullscreen : public Configuration::BoolEntry
 	{

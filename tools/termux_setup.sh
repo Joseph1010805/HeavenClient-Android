@@ -97,6 +97,27 @@ mariadb -u root -e "CREATE DATABASE IF NOT EXISTS $DB
 
 echo "database '$DB' ready"
 
+step "Letting the game start the server"
+# The one thing that cannot be done from the PC.
+#
+# Termux ignores commands from other apps unless this is set, and the file
+# lives in Termux's own private storage - nothing outside Termux can write
+# it, not this project's scripts over adb, not anything. That is the whole
+# reason a human has to run this script once by hand.
+#
+# With it set, the SERVER switch on the game's login screen can start the
+# server itself, and offline mode becomes one tap.
+mkdir -p "$HOME/.termux"
+PROPS="$HOME/.termux/termux.properties"
+
+if grep -q '^allow-external-apps' "$PROPS" 2>/dev/null; then
+	sed -i 's/^allow-external-apps.*/allow-external-apps = true/' "$PROPS"
+else
+	echo 'allow-external-apps = true' >> "$PROPS"
+fi
+
+echo "the game may now start the server"
+
 step "Writing the launcher"
 # -Xmx1536m rather than the desktop's 2048m: this device is also running the
 # game, which holds an 8192x8192 texture atlas of its own. Raise it if the
@@ -138,14 +159,14 @@ The FIRST run is slow: Liquibase builds the whole schema from nothing, and
 Cosmic reads 596 MB of game data off the SD card. Later runs are quicker.
 Leave it until it stops printing.
 
-Then, in the game's settings file on this device:
+After that you should not need this terminal again. The game's login screen
+has a SERVER switch at the top left: tap it and it points at this device,
+starts the server for you, and remembers the way home for when you switch
+back.
 
-    ServerIP = 127.0.0.1
-
-That is the whole of offline mode. Nothing in the client changes, because
-Cosmic hands a loopback client its LOCALHOST address and a LAN client its
-LANHOST one, all by itself - so this same server still answers the other
-handhelds over a phone hotspot at this device's LAN address.
+That same server still answers the other handhelds over a phone hotspot at
+this device's LAN address - Cosmic hands a loopback client its LOCALHOST and
+a LAN client its LANHOST all by itself, so there is nothing to keep in step.
 
 If it does not start, the reason will be in what it printed, and
 'python tools/serverlog.py' on the PC reads the same log format.

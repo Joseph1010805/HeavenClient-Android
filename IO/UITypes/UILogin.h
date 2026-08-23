@@ -59,6 +59,19 @@ namespace ms
 			NUM_BUTTONS
 		};
 
+		// Where this client is pointed, and a way to change it without
+		// editing a file on the device.
+		//
+		// It sits on the login screen because that is where the choice
+		// matters - before anything connects - and because the alternative,
+		// finding a settings file in Android's storage on a handheld, is not
+		// something anybody should have to do to play in the car.
+		Rectangle<int16_t> server_switch_bounds() const;
+		void toggle_server();
+
+		mutable Text server_label;
+		mutable Text server_hint;
+
 		Text version;
 		Textfield account;
 		Textfield password;

@@ -16,8 +16,12 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UILogin.h"
+
+#include "../../Graphics/GraphicsGL.h"
+#include "../../Util/LocalServer.h"
 #include "UILoginwait.h"
 #include "UILoginNotice.h"
+#include "UINotice.h"
 
 #include "../UI.h"
 
@@ -58,6 +62,9 @@ namespace ms
 		Music("BgmUI.img/Title").play();
 
 		std::string version_text = Configuration::get().get_version();
+		server_label = Text(Text::Font::A11B, Text::Alignment::LEFT, Color::Name::WHITE);
+		server_hint = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LIGHTGREY);
+
 		version = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LEMONGRASS, "Ver. " + version_text);
 
 		// Custom artwork, built by tools/make_assets.py into Map001.nx. The
@@ -185,6 +192,28 @@ namespace ms
 		UIElement::draw(alpha);
 
 		version.draw(position + Point<int16_t>(707, 1));
+
+		// The server switch, top-left where nothing else lives and the
+		// mount is not in the way.
+		Rectangle<int16_t> sw = server_switch_bounds();
+		bool offline = LocalServer::is_offline();
+
+		GraphicsGL::get().drawrectangle(
+			sw.left(), sw.top(), sw.width(), sw.height(),
+			offline ? 0.16f : 0.10f,
+			offline ? 0.30f : 0.12f,
+			offline ? 0.20f : 0.16f, 0.92f);
+
+		server_label.change_text(offline ? "SERVER: THIS DEVICE" : "SERVER: HOME");
+		server_label.draw(Point<int16_t>(sw.left() + 8, sw.top() + 3));
+
+		// Under it, what that actually means, because "this device" is not
+		// obviously an address.
+		server_hint.change_text(offline
+			? "offline - tap to use home"
+			: LocalServer::home_address() + " - tap for offline");
+
+		server_hint.draw(Point<int16_t>(sw.left() + 8, sw.top() + sw.height() + 2));
 		account.draw(position);
 		password.draw(position);
 
@@ -195,6 +224,42 @@ namespace ms
 			passwordbg.draw(DrawArgument(position + Point<int16_t>(291, 305) + PANEL));
 
 		checkbox[saveid].draw(DrawArgument(position + Point<int16_t>(291, 335) + PANEL));
+	}
+
+	Rectangle<int16_t> UILogin::server_switch_bounds() const
+	{
+		constexpr int16_t W = 176;
+		constexpr int16_t H = 22;
+
+		Point<int16_t> at = position + Point<int16_t>(8, 6);
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(W, H));
+	}
+
+	void UILogin::toggle_server()
+	{
+		bool going_offline = !LocalServer::is_offline();
+
+		LocalServer::set_offline(going_offline);
+
+		if (!going_offline)
+			return;
+
+		// Going offline is worth more than a changed address: the server on
+		// this device has to be running for there to be anything to connect
+		// to. Asking is all that can be done from here - whether it came up
+		// shows itself a minute later, when logging in either works or does
+		// not.
+		if (!LocalServer::can_host())
+		{
+			UI::get().emplace<UIOk>(
+				"This device has no server on it yet.\\nSet one up with tools/stage_server.sh, or switch back to HOME.",
+				[](bool) {});
+
+			return;
+		}
+
+		LocalServer::start();
 	}
 
 	void UILogin::update()
@@ -336,6 +401,14 @@ namespace ms
 
 		if (Cursor::State new_state = password.send_cursor(cursorpos, clicked))
 			return new_state;
+
+		if (server_switch_bounds().contains(cursorpos))
+		{
+			if (clicked)
+				toggle_server();
+
+			return Cursor::State::CANCLICK;
+		}
 
 		return UIElement::send_cursor(clicked, cursorpos);
 	}

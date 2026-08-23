@@ -8,6 +8,19 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Lets the game start the server that lives on this device, for playing
+         with no network at all. Termux only honours this once its own
+         `allow-external-apps` is set, which nothing outside Termux can write -
+         so the permission on its own grants nothing. See LocalServer.java. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+
+    <!-- Android 11 and up hide other packages unless they are named here.
+         Without this the client cannot even tell whether Termux is installed,
+         and the offline toggle would have nothing to report. -->
+    <queries>
+        <package android:name="com.termux" />
+    </queries>
+
     <!-- Both target devices have physical controls; touch is not required. -->
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
