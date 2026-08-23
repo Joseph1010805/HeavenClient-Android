@@ -232,8 +232,14 @@ namespace ms
 		cash_balance_text[1].change_text(std::to_string(get_cash_balance(0)));
 		cash_balance_text[2].change_text(std::to_string(get_cash_balance(1)));
 
+		// One row higher than it was. The artwork lists FIVE rows - Reward
+		// Points, NX Prepaid, NX Credit, Maple Pts., Meso - and only the
+		// middle three have a number the server sends. Starting at 653 put
+		// them against the last three labels instead, so a balance of 100 NX
+		// credit was displayed as 100 maple points, which is a worse kind of
+		// wrong than a missing number.
 		for (int b = 0; b < 3; b++)
-			cash_balance_text[b].draw(position + Point<int16_t>(152, 653 + 26 * b));
+			cash_balance_text[b].draw(position + Point<int16_t>(152, 627 + 26 * b));
 
 		Point<int16_t> label_pos = position + Point<int16_t>(4, 3);
 		job_label.draw(label_pos);
