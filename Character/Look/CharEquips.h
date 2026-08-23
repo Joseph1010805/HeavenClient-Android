@@ -40,6 +40,9 @@ namespace ms
 
 		// Draw an equip.
 		void draw(Equipslot::Id slot, Stance::Id stance, Clothing::Layer layer, uint8_t frame, const DrawArgument& args) const;
+		// Draw whatever is worn on the face. Keyed by expression, not stance -
+		// see Clothing::draw(Expression::Id, ...).
+		void draw_faceacc(Expression::Id expression, uint8_t frame, bool overface, const DrawArgument& args) const;
 		// Add an equip, if not in cache, the equip is created from the files.
 		void add_equip(int32_t itemid, const BodyDrawinfo& drawinfo);
 		// Remove an equip.

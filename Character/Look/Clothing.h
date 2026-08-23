@@ -19,11 +19,15 @@
 
 #include "BodyDrawinfo.h"
 #include "Equipslot.h"
+#include "Face.h"
 
 #include "../Graphics/Texture.h"
 #include "../Template/EnumMap.h"
 
+#include <map>
 #include <unordered_map>
+
+#include <nlnx/node.hpp>
 
 namespace ms
 {
@@ -73,6 +77,21 @@ namespace ms
 
 		// Draw the equip.
 		void draw(Stance::Id stance, Layer layer, uint8_t frame, const DrawArgument& args) const;
+
+		// Draw a face accessory - a mask, a scar, a beard.
+		//
+		// These are the one kind of equip that is NOT keyed by stance. Their
+		// art sits under expression names (`default`, `blink`, `smile`) and
+		// follows the face rather than the body, so the stance loader found
+		// no `stand1` or `walk1` under them, stored nothing, and drew
+		// nothing: every mask in the game was invisible when worn.
+		//
+		// `overface` picks which half to draw - the data says per picture
+		// whether it belongs in front of the face or behind it.
+		void draw(Expression::Id expression, uint8_t frame, bool overface, const DrawArgument& args) const;
+
+		// Whether this equip is drawn by expression rather than by stance.
+		bool is_faceacc() const;
 		// Check if a part of the equip lies on the specified layer while in the specified stance.
 		bool contains_layer(Stance::Id stance, Layer layer) const;
 
@@ -92,7 +111,15 @@ namespace ms
 		const std::string& get_vslot() const;
 
 	private:
+		// Load one face-accessory picture out of the node that holds it.
+		void add_faceframe(nl::node holder, Expression::Id expression, uint8_t frame);
+
 		EnumMap<Stance::Id, EnumMap<Layer, std::unordered_multimap<uint8_t, Texture>, Layer::NUM_LAYERS>> stances;
+
+		// Face accessories only: [0] behind the face, [1] in front of it.
+		EnumMap<Expression::Id, std::map<uint8_t, Texture>> faceframes[2];
+		bool faceacc;
+
 		int32_t itemid;
 		Equipslot::Id eqslot;
 		Stance::Id walk;

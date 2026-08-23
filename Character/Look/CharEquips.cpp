@@ -31,6 +31,13 @@ namespace ms
 			cloth->draw(stance, layer, frame, args);
 	}
 
+	void CharEquips::draw_faceacc(Expression::Id expression, uint8_t frame, bool overface, const DrawArgument& args) const
+	{
+		if (const Clothing * cloth = clothes[Equipslot::Id::FACE])
+			if (cloth->is_faceacc())
+				cloth->draw(expression, frame, overface, args);
+	}
+
 	void CharEquips::add_equip(int32_t itemid, const BodyDrawinfo& drawinfo)
 	{
 		if (itemid <= 0)

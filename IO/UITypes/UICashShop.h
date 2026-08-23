@@ -150,6 +150,7 @@ namespace ms
 
 		static const char* category_name(Category c);
 		static Category category_of(int32_t itemid);
+		static bool has_wearable_art(int32_t itemid);
 
 		Category current_category = CAT_ALL;
 

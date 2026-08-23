@@ -88,6 +88,40 @@ namespace ms
 		return CAT_OTHER;
 	}
 
+	// Whether an equip has anything the character renderer can actually draw.
+	//
+	// `ItemData::is_valid` only asks whether the item has an `info` node, and
+	// that is a weaker test than it looks: an item can have an icon, a name
+	// and a price - so it shows a perfectly ordinary card and takes the money
+	// - while carrying no body art at all, in which case wearing it does
+	// nothing and there is no way to tell from inside the game. A handful of
+	// entries in Commodity.img are like that. `tools/shop_audit.py` lists
+	// them; this is the check that keeps them off the shelf.
+	//
+	// Non-equips are not asked: a potion has no body art and is not supposed
+	// to. Nor is the deliberately empty transparent hat, which is invisible
+	// on purpose.
+	bool UICashShop::has_wearable_art(int32_t itemid)
+	{
+		if (itemid < 1000000 || itemid >= 2000000)
+			return true;
+
+		// The transparent hat is empty on purpose - it is what you wear to
+		// show no hat at all. Clothing.cpp knows it by the same number.
+		if (itemid == 1002186)
+			return true;
+
+		const ItemData& data = ItemData::get(itemid);
+
+		nl::node src = nl::nx::character[data.get_category()]["0" + std::to_string(itemid) + ".img"];
+
+		for (nl::node child : src)
+			if (child.name() != "info")
+				return true;
+
+		return false;
+	}
+
 	void UICashShop::rebuild_filter()
 	{
 		filtered.clear();
@@ -214,6 +248,9 @@ namespace ms
 			int32_t itemid = entry["ItemId"];
 
 			if (!ItemData::get(itemid).is_valid())
+				continue;
+
+			if (!has_wearable_art(itemid))
 				continue;
 
 			int32_t sn = entry["SN"];

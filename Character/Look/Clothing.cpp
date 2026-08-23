@@ -104,8 +104,41 @@ namespace ms
 			break;
 		}
 
+		// A face accessory is not laid out like anything else here: its art
+		// hangs off expression names, one picture each, and it moves with the
+		// face rather than the body. Load it its own way and skip the stance
+		// walk entirely, which would find nothing.
+		faceacc = (eqslot == Equipslot::Id::FACE);
+
+		if (faceacc)
+		{
+			for (auto iter : Expression::names)
+			{
+				Expression::Id expression = iter.first;
+				nl::node expnode = src[iter.second];
+
+				if (!expnode)
+					continue;
+
+				// `default` is a single still picture and holds the bitmap
+				// directly; every other expression is a short animation of
+				// numbered frames.
+				if (expression == Expression::Id::DEFAULT)
+				{
+					add_faceframe(expnode, expression, 0);
+					continue;
+				}
+
+				for (uint8_t frame = 0; nl::node framenode = expnode[frame]; ++frame)
+					add_faceframe(framenode, expression, frame);
+			}
+		}
+
 		for (auto iter : Stance::names)
 		{
+			if (faceacc)
+				break;
+
 			Stance::Id stance = iter.first;
 			const std::string& stancename = iter.second;
 
@@ -194,6 +227,54 @@ namespace ms
 		};
 
 		transparent = transparents.count(itemid) > 0;
+	}
+
+	void Clothing::add_faceframe(nl::node holder, Expression::Id expression, uint8_t frame)
+	{
+		for (nl::node part : holder)
+		{
+			if (part.data_type() != nl::node::type::bitmap)
+				continue;
+
+			// The face itself is positioned by its brow, and so is anything
+			// worn on it - the same shift the stance path applies for FACE.
+			Texture texture = part;
+			Point<int16_t> brow = part["map"]["brow"];
+			texture.shift(-brow);
+
+			// The data says which side of the face each picture belongs on.
+			// A mask sits in front; a scar or a beard behind.
+			std::string z = part["z"];
+			bool overface = (z != "accessoryFaceBelowFace");
+
+			faceframes[overface ? 1 : 0][expression].emplace(frame, texture);
+		}
+	}
+
+	void Clothing::draw(Expression::Id expression, uint8_t frame, bool overface, const DrawArgument& args) const
+	{
+		const std::map<uint8_t, Texture>& frames = faceframes[overface ? 1 : 0][expression];
+		auto iter = frames.find(frame);
+
+		if (iter != frames.end())
+		{
+			iter->second.draw(args);
+			return;
+		}
+
+		// The face animates through more frames than most accessories carry,
+		// so hold the still picture rather than blinking out of existence.
+		const std::map<uint8_t, Texture>& still =
+			faceframes[overface ? 1 : 0][Expression::Id::DEFAULT];
+		auto fallback = still.find(0);
+
+		if (fallback != still.end())
+			fallback->second.draw(args);
+	}
+
+	bool Clothing::is_faceacc() const
+	{
+		return faceacc;
 	}
 
 	void Clothing::draw(Stance::Id stance, Layer layer, uint8_t frame, const DrawArgument& args) const

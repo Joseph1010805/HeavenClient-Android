@@ -24,6 +24,7 @@
 #include "../../IO/UITypes/UIStatusMessenger.h"
 
 #include "Helpers/CashShopParser.h"
+#include "Helpers/ItemParser.h"
 
 #include "../../Gameplay/Stage.h"
 #include "../../IO/UI.h"
@@ -128,24 +129,41 @@ namespace ms
 		}
 		case 0x68:	// takeFromCashInventory - it is on the character now
 		{
-			// The item's own data follows, but there is no need to read it:
-			// the character's full inventory arrives with the map on the way
-			// out of the shop. Only the locker needs correcting, and the
-			// reply does not name the item - so the one that was asked for
-			// is remembered on the way out instead.
-			for (auto it = s_locker.begin(); it != s_locker.end(); ++it)
-			{
-				if (it->cashid != s_pending_take)
-					continue;
+			// Put it straight into the bag rather than waiting for the map
+			// to reload on the way out. Looking in your inventory right
+			// after taking something out and finding it empty reads as the
+			// take-out having failed.
+			//
+			// The slot arrives first, then the ordinary item block that
+			// MODIFY_INVENTORY uses. `zeroPosition` on the server side means
+			// the block itself carries no position, so the short here is the
+			// only place it is said.
+			int16_t slot = recv.read_short();
 
-				s_locker.erase(it);
+			// The reply does not name the item, so the one that was asked
+			// for is remembered on the way out instead - and its id is what
+			// says which tab it belongs in. A cash HAT is an equip and goes
+			// to the equip tab; only cash-only things (pets, chairs) live in
+			// the cash tab.
+			auto it = s_locker.begin();
+
+			for (; it != s_locker.end(); ++it)
+				if (it->cashid == s_pending_take)
+					break;
+
+			if (it == s_locker.end())
 				break;
-			}
 
+			InventoryType::Id invtype = InventoryType::by_item_id(it->itemid);
+			Inventory& inventory = Stage::get().get_player().get_inventory();
+
+			ItemParser::parse_item(recv, invtype, slot, inventory);
+
+			s_locker.erase(it);
 			s_pending_take = 0;
 
 			if (auto shop = UI::get().get_element<UICashShop>())
-				shop->show_message(Color::Name::YELLOW, "Taken out. It is in your inventory.");
+				shop->show_message(Color::Name::YELLOW, "Taken out. It is in your bag.");
 			break;
 		}
 		case 0x59:

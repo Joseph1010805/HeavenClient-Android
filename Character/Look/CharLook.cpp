@@ -130,8 +130,9 @@ namespace ms
 			equips.draw(Equipslot::Id::EARACC, interstance, Clothing::Layer::EARRINGS, interframe, args);
 			body->draw(interstance, Body::Layer::HEAD, interframe, args);
 			hair->draw(interstance, Hair::Layer::SHADE, interframe, args);
+			equips.draw_faceacc(interexpression, interexpframe, false, faceargs);
 			face->draw(interexpression, interexpframe, faceargs);
-			equips.draw(Equipslot::Id::FACE, interstance, Clothing::Layer::FACEACC, 0, faceargs);
+			equips.draw_faceacc(interexpression, interexpframe, true, faceargs);
 			equips.draw(Equipslot::Id::EYEACC, interstance, Clothing::Layer::EYEACC, interframe, args);
 			equips.draw(Equipslot::Id::SHIELD, interstance, Clothing::Layer::SHIELD, interframe, args);
 
