@@ -305,7 +305,12 @@ namespace ms
 			// A box per slot, captioned with what goes in it - the same shape
 			// as the bag rather than the character-shaped rack, whose labels
 			// live in artwork that is not drawn here.
-			for (size_t i = 0; i < PANEL_SLOT_COUNT; i++)
+			//
+			// Only on the Equip tab. Cash, Pet and Android are later-version
+			// features with nothing behind them here - one icon map covers the
+			// whole window and only this tab ever reads it - so drawing
+			// captioned boxes on them would promise slots that can never fill.
+			for (size_t i = 0; tab == Buttons::BT_TAB0 && i < PANEL_SLOT_COUNT; i++)
 			{
 				Equipslot::Id id = PANEL_SLOTS[i].slot;
 				Point<int16_t> at = position + iconpositions[id];
