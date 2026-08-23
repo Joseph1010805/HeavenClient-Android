@@ -21,6 +21,7 @@
 
 #include "UITypes/UIEquipInventory.h"
 #include "UITypes/UIItemInventory.h"
+#include "UITypes/UIQuestLog.h"
 #include "UITypes/UISkillbook.h"
 #include "UITypes/UIStatsinfo.h"
 #include "UITypes/UIWorldMap.h"
@@ -158,6 +159,15 @@ namespace ms
 
 			book->set_panel(panel_screen);
 			slot = std::move(book);
+			break;
+		}
+		case QUESTS:
+		{
+			auto log = std::make_unique<UIQuestLog>(
+				Stage::get().get_player().get_quests());
+
+			log->set_panel(panel_screen);
+			slot = std::move(log);
 			break;
 		}
 		default:

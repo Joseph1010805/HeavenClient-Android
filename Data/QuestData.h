@@ -113,6 +113,25 @@ namespace ms
 		// them every time an NPC comes into view.
 		static const std::vector<int16_t>& quests_of_npc(int32_t npcid, bool finishing);
 
+		// Quest ids worth asking about for a character of this level, read
+		// straight out of the archive without building a QuestData for each.
+		//
+		// The Available list has to consider every quest in the game, and
+		// there are 2,800 of them; building the full record for all of them
+		// to throw away the ones twenty levels out of reach is the difference
+		// between a list that opens and one that hangs. Only `lvmin` and
+		// `lvmax` are read here, which is two integer lookups apiece.
+		static std::vector<int16_t> candidates(int16_t level);
+
+		// Quest text carries the same markup NPC dialogue does. This strips
+		// the colour and style switches and resolves the item and map names,
+		// which is all the journal actually uses.
+		//
+		// Deliberately NOT shared with `UINpcTalk::format_text`: that one also
+		// collects selectable choices into the dialogue's own state, and it
+		// took real work to get right. A quest journal has no choices in it.
+		static std::string strip_markup(const std::string& text);
+
 	private:
 		friend Cache<QuestData>;
 

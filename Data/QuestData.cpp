@@ -69,6 +69,37 @@ namespace ms
 				|| static_cast<bool>(src["endscript"]);
 		}
 
+		// Item names for the journal's `#t<id>#`. String.nx keeps them in a
+		// different file per kind, and the leading digit says which.
+		std::string name_of_item(int32_t itemid)
+		{
+			std::string id = std::to_string(itemid);
+
+			switch (itemid / 1000000)
+			{
+			case 1:
+			{
+				// Equips are filed under their category, which is not in the
+				// id - so the whole tree is searched once and remembered.
+				static std::map<int32_t, std::string> equips;
+
+				if (equips.empty())
+					for (nl::node category : nl::nx::string["Eqp.img"]["Eqp"])
+						for (nl::node item : category)
+							equips[std::stoi(item.name())] = std::string(item["name"]);
+
+				auto iter = equips.find(itemid);
+
+				return (iter == equips.end()) ? id : iter->second;
+			}
+			case 2: return std::string(nl::nx::string["Consume.img"][id]["name"]);
+			case 3: return std::string(nl::nx::string["Ins.img"][id]["name"]);
+			case 4: return std::string(nl::nx::string["Etc.img"]["Etc"][id]["name"]);
+			case 5: return std::string(nl::nx::string["Cash.img"][id]["name"]);
+			default: return id;
+			}
+		}
+
 		void read_rewards(nl::node src, QuestData::Rewards& into)
 		{
 			if (!src)
@@ -130,6 +161,94 @@ namespace ms
 	const QuestData::Requirements& QuestData::to_finish() const { return finish; }
 	const QuestData::Rewards& QuestData::start_rewards() const { return startgives; }
 	const QuestData::Rewards& QuestData::finish_rewards() const { return finishgives; }
+
+	std::vector<int16_t> QuestData::candidates(int16_t level)
+	{
+		std::vector<int16_t> out;
+
+		for (nl::node quest : nl::nx::quest["Check.img"])
+		{
+			nl::node start = quest["0"];
+
+			int32_t lvmin = start["lvmin"];
+			int32_t lvmax = start["lvmax"];
+
+			// A little above the character's level as well as below: seeing
+			// what is nearly in reach is most of the point of the list.
+			if (lvmin && lvmin > level + 10)
+				continue;
+
+			if (lvmax && lvmax < level)
+				continue;
+
+			out.push_back(static_cast<int16_t>(std::stoi(quest.name())));
+		}
+
+		return out;
+	}
+
+	std::string QuestData::strip_markup(const std::string& text)
+	{
+		std::string out;
+
+		for (size_t i = 0; i < text.size(); )
+		{
+			if (text[i] != '#' || i + 1 >= text.size())
+			{
+				// A literal carriage return draws as a stray glyph.
+				if (text[i] != '\r')
+					out += text[i];
+
+				i++;
+				continue;
+			}
+
+			char code = text[i + 1];
+
+			switch (code)
+			{
+			// Colour and style switches carry nothing and simply go.
+			case 'b': case 'k': case 'r': case 'g': case 'd':
+			case 'e': case 'n': case 'f': case 'B': case 'h':
+				i += 2;
+				break;
+			// Codes that name something, ending at the next '#'.
+			case 't': case 'i': case 'm': case 'p': case 'o': case 'c':
+			{
+				size_t close = text.find('#', i + 2);
+
+				if (close == std::string::npos)
+				{
+					i += 2;
+					break;
+				}
+
+				std::string idstr = text.substr(i + 2, close - i - 2);
+				i = close + 1;
+
+				int32_t id = 0;
+
+				try { id = std::stoi(idstr); }
+				catch (...) { break; }
+
+				if (code == 'm')
+					out += std::string(nl::nx::string["Map.img"]["name"]);
+				else if (code == 'o')
+					out += std::string(nl::nx::string["Mob.img"][std::to_string(id)]["name"]);
+				else
+					out += name_of_item(id);
+
+				break;
+			}
+			default:
+				// An unknown code costs its '#' rather than a word.
+				i++;
+				break;
+			}
+		}
+
+		return out;
+	}
 
 	const std::vector<int16_t>& QuestData::quests_of_npc(int32_t npcid, bool finishing)
 	{

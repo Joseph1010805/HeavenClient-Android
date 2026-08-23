@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "MessagingHandlers.h"
 
+#include "../Data/QuestData.h"
+
 #include "../Data/ItemData.h"
 #include "../Gameplay/Stage.h"
 #include "../IO/UI.h"
@@ -109,6 +111,54 @@ namespace ms
 			else
 			{
 				show_status(Color::Name::RED, "Mode: 0, Mode 2: " + std::to_string(mode2) + " is not handled.");
+			}
+		}
+		else if (mode == 1)
+		{
+			// A quest changed. This is the ONLY thing that tells the client a
+			// quest was taken or handed in, and there was no case for it -
+			// every quest update fell through to the bottom and was shown to
+			// the player as "Mode: 1 is not handled" in red.
+			//
+			//   short questid
+			//   byte  status   0 given up, 1 under way, 2 finished
+			//   then, by status: nothing / the progress string / the time
+			int16_t questid = recv.read_short();
+			int8_t status = recv.read_byte();
+
+			Questlog& log = Stage::get().get_player().get_quests();
+			const QuestData& data = QuestData::get(questid);
+
+			std::string name = data.is_valid()
+				? data.get_name()
+				: ("Quest " + std::to_string(questid));
+
+			switch (status)
+			{
+			case 0:
+				log.forget(questid);
+				show_status(Color::Name::WHITE, "Quest given up - " + name);
+				break;
+			case 1:
+			{
+				// The progress string. For a kill count it is three digits
+				// per monster, in the order the quest lists them, and it
+				// arrives again after every kill.
+				bool was_on_it = log.is_started(questid);
+
+				log.set_started(questid, recv.read_string());
+
+				if (!was_on_it)
+					show_status(Color::Name::YELLOW, "Quest started - " + name);
+
+				break;
+			}
+			case 2:
+				log.set_completed(questid, recv.read_long());
+				show_status(Color::Name::YELLOW, "Quest complete - " + name);
+				break;
+			default:
+				break;
 			}
 		}
 		else if (mode == 3)
