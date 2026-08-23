@@ -18,6 +18,7 @@
 #include "UI.h"
 #include "UIStateLogin.h"
 #include "UIStateGame.h"
+#include "UIStateCashShop.h"
 #include "Window.h"
 
 #include "../IO/UITypes/UIStatsinfo.h"
@@ -98,6 +99,9 @@ namespace ms
 			break;
 		case State::GAME:
 			state = std::make_unique<UIStateGame>();
+			break;
+		case State::CASHSHOP:
+			state = std::make_unique<UIStateCashShop>();
 			break;
 		}
 		printf("<==== UI::change_state\n");

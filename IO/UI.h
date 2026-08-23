@@ -39,7 +39,11 @@ namespace ms
 		enum State
 		{
 			LOGIN,
-			GAME
+			GAME,
+			// The cash shop replaces the world rather than opening over it,
+			// the same way the login screen does - so it is a state, not a
+			// window. Entering unloads the map; leaving loads it again.
+			CASHSHOP
 		};
 
 		UI();

@@ -98,6 +98,12 @@ namespace ms
 			// Gameplay 2
 			PARTY_OPERATION = 124,
 			DENY_PARTY_REQUEST = 125,
+
+			// Cash shop
+			ENTER_CASHSHOP = 40,
+			CHECK_CASH = 228,
+			BUY_CS_ITEM = 229,
+			COUPON_CODE = 230,
 			MOVE_MONSTER = 188,
 			PICKUP_ITEM = 202,
 			DAMAGE_REACTOR = 205,

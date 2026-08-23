@@ -40,6 +40,17 @@ namespace ms
 		// Skip a number of bytes (by increasing the offset).
 		void skip(size_t count);
 
+		// Stepping over a field without naming a variable for it. Reads far
+		// better at a call site than a bare skip(4), because the SIZE is the
+		// least interesting thing about a field being ignored - what matters
+		// is that it was an int and it is gone.
+		void skip_byte();
+		void skip_short();
+		void skip_int();
+		void skip_long();
+		void skip_padded_string(uint16_t length);
+		void skip_string();
+
 		// Read a byte and check if it is 1.
 		bool read_bool();
 		// Read a byte.

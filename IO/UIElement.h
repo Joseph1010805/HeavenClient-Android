@@ -51,6 +51,7 @@ namespace ms
 			CHATBAR,
 			BUFFLIST,
 			PARTYHUD,
+			CASHSHOP,
 			NOTICE,
 			NPCTALK,
 			SHOP,

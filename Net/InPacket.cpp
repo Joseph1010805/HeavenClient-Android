@@ -123,4 +123,36 @@ namespace ms
 	{
 		return inspect<int64_t>();
 	}
+
+	void InPacket::skip_byte()
+	{
+		skip(sizeof(int8_t));
+	}
+
+	void InPacket::skip_short()
+	{
+		skip(sizeof(int16_t));
+	}
+
+	void InPacket::skip_int()
+	{
+		skip(sizeof(int32_t));
+	}
+
+	void InPacket::skip_long()
+	{
+		skip(sizeof(int64_t));
+	}
+
+	void InPacket::skip_padded_string(uint16_t length)
+	{
+		skip(length);
+	}
+
+	void InPacket::skip_string()
+	{
+		uint16_t length = read_short();
+
+		skip_padded_string(length);
+	}
 }

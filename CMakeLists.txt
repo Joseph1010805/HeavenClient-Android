@@ -316,6 +316,8 @@ set(HEAVEN_SOURCES
         IO/UITypes/UIAranCreation.h
         IO/UITypes/UIBuffList.cpp
         IO/UITypes/UIBuffList.h
+        IO/UITypes/UICashShop.cpp
+        IO/UITypes/UICashShop.h
         IO/UITypes/UIChannel.cpp
         IO/UITypes/UIChannel.h
         IO/UITypes/UICharSelect.cpp
@@ -401,6 +403,8 @@ set(HEAVEN_SOURCES
         IO/UIElement.cpp
         IO/UIElement.h
         IO/UIState.h
+        IO/UIStateCashShop.cpp
+        IO/UIStateCashShop.h
         IO/UIStateGame.cpp
         IO/UIStateGame.h
         IO/UIStateLogin.cpp
@@ -415,6 +419,10 @@ set(HEAVEN_SOURCES
         Net/Handlers/Helpers/MovementParser.h
         Net/Handlers/AttackHandlers.cpp
         Net/Handlers/AttackHandlers.h
+        Net/Handlers/CashShopHandlers.cpp
+        Net/Handlers/CashShopHandlers.h
+        Net/Handlers/Helpers/CashShopParser.cpp
+        Net/Handlers/Helpers/CashShopParser.h
         Net/Handlers/CommonHandlers.cpp
         Net/Handlers/CommonHandlers.h
         Net/Handlers/CustomHandlers.cpp

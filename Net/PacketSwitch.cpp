@@ -27,6 +27,7 @@
 #include "Handlers/MessagingHandlers.h"
 #include "Handlers/NpcInteractionHandlers.h"
 #include "Handlers/SocialHandlers.h"
+#include "Handlers/CashShopHandlers.h"
 #include "Handlers/TestingHandlers.h"
 
 #include "../Console.h"
@@ -85,6 +86,15 @@ namespace ms
 		REMOVE_MIST = 274,
 		SPAWN_DOOR = 275,
 		REMOVE_DOOR = 276,
+
+		SET_ITC = 126,
+		SET_CASH_SHOP = 127,
+		QUERY_CASH_RESULT = 324,
+		CS_OPERATION = 325,
+		CS_CHECK_NAME_CHANGE = 328,
+		CS_NAME_CHANGE_POSSIBLE = 329,
+		CS_TRANSFER_WORLD = 331,
+		CS_CASH_GACHAPON_RESULT = 333,
 
 		UPDATE_GENDER = 58,
 		PARTY_OPERATION = 62,
@@ -229,6 +239,16 @@ namespace ms
 		emplace<RECALCULATE_STATS, RecalculateStatsHandler>();
 		emplace<UPDATE_SKILL, UpdateSkillHandler>();
 		emplace<ADD_COOLDOWN, AddCooldownHandler>();
+
+		// Cash shop
+		emplace<SET_CASH_SHOP, SetCashShopHandler>();
+		emplace<SET_ITC, SetITCHandler>();
+		emplace<CS_OPERATION, CashShopOperationHandler>();
+		emplace<QUERY_CASH_RESULT, QueryCashResultHandler>();
+		emplace<CS_CHECK_NAME_CHANGE, CashShopNameChangeHandler>();
+		emplace<CS_NAME_CHANGE_POSSIBLE, CashShopNameChangePossibleHandler>();
+		emplace<CS_TRANSFER_WORLD, CashShopTransferWorldHandler>();
+		emplace<CS_CASH_GACHAPON_RESULT, CashGachaponResultHandler>();
 
 		// Social handlers
 		emplace<PARTY_OPERATION, PartyOperationHandler>();

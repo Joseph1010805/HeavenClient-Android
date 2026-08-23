@@ -23,6 +23,29 @@
 
 namespace ms
 {
+	// Reading a character out of a packet.
+	//
+	// These were private to SetfieldHandler, which is where a character
+	// normally arrives - but it is not the only place. Entering and leaving
+	// the cash shop re-sends the whole character too, and that handler needs
+	// to read exactly the same bytes in exactly the same order. Sharing the
+	// one implementation is the only way the two cannot drift apart.
+	namespace CharacterParser
+	{
+		void parse_inventory(InPacket& recv, Inventory& inventory);
+		void parse_skillbook(InPacket& recv, Skillbook& skills);
+		void parse_cooldowns(InPacket& recv, Player& player);
+		void parse_questlog(InPacket& recv, Questlog& quests);
+		void parse_ring1(InPacket& recv);
+		void parse_ring2(InPacket& recv);
+		void parse_ring3(InPacket& recv);
+		void parse_minigame(InPacket& recv);
+		void parse_monsterbook(InPacket& recv, Monsterbook& monsterbook);
+		void parse_telerock(InPacket& recv, Telerock& telerock);
+		void parse_nyinfo(InPacket& recv);
+		void parse_areainfo(InPacket& recv);
+	}
+
 	// Handler for a packet which contains all character information on first login
 	// or warps the player to a different map.
 	class SetfieldHandler : public PacketHandler
@@ -35,17 +58,5 @@ namespace ms
 		void change_map(InPacket& recv, int32_t map_id) const;
 		void set_field(InPacket& recv) const;
 
-		void parse_inventory(InPacket& recv, Inventory& inventory) const;
-		void parse_skillbook(InPacket& recv, Skillbook& skills) const;
-		void parse_cooldowns(InPacket& recv, Player& player) const;
-		void parse_questlog(InPacket& recv, Questlog& quests) const;
-		void parse_ring1(InPacket& recv) const;
-		void parse_ring2(InPacket& recv) const;
-		void parse_ring3(InPacket& recv) const;
-		void parse_minigame(InPacket& recv) const;
-		void parse_monsterbook(InPacket& recv, Monsterbook& monsterbook) const;
-		void parse_telerock(InPacket& recv, Telerock& telerock) const;
-		void parse_nyinfo(InPacket& recv) const;
-		void parse_areainfo(InPacket& recv) const;
 	};
 }

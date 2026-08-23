@@ -101,18 +101,18 @@ namespace ms
 		if (recv.read_bool())
 			recv.read_string(); // 'linkedname'
 
-		parse_inventory(recv, player.get_inventory());
-		parse_skillbook(recv, player.get_skills());
-		parse_cooldowns(recv, player);
-		parse_questlog(recv, player.get_quests());
-		parse_minigame(recv);
-		parse_ring1(recv);
-		parse_ring2(recv);
-		parse_ring3(recv);
-		parse_telerock(recv, player.get_telerock());
-		parse_monsterbook(recv, player.get_monsterbook());
-		parse_nyinfo(recv);
-		parse_areainfo(recv);
+		CharacterParser::parse_inventory(recv, player.get_inventory());
+		CharacterParser::parse_skillbook(recv, player.get_skills());
+		CharacterParser::parse_cooldowns(recv, player);
+		CharacterParser::parse_questlog(recv, player.get_quests());
+		CharacterParser::parse_minigame(recv);
+		CharacterParser::parse_ring1(recv);
+		CharacterParser::parse_ring2(recv);
+		CharacterParser::parse_ring3(recv);
+		CharacterParser::parse_telerock(recv, player.get_telerock());
+		CharacterParser::parse_monsterbook(recv, player.get_monsterbook());
+		CharacterParser::parse_nyinfo(recv);
+		CharacterParser::parse_areainfo(recv);
 
 		player.recalc_stats(true);
 
@@ -126,7 +126,7 @@ namespace ms
 		UI::get().change_state(UI::GAME);
 	}
 
-	void SetfieldHandler::parse_inventory(InPacket& recv, Inventory& invent) const
+	void CharacterParser::parse_inventory(InPacket& recv, Inventory& invent)
 	{
 		invent.set_meso(recv.read_int());
 		invent.set_slotmax(InventoryType::EQUIP, recv.read_byte());
@@ -170,7 +170,7 @@ namespace ms
 		}
 	}
 
-	void SetfieldHandler::parse_skillbook(InPacket& recv, Skillbook& skills) const
+	void CharacterParser::parse_skillbook(InPacket& recv, Skillbook& skills)
 	{
 		int16_t size = recv.read_short();
 
@@ -185,7 +185,7 @@ namespace ms
 		}
 	}
 
-	void SetfieldHandler::parse_cooldowns(InPacket& recv, Player& player) const
+	void CharacterParser::parse_cooldowns(InPacket& recv, Player& player)
 	{
 		int16_t size = recv.read_short();
 
@@ -197,7 +197,7 @@ namespace ms
 		}
 	}
 
-	void SetfieldHandler::parse_questlog(InPacket& recv, Questlog& quests) const
+	void CharacterParser::parse_questlog(InPacket& recv, Questlog& quests)
 	{
 		int16_t size = recv.read_short();
 
@@ -229,7 +229,7 @@ namespace ms
 		}
 	}
 
-	void SetfieldHandler::parse_ring1(InPacket& recv) const
+	void CharacterParser::parse_ring1(InPacket& recv)
 	{
 		int16_t rsize = recv.read_short();
 
@@ -244,7 +244,7 @@ namespace ms
 		}
 	}
 
-	void SetfieldHandler::parse_ring2(InPacket& recv) const
+	void CharacterParser::parse_ring2(InPacket& recv)
 	{
 		int16_t rsize = recv.read_short();
 
@@ -260,7 +260,7 @@ namespace ms
 		}
 	}
 
-	void SetfieldHandler::parse_ring3(InPacket& recv) const
+	void CharacterParser::parse_ring3(InPacket& recv)
 	{
 		int16_t rsize = recv.read_short();
 
@@ -277,7 +277,7 @@ namespace ms
 		}
 	}
 
-	void SetfieldHandler::parse_minigame(InPacket& recv) const
+	void CharacterParser::parse_minigame(InPacket& recv)
 	{
 		recv.skip(2);
 		//int16_t mgsize = recv.read_short();
@@ -285,7 +285,7 @@ namespace ms
 		//for (int16_t i = 0; i < mgsize; i++) {}
 	}
 
-	void SetfieldHandler::parse_monsterbook(InPacket& recv, Monsterbook& monsterbook) const
+	void CharacterParser::parse_monsterbook(InPacket& recv, Monsterbook& monsterbook)
 	{
 		monsterbook.set_cover(recv.read_int());
 
@@ -302,7 +302,7 @@ namespace ms
 		}
 	}
 
-	void SetfieldHandler::parse_telerock(InPacket& recv, Telerock& trock) const
+	void CharacterParser::parse_telerock(InPacket& recv, Telerock& trock)
 	{
 		for (size_t i = 0; i < 5; i++)
 			trock.addlocation(recv.read_int());
@@ -311,14 +311,14 @@ namespace ms
 			trock.addviplocation(recv.read_int());
 	}
 
-	void SetfieldHandler::parse_nyinfo(InPacket& recv) const
+	void CharacterParser::parse_nyinfo(InPacket& recv)
 	{
 		//int16_t nysize = recv.read_short();
 
 		//for (int16_t i = 0; i < nysize; i++) {}
 	}
 
-	void SetfieldHandler::parse_areainfo(InPacket& recv) const
+	void CharacterParser::parse_areainfo(InPacket& recv)
 	{
 		std::map<int16_t, std::string> areainfo;
 		int16_t arsize = recv.read_short();
