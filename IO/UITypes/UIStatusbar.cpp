@@ -1176,10 +1176,15 @@ namespace ms
 		if (col >= static_cast<int16_t>(QUICKSLOT_COLS) || row >= static_cast<int16_t>(QUICKSLOT_ROWS))
 			return -1;
 
-		// Reject the gap between cells rather than snapping to a neighbour.
-		if (offset.x() % CELL_X >= ICON_SIZE + 2 || offset.y() % CELL_Y >= ICON_SIZE + 2)
-			return -1;
-
+		// The few pixels of artwork between one cell and the next used to be
+		// rejected outright, so that a DROP landing in the gap went to
+		// whatever was underneath rather than snapping to a neighbour. That
+		// was reasonable for a mouse, which lands where it is pointed.
+		//
+		// These are tapped with a thumb now, and a thumb is far wider than the
+		// gap - rejecting it means a tap that plainly hit the bar does
+		// nothing, with no way to tell why. The cells are adjacent anyway, so
+		// the one the touch falls in is unambiguous.
 		return row * static_cast<int16_t>(QUICKSLOT_COLS) + col;
 	}
 

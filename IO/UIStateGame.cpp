@@ -84,7 +84,22 @@ namespace ms
 		// own tooltip and never writes to this one, so a window up here goes on
 		// showing what it was showing while the panel is being used.
 		if (tooltip)
-			tooltip->draw(cursor + Point<int16_t>(0, 22));
+		{
+			// A tooltip follows the pointer, which is right when the pointer
+			// is the thing that summoned it. Picking an item out on the PANEL
+			// raises one up here too, and it lands wherever this screen's
+			// cursor happens to have been left - usually the far corner,
+			// nowhere near what the player is looking at, and often on top of
+			// the quickslot bar they were about to aim for.
+			//
+			// So when the pointer is downstairs, the tooltip goes to the one
+			// corner that is always the same and never under the mount.
+			Point<int16_t> at = SecondScreen::has_cursor()
+				? POPUP_FROM_PANEL
+				: cursor + Point<int16_t>(0, 22);
+
+			tooltip->draw(at);
+		}
 
 		if (draggedicon)
 			draggedicon->dragdraw(cursor);
