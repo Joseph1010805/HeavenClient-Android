@@ -106,6 +106,31 @@ namespace ms
 		Point<int16_t> get_position() const { return position; }
 		Point<int16_t> get_dimension() const { return dimension; }
 
+		// What this window currently has picked out, expressed as something a
+		// key could be bound to - or NONE if nothing is selected, or the
+		// selection is not the sort of thing that goes on a hotkey.
+		//
+		// The panel selects rather than drags, so an item chosen down there
+		// cannot be carried to the quickslot bar the way the mouse carries one.
+		// The bar asks instead.
+		virtual Keyboard::Mapping selected_mapping() const { return {}; }
+
+		// Whether an active button sits under this point.
+		//
+		// The lower panel needs to tell a button apart from the rest of a
+		// window: on the world map a tap on a PLACE reads it first and travels
+		// on the second tap, deliberately, so a name can be read without being
+		// dragged somewhere. A button has no such excuse - pressing Back twice
+		// to go back once is just wrong.
+		bool button_at(Point<int16_t> pos) const
+		{
+			for (auto& entry : buttons)
+				if (entry.second->is_active() && entry.second->bounds(position).contains(pos))
+					return true;
+
+			return false;
+		}
+
 	protected:
 		UIElement(Point<int16_t> position, Point<int16_t> dimension, bool active);
 		UIElement(Point<int16_t> position, Point<int16_t> dimension);

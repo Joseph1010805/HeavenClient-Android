@@ -366,6 +366,15 @@ namespace ms
 			return panel_ptr->hosted(type);
 		}
 
+		Keyboard::Mapping selected_mapping()
+		{
+			// Same reasoning as hosted(): a question must not build a panel.
+			if (!panel_ptr)
+				return {};
+
+			return panel_ptr->selected_mapping();
+		}
+
 		Point<int16_t> cursor()
 		{
 			if (width <= 0 || height <= 0)

@@ -49,6 +49,7 @@ namespace ms
 
 		void send_key(int32_t keycode, bool pressed, bool escape) override;
 		bool is_in_range(Point<int16_t> cursorpos) const override;
+		Cursor::State send_cursor(bool clicked, Point<int16_t> cursorpos) override;
 
 		UIElement::Type get_type() const override;
 
@@ -103,6 +104,11 @@ namespace ms
 		int16_t padslot_by_position(Point<int16_t> cursorpos) const;
 
 		bool send_icon(const Icon& icon, Point<int16_t> cursorpos) override;
+
+		// Writes a mapping into a quickslot cell, telling the server first.
+		// Shared by dropping an icon on the bar and by tapping a cell while
+		// the panel has something selected.
+		bool bind_padslot(int16_t slot, Keyboard::Mapping mapping);
 
 		struct PadSlot
 		{

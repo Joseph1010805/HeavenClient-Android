@@ -88,6 +88,16 @@ namespace ms
 		return nullptr;
 	}
 
+	Keyboard::Mapping SecondScreenPanel::selected_mapping() const
+	{
+		// Only a page that has been built can have a selection, so this must
+		// not go through window() - that builds the page on first sight, and
+		// merely asking what is selected should not bring one into existence.
+		auto& slot = pages[current];
+
+		return slot ? slot->selected_mapping() : Keyboard::Mapping();
+	}
+
 	UIElement* SecondScreenPanel::window() const
 	{
 		auto& slot = const_cast<std::unique_ptr<UIElement>&>(pages[current]);
@@ -324,7 +334,10 @@ namespace ms
 			// place there takes you to another map, and doing that by accident
 			// while trying to read a name is a nuisance. A button is not like
 			// that - pressing EQUIP twice to equip once is just wrong.
-			if (current != WORLDMAP)
+			// The two-step is for places on the map, not for the controls
+			// around it. Back, the page arrows and the navigation buttons all
+			// act on the first tap like every other button in the game.
+			if (current != WORLDMAP || element->button_at(at))
 			{
 				element->send_cursor(true, at);
 

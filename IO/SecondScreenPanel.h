@@ -73,6 +73,10 @@ namespace ms
 		// otherwise - this never builds one, it only reports.
 		UIElement* hosted(UIElement::Type type) const;
 
+		// What the current page has picked out, as something a key could be
+		// bound to. NONE when nothing is selected.
+		Keyboard::Mapping selected_mapping() const;
+
 	private:
 		void turn_to(int16_t next);
 

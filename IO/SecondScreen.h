@@ -85,6 +85,14 @@ namespace ms
 		// the main screen's own pass, so it lands in that screen's pixels.
 		void draw_top_tooltip();
 
+		// What the page on the panel currently has picked out, as something a
+		// key could be bound to - NONE if nothing is, or there is no panel.
+		//
+		// The panel selects where the main screen drags, so an item chosen
+		// down here cannot be carried up to the quickslot bar. The bar reaches
+		// down instead.
+		Keyboard::Mapping selected_mapping();
+
 		// Play the level-up flourish on the panel. Does nothing where there is
 		// no panel, so the one-screen build is unaffected.
 		void play_levelup();

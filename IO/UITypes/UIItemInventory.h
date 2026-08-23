@@ -214,6 +214,12 @@ namespace ms
 		// double click, so both do the same thing.
 		void activate_slot(int16_t slot);
 
+		// What is picked out on the panel, so the quickslot bar on the MAIN
+		// screen can bind it. Only while hosted on the panel: on the main
+		// screen an item is carried to the bar by dragging, which already
+		// works and needs none of this.
+		Keyboard::Mapping selected_mapping() const override;
+
 		// Where the action button sits, in this window's own coordinates, and
 		// what it says. Empty when the tab has no action.
 		Rectangle<int16_t> action_bounds() const;

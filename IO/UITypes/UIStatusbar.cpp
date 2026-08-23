@@ -35,6 +35,7 @@
 #include "../Data/SkillData.h"
 #include "../Net/Packets/PlayerPackets.h"
 #include "../KeyConfig.h"
+#include "../SecondScreen.h"
 
 #include <tuple>
 #include "../UITypes/UIChat.h"
@@ -1182,29 +1183,25 @@ namespace ms
 		return row * static_cast<int16_t>(QUICKSLOT_COLS) + col;
 	}
 
-	bool UIStatusbar::send_icon(const Icon& icon, Point<int16_t> cursorpos)
+	bool UIStatusbar::bind_padslot(int16_t slot, Keyboard::Mapping mapping)
 	{
-		int16_t slot = padslot_by_position(cursorpos);
-
 		if (slot < 0)
-			return true;
+			return false;
 
 		int16_t keycode = padslots[slot].keycode;
 
 		// Select has no key of its own - it is the quit button - so nothing can
 		// be bound to it.
 		if (keycode <= 0)
-			return true;
-
-		Keyboard::Mapping mapping = icon.get_mapping();
+			return false;
 
 		if (mapping.type == KeyType::Id::NONE)
-			return true;
+			return false;
 
 		uint8_t maplekey = Keyboard::maple_key(keycode);
 
 		if (maplekey == 0)
-			return true;
+			return false;
 
 		// Tell the server first, then apply locally, which is the order the Key
 		// Bindings window uses when it saves.
@@ -1215,7 +1212,32 @@ namespace ms
 
 		UI::get().get_keyboard().assign(maplekey, mapping.type, mapping.action);
 
+		Sound(Sound::Name::DRAGEND).play();
+
 		return true;
+	}
+
+	bool UIStatusbar::send_icon(const Icon& icon, Point<int16_t> cursorpos)
+	{
+		bind_padslot(padslot_by_position(cursorpos), icon.get_mapping());
+
+		return true;
+	}
+
+	Cursor::State UIStatusbar::send_cursor(bool clicked, Point<int16_t> cursorpos)
+	{
+		// An item picked out on the panel cannot be dragged up here, so a tap
+		// on a cell takes whatever the panel has selected. Nothing selected
+		// means this does not fire at all and the bar behaves as before.
+		if (clicked)
+		{
+			int16_t slot = padslot_by_position(cursorpos);
+
+			if (slot >= 0 && bind_padslot(slot, SecondScreen::selected_mapping()))
+				return Cursor::State::IDLE;
+		}
+
+		return UIElement::send_cursor(clicked, cursorpos);
 	}
 
 	void UIStatusbar::draw_padslot_icon(const Texture& icon, Point<int16_t> cell) const

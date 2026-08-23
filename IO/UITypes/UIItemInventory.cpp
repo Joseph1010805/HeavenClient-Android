@@ -1083,13 +1083,39 @@ namespace ms
 				// The same sound the real client makes when an item lands in an
 				// equip slot - there is no separate "equipped" one.
 				Sound(Sound::Name::DRAGEND).play();
+
+				// Let it go. Equipping SWAPS, so whatever came off arrives in
+				// this very slot a moment later - and leaving the selection
+				// behind meant the item you just took off appeared picked up,
+				// ready to be put straight back on.
+				selected = 0;
 			}
 
 			break;
 		case InventoryType::Id::USE:
 			UseItemPacket(slot, item_id).dispatch();
+
+			selected = 0;
 			break;
 		}
+	}
+
+	Keyboard::Mapping UIItemInventory::selected_mapping() const
+	{
+		if (!panel || !selected)
+			return {};
+
+		int32_t item_id = inventory.get_item_id(tab, selected);
+
+		if (!item_id)
+			return {};
+
+		// Only consumables go on a key. An equip has nothing to "use", and
+		// binding one would produce a hotkey that does nothing.
+		if (tab != InventoryType::Id::USE)
+			return {};
+
+		return Keyboard::Mapping(KeyType::Id::ITEM, item_id);
 	}
 
 	bool UIItemInventory::indragrange(Point<int16_t> cursorpos) const
