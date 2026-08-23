@@ -678,6 +678,21 @@ namespace ms
 
 	void Window::begin() const
 	{
+		// The buffer the scene is drawn into has to match the size the scene
+		// thinks it is drawing at.
+		//
+		// It used to be built once at startup, at 800x600, and never revisited
+		// - which is right until something changes the logical view size. The
+		// cash shop does exactly that, laying itself out across 1024x768; only
+		// the top-left 800x600 of it was ever captured, and that was then
+		// stretched over the whole screen. The result was a shop zoomed in with
+		// its right-hand panel cut off.
+		int16_t want_w = Constants::Constants::get().get_viewwidth();
+		int16_t want_h = Constants::Constants::get().get_viewheight();
+
+		if (want_w > 0 && want_h > 0 && (want_w != scene_w || want_h != scene_h))
+			init_offscreen(want_w, want_h);
+
 		bind_offscreen();
 
 		// The panel draws through the same renderer and repoints it at its own
