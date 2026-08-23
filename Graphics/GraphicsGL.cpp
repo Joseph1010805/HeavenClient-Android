@@ -1180,6 +1180,17 @@ namespace ms
 		glUniform2f(uniform_screensize, width, height);
 	}
 
+	void GraphicsGL::use_main_screen()
+	{
+		// Deliberately does NOT clear the queue, unlike begin_screen: this
+		// runs at the top of every main frame, and the frame's own clearing
+		// respects the lock held during fades.
+		SCREEN = Rectangle<int16_t>(0, VWIDTH, 0, VHEIGHT);
+
+		glUseProgram(shaderProgram);
+		glUniform2f(uniform_screensize, VWIDTH, VHEIGHT);
+	}
+
 	void GraphicsGL::clearscene()
 	{
 		if (!locked)

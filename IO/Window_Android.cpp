@@ -679,6 +679,14 @@ namespace ms
 	void Window::begin() const
 	{
 		bind_offscreen();
+
+		// The panel draws through the same renderer and repoints it at its own
+		// dimensions to do so. Reclaim them here rather than assuming whatever
+		// drew last left them alone - which is what produced a main screen
+		// shifted and cut off, on the launches where the panel happened to
+		// come up.
+		GraphicsGL::get().use_main_screen();
+
 		GraphicsGL::get().clearscene();
 	}
 

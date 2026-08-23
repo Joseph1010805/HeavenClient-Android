@@ -83,6 +83,17 @@ namespace ms
 		// pass just flushed still refer to. Both screens draw from the one atlas.
 		void begin_screen(int16_t width, int16_t height);
 
+		// Points drawing back at the main screen's dimensions, without
+		// touching what is queued.
+		//
+		// `SCREEN` and the screensize uniform are global to the renderer, and
+		// begin_screen is how the second screen claims them for the panel.
+		// Nothing claimed them back, so once the panel had drawn, the main
+		// screen was rendered through the panel's projection for every frame
+		// after. Called at the start of each main frame so the state is
+		// asserted rather than inherited.
+		void use_main_screen();
+
 		// What a pass clears to before anything is drawn. The main screen
 		// wants white behind it; the lower panel wants its own colour, and
 		// certainly not a white flash every time a map loads.
