@@ -120,6 +120,9 @@ namespace ms
 
 		mutable Text panel_slot_names[Equipslot::Id::LENGTH];
 		void change_tab(uint16_t tabid);
+		// The slot actually being worn on top of this box: the cash one when
+		// there is a cosmetic covering it, otherwise the real one.
+		int16_t worn_slot(Equipslot::Id slot) const;
 
 		class EquipIcon : public Icon::Type
 		{

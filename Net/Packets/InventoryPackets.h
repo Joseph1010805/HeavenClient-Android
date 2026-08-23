@@ -19,6 +19,10 @@
 
 #include "../OutPacket.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 #include "../Character/Inventory/Inventory.h"
 
 namespace ms
@@ -54,6 +58,18 @@ namespace ms
 	public:
 		MoveItemPacket(InventoryType::Id type, int16_t slot, int16_t action, int16_t qty) : OutPacket(OutPacket::Opcode::MOVE_ITEM)
 		{
+			// The server reads this packet by the SIGNS of slot and action -
+			// `action < 0` equips, `action == 0` DROPS, otherwise it moves -
+			// so a wrong number here is the difference between wearing an
+			// item and throwing it on the floor. Worth a line each time while
+			// that is still being pinned down.
+#ifdef __ANDROID__
+			__android_log_print(ANDROID_LOG_INFO, "HeavenClient",
+				"MOVE_ITEM tab=%d slot=%d action=%d qty=%d -> %s",
+				(int)type, (int)slot, (int)action, (int)qty,
+				action < 0 ? "EQUIP" : (action == 0 ? "DROP" : "MOVE"));
+#endif
+
 			write_time();
 			write_byte(type);
 			write_short(slot);
@@ -93,7 +109,28 @@ namespace ms
 		}
 	};
 
-	// Requests using a scroll on an equip. 
+	// Use an item out of the CASH tab.
+	// Opcode: USE_CASH_ITEM(79)
+	//
+	// No timestamp on this one, unlike USE_ITEM - Cosmic's handler reads the
+	// slot first. It rate-limits to one cash item every three seconds and
+	// says so in chat when you are early.
+	//
+	// Note what is NOT here: rate coupons. A 2x EXP or drop coupon
+	// (5211xxx / 5360xxx) is never used at all - the server applies it just
+	// for sitting in your cash inventory during the hours it is scheduled
+	// for, in the `nxcoupons` table. Tapping one does nothing on purpose.
+	class UseCashItemPacket : public OutPacket
+	{
+	public:
+		UseCashItemPacket(int16_t slot, int32_t itemid) : OutPacket(OutPacket::Opcode::USE_CASH_ITEM)
+		{
+			write_short(slot);
+			write_int(itemid);
+		}
+	};
+
+	// Requests using a scroll on an equip.
 	// Opcode: SCROLL_EQUIP(86)
 	class ScrollEquipPacket : public OutPacket
 	{

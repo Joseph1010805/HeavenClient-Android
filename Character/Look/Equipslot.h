@@ -68,6 +68,37 @@ namespace ms
 
 		Id by_id(size_t id);
 
+		// Cash equips are worn in a SECOND set of slots, 100 above the real
+		// ones - a cash hat goes to 101, not 1.
+		//
+		// They are purely cosmetic. The cash item decides what the character
+		// looks like; the ordinary item underneath keeps its stats and stays
+		// on. Sending a cash equip to the ordinary slot knocks the real gear
+		// off and takes its stats with it, which is what "the weapon
+		// discards when you try to equip it" was.
+		//
+		// The server checks this too: `EquipSlot.isAllowed` compares the
+		// destination against `allowed - 100` for a cash item, and answers a
+		// non-cash item aimed at a cash slot with an autoban warning. So the
+		// offset must be applied for cash items and ONLY for cash items.
+		constexpr int16_t CASH_OFFSET = 100;
+
+		// The cash counterpart of an ordinary slot, and back again.
+		constexpr Id cash_of(Id slot)
+		{
+			return static_cast<Id>(static_cast<int16_t>(slot) + CASH_OFFSET);
+		}
+
+		constexpr bool is_cash_slot(int16_t slot)
+		{
+			return slot > CASH_OFFSET;
+		}
+
+		constexpr Id base_of(int16_t slot)
+		{
+			return static_cast<Id>(is_cash_slot(slot) ? slot - CASH_OFFSET : slot);
+		}
+
 		constexpr Enumeration<Id> values;
 	};
 }

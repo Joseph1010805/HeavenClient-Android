@@ -440,6 +440,9 @@ namespace ms
 				case InventoryType::Id::USE:
 					UseItemPacket(slot, item_id).dispatch();
 					break;
+				case InventoryType::Id::CASH:
+					use_cash_item(slot, item_id);
+					break;
 				}
 			}
 		}
@@ -1110,7 +1113,35 @@ namespace ms
 
 			selected = 0;
 			break;
+		case InventoryType::Id::CASH:
+			use_cash_item(slot, item_id);
+
+			selected = 0;
+			break;
 		}
+	}
+
+	// Cash items go down their own opcode, and a few of them are not "used"
+	// at all - see below. Shared by the tap and the double-tap.
+	void UIItemInventory::use_cash_item(int16_t slot, int32_t item_id)
+	{
+		// A rate coupon is passive. Cosmic applies a 2x EXP or drop coupon
+		// for simply BEING in the cash inventory during the hours it is
+		// scheduled for in `nxcoupons`, and has no handler for using one. It
+		// would be sent, ignored, and look broken - so say what it actually
+		// does instead.
+		int32_t kind = item_id / 1000;
+
+		if (kind == 5211 || kind == 5360)
+		{
+			constexpr char* couponmessage =
+				"This works on its own while it is in your bag,\\nduring the hours it is good for. There is nothing to use.";
+
+			UI::get().emplace<UIOk>(couponmessage, [](bool) {});
+			return;
+		}
+
+		UseCashItemPacket(slot, item_id).dispatch();
 	}
 
 	Keyboard::Mapping UIItemInventory::selected_mapping() const
@@ -1215,56 +1246,52 @@ namespace ms
 	void UIItemInventory::ItemIcon::drop_on_stage() const
 	{
 		constexpr char* dropmessage = "How many will you drop?";
-		constexpr char* untradablemessage = "This item can't be taken back once thrown away.\\nWill you still drop it?";
 		constexpr char* cashmessage = "You can't drop this item.";
 
 		if (cashitem)
 		{
 			UI::get().emplace<UIOk>(cashmessage, [](bool) {});
+			return;
 		}
-		else
+
+		// ALWAYS ask, not only for untradable items.
+		//
+		// On a mouse, letting go outside the bag is a deliberate act. With a
+		// stylus on a six-inch screen it is what happens when a drag towards
+		// an equip box falls a few pixels short - and the weapon you were
+		// trying to put on lands on the floor with no warning at all. That
+		// read as the game destroying it.
+		//
+		// The word "ground" is in the question on purpose: it says where the
+		// item is going, so a mis-aimed drag is recoverable knowledge rather
+		// than a mystery.
+		std::string question = "Drop " + ItemData::get(item_id).get_name()
+			+ " on the ground?";
+
+		if (untradable)
+			question += "\\nIt can't be taken back once thrown away.";
+
+		auto onok = [&, dropmessage](bool ok)
 		{
-			if (untradable)
+			if (!ok)
+				return;
+
+			if (count <= 1)
 			{
-				auto onok = [&, dropmessage](bool ok)
-				{
-					if (ok)
-					{
-						if (count <= 1)
-						{
-							MoveItemPacket(sourcetab, source, 0, 1).dispatch();
-						}
-						else
-						{
-							auto onenter = [&](int32_t qty)
-							{
-								MoveItemPacket(sourcetab, source, 0, qty).dispatch();
-							};
-
-							UI::get().emplace<UIEnterNumber>(dropmessage, onenter, count, count);
-						}
-					}
-				};
-
-				UI::get().emplace<UIYesNo>(untradablemessage, onok);
+				MoveItemPacket(sourcetab, source, 0, 1).dispatch();
 			}
 			else
 			{
-				if (count <= 1)
+				auto onenter = [&](int32_t qty)
 				{
-					MoveItemPacket(sourcetab, source, 0, 1).dispatch();
-				}
-				else
-				{
-					auto onenter = [&](int32_t qty)
-					{
-						MoveItemPacket(sourcetab, source, 0, qty).dispatch();
-					};
+					MoveItemPacket(sourcetab, source, 0, qty).dispatch();
+				};
 
-					UI::get().emplace<UIEnterNumber>(dropmessage, onenter, count, count);
-				}
+				UI::get().emplace<UIEnterNumber>(dropmessage, onenter, count, count);
 			}
-		}
+		};
+
+		UI::get().emplace<UIYesNo>(question, onok);
 	}
 
 	void UIItemInventory::ItemIcon::drop_on_equips(Equipslot::Id eqslot) const
@@ -1272,9 +1299,14 @@ namespace ms
 		switch (sourcetab)
 		{
 		case InventoryType::Id::EQUIP:
-			if (eqsource == eqslot)
+			// The box is the HAT box whether what goes in it is a real hat or
+			// a cosmetic one, so compare where the item BELONGS, not the slot
+			// number - a cash hat's slot is 101 and would never match 1. The
+			// packet still carries the cash slot, so the real hat stays on
+			// underneath.
+			if (Equipslot::base_of(eqsource) == eqslot)
 				if (parent.can_wear_equip(source))
-					EquipItemPacket(source, eqslot).dispatch();
+					EquipItemPacket(source, eqsource).dispatch();
 
 			Sound(Sound::Name::DRAGEND).play();
 

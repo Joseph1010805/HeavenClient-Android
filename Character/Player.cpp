@@ -139,10 +139,29 @@ namespace ms
 
 	void Player::change_equip(int16_t slot)
 	{
-		if (int32_t itemid = inventory.get_item_id(InventoryType::Id::EQUIPPED, slot))
-			look.add_equip(itemid);
+		// Two items can occupy one place on the character: the real equip and
+		// a cash equip 100 slots above it. The cash one is what is SEEN; the
+		// real one is what counts. So the look always shows whichever of the
+		// pair is on top, which means a change to either has to be answered
+		// by looking at both.
+		//
+		// Getting this wrong in the obvious way - treating slot 101 as its
+		// own thing - leaves a character still wearing a hat they took off,
+		// or bare-headed with a hat still equipped underneath.
+		Equipslot::Id base = Equipslot::base_of(slot);
+
+		int32_t cash = inventory.get_item_id(
+			InventoryType::Id::EQUIPPED, Equipslot::cash_of(base));
+
+		int32_t real = inventory.get_item_id(
+			InventoryType::Id::EQUIPPED, base);
+
+		if (cash)
+			look.add_equip(cash);
+		else if (real)
+			look.add_equip(real);
 		else
-			look.remove_equip(Equipslot::by_id(slot));
+			look.remove_equip(base);
 	}
 
 	void Player::use_item(int32_t itemid)

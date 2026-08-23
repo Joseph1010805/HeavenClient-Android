@@ -268,6 +268,12 @@ namespace ms
 
 		Equipslot::Id eqslot = cloth.get_eqslot();
 
+		// A cash equip goes to the cosmetic slot above the real one, so it
+		// changes how the character looks without taking the real gear off.
+		// See Equipslot::CASH_OFFSET.
+		if (cloth.get_itemdata().is_cashitem() && eqslot != Equipslot::Id::NONE)
+			return Equipslot::cash_of(eqslot);
+
 		if (eqslot == Equipslot::Id::RING1)
 		{
 			if (!has_equipped(Equipslot::Id::RING2))

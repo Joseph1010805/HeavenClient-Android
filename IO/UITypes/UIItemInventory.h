@@ -213,6 +213,9 @@ namespace ms
 		// Equip it, or use it - whichever this tab means. Shared with the
 		// double click, so both do the same thing.
 		void activate_slot(int16_t slot);
+		// Use something from the CASH tab. Its own opcode, and rate coupons
+		// are not "used" at all - see the definition.
+		void use_cash_item(int16_t slot, int32_t item_id);
 
 		// What is picked out on the panel, so the quickslot bar on the MAIN
 		// screen can bind it. Only while hosted on the panel: on the main

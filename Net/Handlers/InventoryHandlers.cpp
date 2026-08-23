@@ -29,6 +29,10 @@
 #include "../IO/UITypes/UIKeyConfig.h"
 #include "../IO/UITypes/UIShop.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 namespace ms
 {
 	void GatherResultHandler::handle(InPacket&) const
@@ -123,6 +127,19 @@ namespace ms
 		Inventory::Movement move = (recv.length() > 0) ?
 			Inventory::movementbyvalue(recv.read_byte()) :
 			Inventory::Movement::MOVE_INTERNAL;
+
+		// The other half of the MOVE_ITEM line: what the server said came
+		// back. An equip is a SWAP between the bag and the equipped set, and
+		// getting the movement or the sign wrong makes an item vanish from
+		// the bag while the server still holds it - which looks exactly like
+		// the game having destroyed it.
+#ifdef __ANDROID__
+		for (const Mod& mod : mods)
+			__android_log_print(ANDROID_LOG_INFO, "HeavenClient",
+				"MODIFY_INV mode=%d tab=%d pos=%d arg=%d move=%d",
+				(int)mod.mode, (int)mod.type, (int)mod.pos, (int)mod.arg,
+				(int)move);
+#endif
 
 		for (const Mod& mod : mods)
 		{

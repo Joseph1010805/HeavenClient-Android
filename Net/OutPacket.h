@@ -81,6 +81,13 @@ namespace ms
 			USE_ITEM = 72,
 			SCROLL_EQUIP = 86,
 
+			// Cash items are not used through USE_ITEM. Teleport rocks,
+			// AP/SP resets, chairs, name tags and the rest all arrive at
+			// Cosmic's UseCashItemHandler down their own opcode, and until
+			// this existed the entire Cash tab of the bag did nothing when
+			// tapped.
+			USE_CASH_ITEM = 79,
+
 			// Player
 			// The client counts its own standing recovery and tells the server
 			// what it recovered - the server does not do this on its own. Note

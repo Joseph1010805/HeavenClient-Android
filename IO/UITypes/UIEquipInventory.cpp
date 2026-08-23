@@ -272,7 +272,9 @@ namespace ms
 		if (!freeslot)
 			return;
 
-		UnequipItemPacket(selected, freeslot).dispatch();
+		// The worn slot, not the box's own: a box showing a cosmetic must
+		// take the cosmetic off, leaving the real item still equipped.
+		UnequipItemPacket(worn_slot(selected), freeslot).dispatch();
 
 		Sound(Sound::Name::DRAGEND).play();
 
@@ -403,14 +405,32 @@ namespace ms
 		return Button::State::NORMAL;
 	}
 
+	// Which of the two slots behind a box is actually being worn on top.
+	//
+	// A cash equip sits 100 slots above the real one and covers it. The real
+	// item is NOT taken off - it stays equipped and keeps its stats - so the
+	// box shows the cash item while one is there, and taking that off reveals
+	// the real item still underneath.
+	int16_t UIEquipInventory::worn_slot(Equipslot::Id slot) const
+	{
+		Equipslot::Id cash = Equipslot::cash_of(slot);
+
+		if (inventory.get_item_id(InventoryType::Id::EQUIPPED, cash))
+			return cash;
+
+		return slot;
+	}
+
 	void UIEquipInventory::update_slot(Equipslot::Id slot)
 	{
-		if (int32_t item_id = inventory.get_item_id(InventoryType::Id::EQUIPPED, slot))
+		int16_t worn = worn_slot(slot);
+
+		if (int32_t item_id = inventory.get_item_id(InventoryType::Id::EQUIPPED, worn))
 		{
 			const Texture& texture = ItemData::get(item_id).get_icon(false);
 
 			icons[slot] = std::make_unique<Icon>(
-				std::make_unique<EquipIcon>(slot),
+				std::make_unique<EquipIcon>(worn),
 				texture,
 				-1
 				);
@@ -540,7 +560,7 @@ namespace ms
 
 		if (icons[slot])
 			if (int16_t freeslot = inventory.find_free_slot(InventoryType::Id::EQUIP))
-				UnequipItemPacket(slot, freeslot).dispatch();
+				UnequipItemPacket(worn_slot(slot), freeslot).dispatch();
 	}
 
 	bool UIEquipInventory::send_icon(const Icon& icon, Point<int16_t> cursorpos)
@@ -652,7 +672,7 @@ namespace ms
 
 	void UIEquipInventory::EquipIcon::drop_on_equips(Equipslot::Id slot) const
 	{
-		if (source == slot)
+		if (Equipslot::base_of(source) == slot)
 			Sound(Sound::Name::DRAGEND).play();
 	}
 
@@ -672,7 +692,9 @@ namespace ms
 
 		if (equip)
 		{
-			if (eqslot == source)
+			// Same as the other direction: match on where the item belongs,
+			// since a cosmetic's slot is 100 above the box it came out of.
+			if (Equipslot::base_of(eqslot) == Equipslot::base_of(source))
 				EquipItemPacket(slot, eqslot).dispatch();
 		}
 		else
