@@ -19,6 +19,8 @@
 
 #include "UIState.h"
 
+#include <vector>
+
 #include "Components/EquipTooltip.h"
 #include "Components/ItemTooltip.h"
 #include "Components/SkillTooltip.h"
@@ -82,6 +84,13 @@ namespace ms
 		void emplace(Args&& ...args);
 
 		EnumMap<UIElement::Type, UIElement::UPtr, UIElement::Type::NUM_TYPES> elements;
+
+		// Elements taken off screen but not yet freed. remove() can be called
+		// from inside an element's own handler - a dialog closing itself from
+		// its OK callback is the ordinary case - and destroying it there would
+		// pull the ground out from under the code still running. They are
+		// released here instead and freed by the next update().
+		std::vector<UIElement::UPtr> graveyard;
 		std::list<UIElement::Type> elementorder;
 		UIElement::Type focused;
 		UIElement* dragged;

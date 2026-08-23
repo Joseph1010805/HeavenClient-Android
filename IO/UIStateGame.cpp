@@ -91,6 +91,10 @@ namespace ms
 
 	void UIStateGame::update()
 	{
+		// Anything removed since the last frame. Whatever handler asked for it
+		// has long since returned, so this is the safe moment.
+		graveyard.clear();
+
 		bool update_screen = false;
 		int16_t new_width = Constants::Constants::get().get_viewwidth();
 		int16_t new_height = Constants::Constants::get().get_viewheight();
@@ -623,7 +627,17 @@ namespace ms
 		if (auto& element = elements[type])
 		{
 			element->deactivate();
-			element.release();
+
+			// Was `element.release()`, which on a unique_ptr hands back the
+			// raw pointer and forgets it WITHOUT deleting - so every window
+			// ever closed was leaked. It also meant the element's members
+			// never ran their destructors, which quietly disabled the guard
+			// in ~Icon that clears a drag still pointing into it.
+			//
+			// Moving it here frees it on the next update() instead: late
+			// enough that a handler calling remove() on its own element is
+			// still standing on valid memory, and soon enough that it goes.
+			graveyard.push_back(std::move(element));
 		}
 	}
 

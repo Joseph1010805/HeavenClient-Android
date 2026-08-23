@@ -105,39 +105,58 @@ namespace ms
 	{
 		Cursor::State ret = down ? Cursor::State::CLICKING : Cursor::State::IDLE;
 
+		// Only the FIRST button under the cursor reacts. Buttons whose bounds
+		// overlap used to all match, so the click sound played once per
+		// overlapping button and button_pressed ran more than once for a
+		// single press.
+		Button* hit = nullptr;
+		uint16_t hitid = 0;
+
 		for (auto& btit : buttons)
 		{
 			if (btit.second->is_active() && btit.second->bounds(position).contains(pos))
 			{
-				if (btit.second->get_state() == Button::State::NORMAL)
-				{
+				hit = btit.second.get();
+				hitid = btit.first;
+				break;
+			}
+		}
+
+		for (auto& btit : buttons)
+			if (btit.second.get() != hit && btit.second->get_state() == Button::State::MOUSEOVER)
+				btit.second->set_state(Button::State::NORMAL);
+
+		if (hit)
+		{
+			if (down)
+			{
+				// Act on the press itself rather than requiring the button to
+				// already be hovered. A mouse hovers before it clicks, so the
+				// old two-step read naturally there; a finger does not, and
+				// arrives with the button still NORMAL.
+				Sound(Sound::Name::BUTTONCLICK).play();
+
+				Button::State after = button_pressed(hitid);
+
+				// The cursor has not gone anywhere, so settle on MOUSEOVER.
+				// Dropping to NORMAL means the matching release sees a fresh
+				// hover and plays the hover sound again.
+				hit->set_state(after == Button::State::NORMAL
+					? Button::State::MOUSEOVER : after);
+
+				ret = Cursor::State::IDLE;
+			}
+			else
+			{
+				if (hit->get_state() == Button::State::NORMAL)
 					Sound(Sound::Name::BUTTONOVER).play();
 
-					btit.second->set_state(Button::State::MOUSEOVER);
-					ret = Cursor::State::CANCLICK;
-				}
-				else if (btit.second->get_state() == Button::State::MOUSEOVER)
-				{
-					if (down)
-					{
-						Sound(Sound::Name::BUTTONCLICK).play();
-
-						btit.second->set_state(button_pressed(btit.first));
-
-						ret = Cursor::State::IDLE;
-					}
-					else
-					{
-						ret = Cursor::State::CANCLICK;
-					}
-				}
-			}
-			else if (btit.second->get_state() == Button::State::MOUSEOVER)
-			{
-				btit.second->set_state(Button::State::NORMAL);
+				hit->set_state(Button::State::MOUSEOVER);
+				ret = Cursor::State::CANCLICK;
 			}
 		}
 
 		return ret;
 	}
+
 }
