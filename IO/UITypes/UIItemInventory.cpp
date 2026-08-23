@@ -383,7 +383,18 @@ namespace ms
 		case Buttons::BT_TOAD:
 		case Buttons::BT_TOAD_SM:
 		case Buttons::BT_CASHSHOP:
-			OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
+			// DISABLED until SET_CASH_SHOP parses cleanly.
+			//
+			// Asking to enter is not a request the server can refuse politely:
+			// it removes the character from the map and marks the shop open
+			// before sending anything back. If the client then fails to change
+			// screens - which it does, the handler throws part-way through the
+			// reply - the player is left looking at a world they are no longer
+			// standing in, unable to walk or use a portal, with relogging the
+			// only way out.
+			//
+			// Re-enable once the reply is read to the end.
+			// OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
 
 			return Button::State::NORMAL;
 		}

@@ -602,9 +602,18 @@ namespace ms
 		switch (id)
 		{
 		case Buttons::BT_CASHSHOP:
-			// The server answers with SET_CASH_SHOP, which is what actually
-			// changes state - the client only asks.
-			OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
+			// DISABLED until SET_CASH_SHOP parses cleanly.
+			//
+			// Asking to enter is not a request the server can refuse politely:
+			// it removes the character from the map and marks the shop open
+			// before sending anything back. If the client then fails to change
+			// screens - which it does, the handler throws part-way through the
+			// reply - the player is left looking at a world they are no longer
+			// standing in, unable to walk or use a portal, with relogging the
+			// only way out.
+			//
+			// Re-enable once the reply is read to the end.
+			// OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
 			break;
 		case Buttons::BT_MENU:
 			toggle_menu();
