@@ -73,6 +73,10 @@ namespace ms
 		int64_t get_upexp() override;
 
 	private:
+		// Where a window raised from the lower panel is put on the main screen.
+		// Inset a little so it does not sit flush against the corner.
+		static constexpr Point<int16_t> POPUP_FROM_PANEL = { 12, 12 };
+
 		const CharStats& stats;
 
 		bool drop_icon(const Icon& icon, Point<int16_t> pos);

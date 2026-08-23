@@ -44,6 +44,10 @@ namespace ms
 		constexpr int16_t DOT_SPACING = 18;
 		constexpr int16_t DOT_BOTTOM = 10;
 
+		// Where the page's name sits. Between the two arrows, which are inset
+		// at the same height on either side, so a centred title clears both.
+		constexpr int16_t TITLE_TOP = 3;
+
 		// How far in the arrows sit, and how far around them a touch counts.
 		constexpr int16_t ARROW_INSET = 4;
 		// How far around an arrow a touch still counts. This was two thirds of
@@ -328,6 +332,26 @@ namespace ms
 		{
 			touching = false;
 
+			// A finger that travelled was dragging, not pointing.
+			//
+			// Releasing at the end of a drag must never press whatever happens
+			// to be under it: panning the map, or running a finger across the
+			// inventory, would otherwise act on wherever it came to rest. A
+			// click has to be deliberate, which means going down and coming up
+			// in the same place.
+			int16_t moved_x = std::abs(position.x() - touch_start.x());
+			int16_t moved_y = std::abs(position.y() - touch_start.y());
+
+			if (moved_x > DRAG_SLOP || moved_y > DRAG_SLOP)
+			{
+				highlighted = false;
+
+				// Still a hover, so whatever it ended over stays lit.
+				cursor_state = element->send_cursor(false, at);
+
+				return;
+			}
+
 			// One tap does it, everywhere except the world map.
 			//
 			// The map reads first and travels second on purpose: tapping a
@@ -393,8 +417,34 @@ namespace ms
 				Constants::Constants::get().get_viewheight()));
 	}
 
+	const char* SecondScreenPanel::page_name(Page page)
+	{
+		switch (page)
+		{
+		case INVENTORY: return "Inventory";
+		case EQUIPMENT: return "Equipment";
+		case ABILITY:   return "Character";
+		case SKILLS:    return "Skills";
+		case QUESTS:    return "Quests";
+		case HOTKEYS:   return "Hotkeys";
+		case CHAT:      return "Social";
+		default:        return nullptr;
+		}
+	}
+
 	void SecondScreenPanel::draw_chrome(Point<int16_t> screen) const
 	{
+		// Which page this is, across the top. Not on the map: it names itself
+		// and wants every pixel.
+		if (const char* name = page_name(current))
+		{
+			if (page_title.get_text() != name)
+				page_title = Text(Text::Font::A15B, Text::Alignment::CENTER,
+					Color::Name::WHITE, name);
+
+			page_title.draw(Point<int16_t>(screen.x() / 2, TITLE_TOP));
+		}
+
 		// One dot per page, the current one filled, along the bottom.
 		int16_t total = DOT_SPACING * (NUM_PAGES - 1);
 		int16_t left = (screen.x() - total) / 2;

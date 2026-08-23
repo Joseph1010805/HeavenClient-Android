@@ -17,6 +17,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIStateGame.h"
 #include "UI.h"
+#include "SecondScreen.h"
 
 #include "UITypes/UIStatusMessenger.h"
 #include "UITypes/UIStatusbar.h"
@@ -536,6 +537,19 @@ namespace ms
 			(*iter).second = std::make_unique<T>(
 				std::forward<Args>(args)...
 				);
+
+			// A window opened while the player is working on the LOWER screen
+			// gets put where they will find it.
+			//
+			// These windows place themselves near the middle of the main
+			// screen, which is right when a mouse opened them and wrong here:
+			// the player is looking down, the main screen is a foot away above
+			// the panel, and a confirmation could appear anywhere on it without
+			// being noticed. The top-left corner is the one place that is
+			// always the same, never under the mount, and never behind the
+			// status bar.
+			if (T::FOCUSED && SecondScreen::has_cursor())
+				(*iter).second->set_position(POPUP_FROM_PANEL);
 
 			auto silent_types = {
 				UIElement::Type::STATUSMESSENGER,

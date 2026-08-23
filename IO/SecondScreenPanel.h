@@ -77,6 +77,9 @@ namespace ms
 		// bound to. NONE when nothing is selected.
 		Keyboard::Mapping selected_mapping() const;
 
+		// Whether the pointer is on the panel rather than the main screen.
+		bool has_cursor() const { return cursor_here; }
+
 	private:
 		void turn_to(int16_t next);
 
@@ -118,6 +121,11 @@ namespace ms
 		// swipe is until the finger lifts.
 		Point<int16_t> touch_start;
 		Point<int16_t> touch_now;
+		// How far a finger may wander between going down and coming up and
+		// still count as a tap rather than a drag. A finger is never quite
+		// still, so zero would make taps unreliable.
+		static constexpr int16_t DRAG_SLOP = 12;
+
 		bool touching;
 
 		// Which arrow is being held, -1 for back and 1 for forward, 0 for
@@ -141,6 +149,11 @@ namespace ms
 		// it is built rather than only when it is drawn. Mutable because
 		// drawing is where the size arrives and drawing is const.
 		mutable Point<int16_t> panel_screen;
+
+		// The name of the page, across the top. The map is left alone - it is
+		// unmistakable, and it uses every pixel it has.
+		static const char* page_name(Page page);
+		mutable Text page_title;
 
 		// The marks either side saying there is more that way - the character
 		// select screen's own page arrows.

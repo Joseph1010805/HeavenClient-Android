@@ -93,6 +93,10 @@ namespace ms
 		// down instead.
 		Keyboard::Mapping selected_mapping();
 
+		// Whether the pointer is currently on the panel. A window opened while
+		// it is gets put somewhere the player is already looking.
+		bool has_cursor();
+
 		// Play the level-up flourish on the panel. Does nothing where there is
 		// no panel, so the one-screen build is unaffected.
 		void play_levelup();
