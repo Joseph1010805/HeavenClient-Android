@@ -25,6 +25,8 @@
 #include "../Components/MapleButton.h"
 
 #include "../Constants.h"
+#include "../Graphics/GraphicsGL.h"
+#include "../Audio/Audio.h"
 #include "../Gameplay/Stage.h"
 
 #include "../Net/Handlers/CashShopHandlers.h"
@@ -40,6 +42,75 @@
 
 namespace ms
 {
+	const char* UICashShop::category_name(Category c)
+	{
+		switch (c)
+		{
+		case CAT_HAT:     return "HATS";
+		case CAT_FACE:    return "FACE";
+		case CAT_CLOTHES: return "CLOTHES";
+		case CAT_WEAPON:  return "WEAPONS";
+		case CAT_PET:     return "PETS";
+		case CAT_OTHER:   return "OTHER";
+		default:          return "ALL";
+		}
+	}
+
+	UICashShop::Category UICashShop::category_of(int32_t itemid)
+	{
+		// The leading digits say what an item is. 1xxxxxx is equipment, and
+		// the next two narrow it down; 5xxxxxx is the cash-only pile, which
+		// is mostly pets.
+		int32_t group = itemid / 10000;
+
+		if (itemid >= 5000000)
+			return (itemid / 100000 == 50) ? CAT_PET : CAT_OTHER;
+
+		switch (group)
+		{
+		case 100: return CAT_HAT;
+		case 101:
+		case 102:
+		case 103: return CAT_FACE;
+		case 104:
+		case 105:
+		case 106:
+		case 107:
+		case 108:
+		case 110: return CAT_CLOTHES;
+		default: break;
+		}
+
+		// Weapons occupy 130 through 170.
+		if (group >= 130 && group <= 170)
+			return CAT_WEAPON;
+
+		return CAT_OTHER;
+	}
+
+	void UICashShop::rebuild_filter()
+	{
+		filtered.clear();
+
+		for (size_t i = 0; i < items.size(); i++)
+			if (current_category == CAT_ALL
+				|| category_of(items[i].get_itemid()) == current_category)
+				filtered.push_back(i);
+
+		list_offset = 0;
+	}
+
+	// A plain translucent plate with a heading, standing in for the frames the
+	// window's own artwork used to supply.
+	void UICashShop::draw_panel(Point<int16_t> at, int16_t w, int16_t h, const char* title) const
+	{
+		GraphicsGL::get().drawrectangle(at.x(), at.y(), w, h, 0.0f, 0.0f, 0.0f, 0.45f);
+		GraphicsGL::get().drawrectangle(at.x(), at.y(), w, 20, 1.0f, 1.0f, 1.0f, 0.10f);
+
+		panel_title.change_text(title);
+		panel_title.draw(Point<int16_t>(at.x() + 8, at.y() + 2));
+	}
+
 	UICashShop::UICashShop() : preview_index(0), menu_index(1), promotion_index(0), mvp_grade(1), mvp_exp(0.07f), list_offset(0)
 	{
 		// Primary English cash-shop sprites live in CashShopGL.img. A few
@@ -134,6 +205,12 @@ namespace ms
 			items.push_back(Item(itemid, sn, Item::Label::NONE, price, static_cast<uint16_t>(count)));
 		}
 
+		panel_title = Text(Text::Font::A11B, Text::Alignment::LEFT, Color::Name::WHITE);
+		tab_label = Text(Text::Font::A11B, Text::Alignment::CENTER, Color::Name::WHITE);
+		wallet_label = Text(Text::Font::A12B, Text::Alignment::LEFT, Color::Name::SUPERNOVA);
+
+		rebuild_filter();
+
 		for (size_t i = 0; i < MAX_ITEMS; i++)
 		{
 			div_t div = std::div(i, GRID_COLS);
@@ -148,7 +225,9 @@ namespace ms
 			item_percent[i] = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::RED);
 		}
 
-		Point<int16_t> slider_pos = Point<int16_t>(770, GRID_Y);
+		// Just right of the grid rather than out at 770, which was
+		// beyond the items and on top of the preview.
+		Point<int16_t> slider_pos = Point<int16_t>(608, GRID_Y);
 
 		list_slider = Slider(
 			Slider::Type::DEFAULT,
@@ -218,28 +297,48 @@ namespace ms
 
 	void UICashShop::draw(float inter) const
 	{
-		// The preview stage stretches to the window top
-		preview_scene[preview_index].draw(DrawArgument(position + Point<int16_t>(644, 40), Point<int16_t>(366, 310)));
+		// A plain dark ground rather than the window's own picture. That
+		// picture had every panel drawn into it at a fixed place, which is
+		// what made this layout impossible to change and left nowhere to put
+		// the tabs.
+		GraphicsGL::get().drawrectangle(
+			position.x(), position.y(), 1024, 768, 0.06f, 0.07f, 0.10f, 1.0f);
+
+		// LEFT: who you are and what you own.
+		draw_panel(position + Point<int16_t>(LEFT_X, PREVIEW_Y), LEFT_W, PREVIEW_H, "PREVIEW");
+
+		// The scene behind the character, inside the preview panel.
+		preview_scene[preview_index].draw(DrawArgument(
+			position + Point<int16_t>(LEFT_X + 4, PREVIEW_Y + 24),
+			Point<int16_t>(LEFT_W - 8, PREVIEW_H - 28)));
+
+		draw_panel(position + Point<int16_t>(LEFT_X, WARDROBE_Y), LEFT_W, WARDROBE_H, "CASH ITEM WARDROBE");
+		draw_panel(position + Point<int16_t>(LEFT_X, INVENTORY_Y), LEFT_W, INVENTORY_H, "ITEM INVENTORY");
+
+		// RIGHT: the tab row, then what is for sale.
+		for (uint8_t c = 0; c < CAT_COUNT; c++)
+		{
+			int16_t tx = RIGHT_X + c * (TAB_W + 2);
+			bool here = (c == current_category);
+
+			GraphicsGL::get().drawrectangle(
+				position.x() + tx, position.y() + TAB_Y, TAB_W, TAB_H,
+				here ? 0.30f : 0.12f, here ? 0.32f : 0.13f, here ? 0.40f : 0.17f, 1.0f);
+
+			tab_label.change_text(category_name(static_cast<Category>(c)));
+			tab_label.draw(position + Point<int16_t>(tx + TAB_W / 2, TAB_Y + 4));
+		}
+
+		draw_panel(position + Point<int16_t>(RIGHT_X, GRID_Y - 6),
+			RIGHT_W, GRID_ROWS * STRIDE_Y + 12, "");
 
 		UIElement::draw_sprites(inter);
 
-		// Korean menu_tabs / promotion_sprites / mvp_sprites / charge_charset
-		// draws removed — those elements have no English equivalent.
-
-		// NX balances beside the baked labels: NX Prepaid / NX Credit /
-		// Maple Pts (query result order: credit, points, prepaid)
-		cash_balance_text[0].change_text(std::to_string(get_cash_balance(2)));
-		cash_balance_text[1].change_text(std::to_string(get_cash_balance(0)));
-		cash_balance_text[2].change_text(std::to_string(get_cash_balance(1)));
-
-		// One row higher than it was. The artwork lists FIVE rows - Reward
-		// Points, NX Prepaid, NX Credit, Maple Pts., Meso - and only the
-		// middle three have a number the server sends. Starting at 653 put
-		// them against the last three labels instead, so a balance of 100 NX
-		// credit was displayed as 100 maple points, which is a worse kind of
-		// wrong than a missing number.
-		for (int b = 0; b < 3; b++)
-			cash_balance_text[b].draw(position + Point<int16_t>(152, 627 + 26 * b));
+		// One wallet. Only NX credit is ever spent here - every purchase is
+		// sent as currency 1 - and the other two are always nought on this
+		// server, so three numbers only invited the confusion they caused.
+		wallet_label.change_text("Maple Points   " + std::to_string(get_cash_balance(0)));
+		wallet_label.draw(position + Point<int16_t>(LEFT_X + 8, WALLET_Y));
 
 		Point<int16_t> label_pos = position + Point<int16_t>(4, 3);
 		job_label.draw(label_pos);
@@ -247,18 +346,18 @@ namespace ms
 		size_t length = job_label.width();
 		name_label.draw(label_pos + Point<int16_t>(length + 10, 0));
 
-		if (items.empty())
-			item_none.draw(position + Point<int16_t>(430, 360), inter);
+		if (filtered.empty())
+			item_none.draw(position + Point<int16_t>(RIGHT_X + RIGHT_W / 2 - 166, GRID_Y + 180), inter);
 
 		for (size_t i = 0; i < MAX_ITEMS; i++)
 		{
 			int16_t index = i + list_offset;
 
-			if (index < items.size())
+			if (index < static_cast<int16_t>(filtered.size()))
 			{
 				div_t div = std::div(i, GRID_COLS);
 				Point<int16_t> cell = position + Point<int16_t>(GRID_X + STRIDE_X * div.rem, GRID_Y + STRIDE_Y * div.quot);
-				Item item = items[index];
+				Item item = items[filtered[index]];
 
 				item_base.draw(cell, inter);
 				// Icon centered in the card's upper frame; v83 icons carry
@@ -494,9 +593,9 @@ namespace ms
 		{
 			int16_t index = buttonid - Buttons::BtBuy + list_offset;
 
-			if (index >= 0 && index < items.size())
+			if (index >= 0 && index < static_cast<int16_t>(filtered.size()))
 			{
-				Item item = items[index];
+				Item item = items[filtered[index]];
 
 				// Currency type 1 = NX Credit (standard purchase)
 				int8_t currency = 1;
@@ -525,11 +624,35 @@ namespace ms
 		{
 			Point<int16_t> off = cursorpos - position;
 
+			// The tab row first: it sits above the cards and picking a tab
+			// changes what they show, so it has to be tested before them.
+			for (uint8_t c = 0; c < CAT_COUNT; c++)
+			{
+				Rectangle<int16_t> tab(
+					Point<int16_t>(RIGHT_X + c * (TAB_W + 2), TAB_Y),
+					Point<int16_t>(RIGHT_X + c * (TAB_W + 2) + TAB_W, TAB_Y + TAB_H));
+
+				if (!tab.contains(off))
+					continue;
+
+				if (clicked && current_category != c)
+				{
+					current_category = static_cast<Category>(c);
+
+					rebuild_filter();
+					update_items();
+
+					Sound(Sound::Name::TAB).play();
+				}
+
+				return Cursor::State::CANCLICK;
+			}
+
 			for (int16_t i = 0; i < MAX_ITEMS; i++)
 			{
 				int16_t index = i + list_offset;
 
-				if (index >= static_cast<int16_t>(items.size()))
+				if (index >= static_cast<int16_t>(filtered.size()))
 					break;
 
 				div_t cdiv = std::div(i, GRID_COLS);
@@ -540,9 +663,11 @@ namespace ms
 
 				if (card.contains(off))
 				{
-					selected_item = index;
+					// The REAL index, not the position in the grid - the grid
+					// only shows a page of whichever tab is open.
+					selected_item = static_cast<int16_t>(filtered[index]);
 
-					int32_t itemid = items[index].get_itemid();
+					int32_t itemid = items[selected_item].get_itemid();
 
 					if (itemid >= 1000000 && itemid < 2000000)
 					{
@@ -598,7 +723,7 @@ namespace ms
 		for (size_t i = 0; i < MAX_ITEMS; i++)
 		{
 			int16_t index = i + list_offset;
-			bool found_item = index < items.size();
+			bool found_item = index < static_cast<int16_t>(filtered.size());
 
 			buttons[Buttons::BtBuy + i]->set_active(found_item);
 
@@ -609,7 +734,7 @@ namespace ms
 
 			if (found_item)
 			{
-				Item item = items[index];
+				Item item = items[filtered[index]];
 
 				name = item.get_name();
 

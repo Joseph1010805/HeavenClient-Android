@@ -53,17 +53,86 @@ namespace ms
 	private:
 		void update_items();
 
-		// 5 columns x 3 rows of the classic card cells (119x184) in the
-		// center panel, clear of the baked right-column panels
-		static constexpr uint8_t GRID_COLS = 5u;
+		// The shop is laid out by hand rather than stamped from the window's
+		// own picture.
+		//
+		// That picture is a single 1024x768 bitmap with every panel - the
+		// preview, the inventories, the balance labels - already drawn in
+		// place, so nothing could be moved and there was nowhere to put a row
+		// of category tabs. Drawing it ourselves is the same approach the
+		// inventory and character pages take, and for the same reason.
+		//
+		// Left column: the character and what they own. Right: what is for
+		// sale. Modelled on the classic shop rather than this UI version's.
+		static constexpr int16_t PAD = 8;
+
+		static constexpr int16_t LEFT_X = PAD;
+		static constexpr int16_t LEFT_W = 292;
+
+		static constexpr int16_t PREVIEW_Y = 30;
+		static constexpr int16_t PREVIEW_H = 250;
+
+		static constexpr int16_t WARDROBE_Y = PREVIEW_Y + PREVIEW_H + PAD;
+		static constexpr int16_t WARDROBE_H = 150;
+
+		static constexpr int16_t INVENTORY_Y = WARDROBE_Y + WARDROBE_H + PAD;
+		static constexpr int16_t INVENTORY_H = 220;
+
+		// The tab row and the grid of things to buy.
+		static constexpr int16_t RIGHT_X = LEFT_X + LEFT_W + PAD;
+		static constexpr int16_t RIGHT_W = 1024 - RIGHT_X - PAD;
+
+		static constexpr int16_t TAB_Y = 30;
+		static constexpr int16_t TAB_H = 26;
+		static constexpr int16_t TAB_W = 96;
+
+		static constexpr uint8_t GRID_COLS = 4u;
 		static constexpr uint8_t GRID_ROWS = 3u;
 		static constexpr uint8_t MAX_ITEMS = GRID_COLS * GRID_ROWS;
-		static constexpr int16_t GRID_X = 140;
-		static constexpr int16_t GRID_Y = 50;
-		static constexpr int16_t STRIDE_X = 128;
-		static constexpr int16_t STRIDE_Y = 210;
+		static constexpr int16_t GRID_X = RIGHT_X + 6;
+		static constexpr int16_t GRID_Y = TAB_Y + TAB_H + 12;
+		static constexpr int16_t STRIDE_X = 170;
+		static constexpr int16_t STRIDE_Y = 200;
 		static constexpr int16_t CARD_W = 119;
 		static constexpr int16_t CARD_H = 184;
+
+		// One wallet, not three. The server keeps NX credit, maple points and
+		// NX prepaid separately, but only NX credit is ever spent here (every
+		// purchase is sent as currency 1) and the other two stay at zero on
+		// this server unless a coupon is redeemed. Showing three numbers where
+		// two are always nought invites exactly the confusion it caused: a
+		// balance of 100 read as maple points when it was NX.
+		static constexpr int16_t WALLET_Y = 700;
+
+		// What the tabs sort by. MapleStory encodes an item's kind in the
+		// leading digits of its id, which is the only category information
+		// Commodity.img carries.
+		enum Category : uint8_t
+		{
+			CAT_ALL,
+			CAT_HAT,
+			CAT_FACE,
+			CAT_CLOTHES,
+			CAT_WEAPON,
+			CAT_PET,
+			CAT_OTHER,
+			CAT_COUNT
+		};
+
+		static const char* category_name(Category c);
+		static Category category_of(int32_t itemid);
+
+		Category current_category = CAT_ALL;
+
+		// Every item on sale, and the subset the chosen tab shows.
+		std::vector<size_t> filtered;
+
+		void rebuild_filter();
+		void draw_panel(Point<int16_t> at, int16_t w, int16_t h, const char* title) const;
+
+		mutable Text panel_title;
+		mutable Text tab_label;
+		mutable Text wallet_label;
 
 		class Item
 		{
