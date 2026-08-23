@@ -68,4 +68,13 @@ namespace ms
 	{
 		void handle(InPacket& recv) const override;
 	};
+
+	// Handles being moved to another channel - which is also how leaving the
+	// cash shop works, since the shop is not a map but a separate server the
+	// character is parked on. Same shape as SERVER_IP but with no character
+	// id in it, because the server assumes we still know who we are.
+	class ChangeChannelHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
 }

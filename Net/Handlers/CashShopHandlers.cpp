@@ -28,6 +28,7 @@
 #include "../../Gameplay/Stage.h"
 #include "../../IO/UI.h"
 #include "../../IO/UITypes/UIChatBar.h"
+#include "../../IO/UITypes/UICashShop.h"
 #include "../../IO/UITypes/UIStatusMessenger.h"
 #include "../../IO/Window.h"
 
@@ -62,59 +63,119 @@ namespace ms
 		transition();
 	}
 
+	static std::vector<CashLockerItem> s_locker;
+	static int64_t s_pending_take = 0;
+
+	const std::vector<CashLockerItem>& get_cash_locker()
+	{
+		return s_locker;
+	}
+
+	void set_pending_cash_take(int64_t cashid)
+	{
+		s_pending_take = cashid;
+	}
+
+	// One locker record, as PacketCreator::addCashItemInformation writes it
+	// for a non-gift item: 55 bytes, of which three matter here.
+	static CashLockerItem read_locker_item(InPacket& recv)
+	{
+		CashLockerItem item;
+
+		item.cashid = recv.read_long();
+		recv.skip(4);					// account id
+		recv.skip(4);					// always 0
+		item.itemid = recv.read_int();
+		recv.skip(4);					// commodity SN
+		item.quantity = recv.read_short();
+		recv.skip(13);					// gift sender, right-padded
+		recv.skip(8);					// expiration
+		recv.skip(8);					// always 0
+
+		return item;
+	}
+
 	void CashShopOperationHandler::handle(InPacket& recv) const
 	{
 		int8_t operation = recv.read_byte();
 
+		// These sub-opcodes come from Cosmic's PacketCreator, not from a v83
+		// opcode list. The pair that used to be here - 0x4A for success and
+		// 0x4C for failure - are not what this server sends, so a purchase
+		// that worked and a purchase that was refused looked identical from
+		// the outside: nothing at all.
 		switch (operation)
 		{
-		case 0x4A:
+		case 0x4B:	// showCashInventory - the locker, sent on entering
 		{
-			// Buy item success
-			if (auto messenger = UI::get().get_element<UIStatusMessenger>())
-				messenger->show_status(Color::Name::YELLOW, "[Cash Shop] Item purchased successfully!");
+			s_locker.clear();
+
+			int16_t count = recv.read_short();
+
+			for (int16_t i = 0; i < count; i++)
+				s_locker.push_back(read_locker_item(recv));
+
+			// Storage slots and character slots follow; neither is shown.
 			break;
 		}
-		case 0x4C:
+		case 0x57:	// showBoughtCashItem
 		{
-			int8_t reason = recv.read_byte();
-			std::string msg;
-			switch (reason)
+			s_locker.push_back(read_locker_item(recv));
+
+			if (auto shop = UI::get().get_element<UICashShop>())
+				shop->show_message(Color::Name::YELLOW, "Bought. Tap it in MY CASH ITEMS to take it out.");
+			break;
+		}
+		case 0x68:	// takeFromCashInventory - it is on the character now
+		{
+			// The item's own data follows, but there is no need to read it:
+			// the character's full inventory arrives with the map on the way
+			// out of the shop. Only the locker needs correcting, and the
+			// reply does not name the item - so the one that was asked for
+			// is remembered on the way out instead.
+			for (auto it = s_locker.begin(); it != s_locker.end(); ++it)
 			{
-			case 0: msg = "Unknown error."; break;
-			case 1: msg = "You don't have enough NX."; break;
-			case 2: msg = "Item is out of stock."; break;
-			case 3: msg = "Your cash inventory is full."; break;
-			case 4: msg = "This item is not available for purchase."; break;
-			case 5: msg = "You have exceeded the purchase limit."; break;
-			case 6: msg = "You are under the required level."; break;
-			case 7: msg = "You already have this item."; break;
-			default: msg = "Purchase failed (code: " + std::to_string(reason) + ")"; break;
+				if (it->cashid != s_pending_take)
+					continue;
+
+				s_locker.erase(it);
+				break;
 			}
-			if (auto messenger = UI::get().get_element<UIStatusMessenger>())
-				messenger->show_status(Color::Name::RED, "[Cash Shop] " + msg);
+
+			s_pending_take = 0;
+
+			if (auto shop = UI::get().get_element<UICashShop>())
+				shop->show_message(Color::Name::YELLOW, "Taken out. It is in your inventory.");
 			break;
 		}
 		case 0x59:
 		{
-			if (auto messenger = UI::get().get_element<UIStatusMessenger>())
-				messenger->show_status(Color::Name::YELLOW, "[Cash Shop] Coupon redeemed successfully!");
+			if (auto shop = UI::get().get_element<UICashShop>())
+				shop->show_message(Color::Name::YELLOW, "Coupon redeemed.");
 			break;
 		}
-		case 0x5C:
+		case 0x5C:	// showCashShopMessage - one byte, meaning per PacketCreator
 		{
-			int8_t reason = recv.read_byte();
+			uint8_t reason = static_cast<uint8_t>(recv.read_byte());
 			std::string msg;
+
 			switch (reason)
 			{
-			case 0: msg = "Invalid coupon code."; break;
-			case 1: msg = "This coupon has expired."; break;
-			case 2: msg = "This coupon has already been used."; break;
-			case 3: msg = "This coupon is for a different server."; break;
-			default: msg = "Coupon error (code: " + std::to_string(reason) + ")"; break;
+			case 0xA8: msg = "You cannot send a gift to yourself."; break;
+			case 0xA9: msg = "That character does not exist."; break;
+			case 0xB8: msg = "This item cannot be used by your character."; break;
+			case 0xBB: msg = "Your cash inventory is full."; break;
+			case 0xBF: msg = "That item is not for sale right now."; break;
+			case 0xC0: msg = "That item is out of stock."; break;
+			case 0xC1: msg = "You have exceeded your NX spending limit."; break;
+			case 0xC4: msg = "Check your birthday code."; break;
+			case 0xCD: msg = "You have reached the daily purchase limit."; break;
+			case 0xE6: msg = "That item cannot be bought with Maple Points."; break;
+			default: msg = "The cash shop refused that (code 0x" + std::to_string(reason) + ")."; break;
 			}
-			if (auto messenger = UI::get().get_element<UIStatusMessenger>())
-				messenger->show_status(Color::Name::RED, "[Cash Shop] " + msg);
+
+			if (auto shop = UI::get().get_element<UICashShop>())
+				shop->show_message(Color::Name::RED, msg);
 			break;
 		}
 		default:

@@ -19,8 +19,30 @@
 
 #include "../PacketHandler.h"
 
+#include <cstdint>
+#include <vector>
+
 namespace ms
 {
+	// One thing sitting in the cash shop's locker.
+	//
+	// A bought item does NOT go into the character's inventory - it goes
+	// into a per-account locker the shop keeps, and has to be taken out
+	// before it can be worn or used. That is why a purchase that plainly
+	// succeeded still left nothing to show for it anywhere on the character.
+	struct CashLockerItem
+	{
+		int64_t cashid;
+		int32_t itemid;
+		int16_t quantity;
+	};
+
+	// What the locker held when the server last said so.
+	const std::vector<CashLockerItem>& get_cash_locker();
+
+	// The take-out reply (0x68) does not say WHICH item came out, so the
+	// asker records it here before sending the request.
+	void set_pending_cash_take(int64_t cashid);
 	// Handler for entering the Cash Shop
 	class SetCashShopHandler : public PacketHandler
 	{

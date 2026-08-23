@@ -43,6 +43,7 @@ namespace ms
 		SERVERLIST = 10,
 		CHARLIST = 11,
 		SERVER_IP = 12,
+		CHANGE_CHANNEL = 16,
 		CHARNAME_RESPONSE = 13,
 		ADD_NEWCHAR_ENTRY = 14,
 		DELCHAR_RESPONSE = 15,
@@ -189,6 +190,7 @@ namespace ms
 		emplace<ADD_NEWCHAR_ENTRY, AddNewCharEntryHandler>();
 		emplace<DELCHAR_RESPONSE, DeleteCharResponseHandler>();
 		emplace<SERVER_IP, ServerIPHandler>();
+		emplace<CHANGE_CHANNEL, ChangeChannelHandler>();
 
 		// 'Setfield' handlers
 		emplace<SET_FIELD, SetfieldHandler>();

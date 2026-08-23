@@ -98,6 +98,11 @@ namespace ms
 				filtered.push_back(i);
 
 		list_offset = 0;
+
+		// The bar has to shrink with the tab, or a category holding one page
+		// still scrolls through the twenty the full catalogue has.
+		int16_t rowmax = static_cast<int16_t>((filtered.size() + GRID_COLS - 1) / GRID_COLS);
+		list_slider.setrows(0, GRID_ROWS, rowmax > 0 ? rowmax : 1);
 	}
 
 	// A plain translucent plate with a heading, standing in for the frames the
@@ -105,6 +110,10 @@ namespace ms
 	void UICashShop::draw_panel(Point<int16_t> at, int16_t w, int16_t h, const char* title) const
 	{
 		GraphicsGL::get().drawrectangle(at.x(), at.y(), w, h, 0.0f, 0.0f, 0.0f, 0.45f);
+
+		if (!title || !*title)
+			return;
+
 		GraphicsGL::get().drawrectangle(at.x(), at.y(), w, 20, 1.0f, 1.0f, 1.0f, 0.10f);
 
 		panel_title.change_text(title);
@@ -121,14 +130,19 @@ namespace ms
 
 		nl::node Base = CashShop["Base"];
 		nl::node BaseFrame = CashShopGL["BaseFrame"];
-		nl::node backgrnd = BaseFrame["background"];
 		nl::node Preview = Base["Preview"];
-		nl::node CSItemSearch = BaseFrame["CSItemSearch"];
 		nl::node CSList = CashShop["CSList"];
 		nl::node MainItem = CashShopGL["MainMenu"]["MainItem"];
 		nl::node Popup = CashShopGL["Popup"];
 
-		sprites.emplace_back(backgrnd);
+		// The window's own 1024x768 picture is deliberately NOT added.
+		//
+		// It has every panel of the old layout painted into it, so adding it
+		// meant `UIElement::draw_sprites` stamped the whole original shop
+		// over the top of the panels drawn below - which is exactly what it
+		// did: no tabs were visible, and the cards appeared to spill over a
+		// preview frame that was part of the picture rather than part of the
+		// layout. There is nothing left to keep of it.
 
 		// BestNew banner has Korean text baked in — omit. Leave dimensions
 		// zeroed out (item_none fallback still works).
@@ -140,8 +154,11 @@ namespace ms
 			preview_scene[i] = Texture(Preview[i]);
 		}
 
+		// The three backdrop pickers, tucked into the preview panel's own
+		// bottom-right corner rather than left out at 957 where the old
+		// picture had them.
 		for (size_t i = 0; i < 3; i++)
-			buttons[Buttons::BtPreview1 + i] = std::make_unique<TwoSpriteButton>(Base["Tab"]["Disable"][i], Base["Tab"]["Enable"][i], Point<int16_t>(957 + (i * 17), 46));
+			buttons[Buttons::BtPreview1 + i] = std::make_unique<TwoSpriteButton>(Base["Tab"]["Disable"][i], Base["Tab"]["Enable"][i], Point<int16_t>(LEFT_X + LEFT_W - 62 + (i * 17), PREVIEW_Y + 4));
 
 		buttons[Buttons::BtPreview1]->set_state(Button::State::PRESSED);
 
@@ -171,8 +188,9 @@ namespace ms
 		promotion_pos = Point<int16_t>();
 		mvp_pos = Point<int16_t>();
 
-		// English search bar under BaseFrame/CSItemSearch.
-		sprites.emplace_back(CSItemSearch["background"]);
+		// The search bar's background is likewise a fixed-position piece of
+		// the old layout, and there is no textfield behind it to search
+		// with. Left out until there is.
 
 		// Charge NX numeric charset — fall back to CashShop/Base/Number.
 		charge_charset = Charset(Base["Number"], Charset::Alignment::RIGHT);
@@ -209,8 +227,6 @@ namespace ms
 		tab_label = Text(Text::Font::A11B, Text::Alignment::CENTER, Color::Name::WHITE);
 		wallet_label = Text(Text::Font::A12B, Text::Alignment::LEFT, Color::Name::SUPERNOVA);
 
-		rebuild_filter();
-
 		for (size_t i = 0; i < MAX_ITEMS; i++)
 		{
 			div_t div = std::div(i, GRID_COLS);
@@ -225,9 +241,9 @@ namespace ms
 			item_percent[i] = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::RED);
 		}
 
-		// Just right of the grid rather than out at 770, which was
-		// beyond the items and on top of the preview.
-		Point<int16_t> slider_pos = Point<int16_t>(608, GRID_Y);
+		// Hard against the right edge of the grid panel. It used to sit at
+		// 608, which is the middle of the fourth column.
+		Point<int16_t> slider_pos = Point<int16_t>(RIGHT_X + RIGHT_W - 20, GRID_Y);
 
 		list_slider = Slider(
 			Slider::Type::DEFAULT,
@@ -238,8 +254,8 @@ namespace ms
 			[&](bool upwards)
 			{
 				int16_t shift = upwards ? -GRID_COLS : GRID_COLS;
-				bool above = list_offset >= 0;
-				bool below = list_offset + shift < items.size();
+				bool above = list_offset + shift >= 0;
+				bool below = list_offset + shift < static_cast<int16_t>(filtered.size());
 
 				if (above && below)
 				{
@@ -250,6 +266,8 @@ namespace ms
 			}
 		);
 
+		// After the slider exists - rebuild_filter() sizes it.
+		rebuild_filter();
 		update_items();
 
 		// === Sub-panel backgrounds (English — CashShopGL/Popup) ===
@@ -272,9 +290,10 @@ namespace ms
 		// permanently into its baked right-column panel, and the wishlist
 		// has no English art (its data is never parsed client-side).
 
-		// Charge NX under the baked NX-balance panel at (9,646); the
-		// button bitmap's origin drops it just below the panel
-		buttons[Buttons::BtChargeNX] = std::make_unique<MapleButton>(CashShopGL["LeftMenu"]["MyMenu"]["BtChageNx"], Point<int16_t>(10, 646));
+		// No Charge NX button. It opened a web page to buy cash with real
+		// money, which this server has no notion of and which the handler
+		// behind it never had a URL for - a button that could only ever do
+		// nothing. NX is earned from drops here.
 
 		for (int i = 0; i < 3; i++)
 			cash_balance_text[i] = Text(Text::Font::A11B, Text::Alignment::RIGHT, Color::Name::EMPEROR);
@@ -292,7 +311,9 @@ namespace ms
 
 		active_subpanel = SUBPANEL_NONE;
 
-		dimension = Texture(backgrnd).get_dimensions();
+		// The shop owns the whole 1024x768 canvas; there is no bitmap left to
+		// measure it from.
+		dimension = Point<int16_t>(1024, 768);
 	}
 
 	void UICashShop::draw(float inter) const
@@ -304,16 +325,40 @@ namespace ms
 		GraphicsGL::get().drawrectangle(
 			position.x(), position.y(), 1024, 768, 0.06f, 0.07f, 0.10f, 1.0f);
 
-		// LEFT: who you are and what you own.
+		// LEFT: who you are, what you have picked up, and what you own.
 		draw_panel(position + Point<int16_t>(LEFT_X, PREVIEW_Y), LEFT_W, PREVIEW_H, "PREVIEW");
 
 		// The scene behind the character, inside the preview panel.
 		preview_scene[preview_index].draw(DrawArgument(
-			position + Point<int16_t>(LEFT_X + 4, PREVIEW_Y + 24),
-			Point<int16_t>(LEFT_W - 8, PREVIEW_H - 28)));
+			position + Point<int16_t>(LEFT_X + 4, PREVIEW_Y + 22),
+			Point<int16_t>(LEFT_W - 8, PREVIEW_H - 26)));
 
-		draw_panel(position + Point<int16_t>(LEFT_X, WARDROBE_Y), LEFT_W, WARDROBE_H, "CASH ITEM WARDROBE");
-		draw_panel(position + Point<int16_t>(LEFT_X, INVENTORY_Y), LEFT_W, INVENTORY_H, "ITEM INVENTORY");
+		// Your character on the stage, dressed with whatever is selected.
+		// Drawn here, between the backdrop and the panels below it, so
+		// nothing can end up standing on top of the tabs.
+		preview_look.draw(
+			DrawArgument(position + Point<int16_t>(static_cast<int16_t>(char_x), static_cast<int16_t>(STAGE_Y + char_yoff)), !facing_right),
+			inter);
+
+		draw_panel(position + Point<int16_t>(LEFT_X, SELECTED_Y), LEFT_W, SELECTED_H, "SELECTED");
+		draw_panel(position + Point<int16_t>(LEFT_X, INVENTORY_Y), LEFT_W, INVENTORY_H, "MY CASH ITEMS");
+
+		if (selected_item >= 0 && selected_item < static_cast<int16_t>(items.size()))
+		{
+			const Item& sel = items[selected_item];
+			Point<int16_t> pv = position + Point<int16_t>(LEFT_X + 8, SELECTED_Y + 26);
+
+			preview_name.change_text(sel.get_name());
+			preview_name.draw(pv);
+
+			std::string pricestr = std::to_string(sel.get_price()) + " NX";
+
+			if (sel.count > 1)
+				pricestr += "  x" + std::to_string(sel.count);
+
+			preview_price.change_text(pricestr);
+			preview_price.draw(pv + Point<int16_t>(0, preview_name.height()));
+		}
 
 		// RIGHT: the tab row, then what is for sale.
 		for (uint8_t c = 0; c < CAT_COUNT; c++)
@@ -329,10 +374,8 @@ namespace ms
 			tab_label.draw(position + Point<int16_t>(tx + TAB_W / 2, TAB_Y + 4));
 		}
 
-		draw_panel(position + Point<int16_t>(RIGHT_X, GRID_Y - 6),
-			RIGHT_W, GRID_ROWS * STRIDE_Y + 12, "");
-
-		UIElement::draw_sprites(inter);
+		draw_panel(position + Point<int16_t>(RIGHT_X, GRID_Y - 8),
+			RIGHT_W, GRID_ROWS * STRIDE_Y + 16, "");
 
 		// One wallet. Only NX credit is ever spent here - every purchase is
 		// sent as currency 1 - and the other two are always nought on this
@@ -345,6 +388,10 @@ namespace ms
 
 		size_t length = job_label.width();
 		name_label.draw(label_pos + Point<int16_t>(length + 10, 0));
+
+		// What the shop last had to say, centred over the grid.
+		if (status_ticks > 0)
+			status_label.draw(position + Point<int16_t>(RIGHT_X + RIGHT_W / 2, 6));
 
 		if (filtered.empty())
 			item_none.draw(position + Point<int16_t>(RIGHT_X + RIGHT_W / 2 - 166, GRID_Y + 180), inter);
@@ -367,28 +414,6 @@ namespace ms
 				item_name[i].draw(cell + Point<int16_t>(55, 108));
 				item_price[i].draw(cell + Point<int16_t>(58, 127));
 			}
-		}
-
-		// Your character on the stage, dressed with whatever is selected
-		preview_look.draw(
-			DrawArgument(position + Point<int16_t>(static_cast<int16_t>(char_x), static_cast<int16_t>(275.0f + char_yoff)), !facing_right),
-			inter);
-
-		if (selected_item >= 0 && selected_item < static_cast<int16_t>(items.size()))
-		{
-			const Item& sel = items[selected_item];
-			Point<int16_t> pv = position + Point<int16_t>(652, 46);
-
-			preview_name.change_text(sel.get_name());
-			preview_name.draw(pv);
-
-			std::string pricestr = std::to_string(sel.get_price()) + " NX";
-
-			if (sel.count > 1)
-				pricestr += " (" + std::to_string(sel.count) + ")";
-
-			preview_price.change_text(pricestr);
-			preview_price.draw(pv + Point<int16_t>(0, 16));
 		}
 
 		list_slider.draw(position);
@@ -414,28 +439,46 @@ namespace ms
 			break;
 		}
 
-		// Player's cash items rendered into the baked CASH INVENTORY
-		// panel in the right column (7x2 slot grid)
-		const Inventory& inventory = Stage::get().get_player().get_inventory();
-		uint8_t slotmax = inventory.get_slotmax(InventoryType::Id::CASH);
+		// The locker, in the MY CASH ITEMS panel.
+		//
+		// This used to show the character's own CASH inventory tab, which is
+		// not where a purchase lands and so was always empty however much
+		// was bought. Bought items sit in the shop's per-account locker
+		// until they are taken out; that is what is drawn here, and tapping
+		// one takes it out.
+		const std::vector<CashLockerItem>& locker = get_cash_locker();
 		int16_t shown = 0;
 
-		for (int16_t slot = 1; slot <= slotmax && shown < 14; slot++)
+		for (const CashLockerItem& owned : locker)
 		{
-			int32_t item_id = inventory.get_item_id(InventoryType::Id::CASH, slot);
+			if (shown >= SLOT_COLS * SLOT_ROWS)
+				break;
 
-			if (item_id == 0)
-				continue;
+			Point<int16_t> slot_pos = position + locker_slot(shown);
 
-			div_t sdiv = std::div(shown, 7);
-			Point<int16_t> slot_pos = position + Point<int16_t>(771 + 34 * sdiv.rem, 513 + 34 * sdiv.quot);
+			GraphicsGL::get().drawrectangle(
+				slot_pos.x(), slot_pos.y(), 32, 32, 1.0f, 1.0f, 1.0f, 0.08f);
 
 			// v83 item icons carry a (0, 32) origin, so draw at the
 			// slot's bottom edge to land the 32x32 icon inside it.
-			ItemData::get(item_id).get_icon(false).draw(DrawArgument(slot_pos + Point<int16_t>(0, 32)));
+			ItemData::get(owned.itemid).get_icon(false).draw(DrawArgument(slot_pos + Point<int16_t>(0, 32)));
 
 			shown++;
 		}
+
+		if (locker.empty())
+		{
+			panel_title.change_text("Nothing bought yet.");
+			panel_title.draw(position + Point<int16_t>(LEFT_X + 12, INVENTORY_Y + 30));
+		}
+	}
+
+	// Where the nth locker icon sits, relative to the shop's own origin.
+	Point<int16_t> UICashShop::locker_slot(int16_t n)
+	{
+		div_t d = std::div(n, static_cast<int>(SLOT_COLS));
+
+		return Point<int16_t>(SLOT_X + SLOT_PITCH * d.rem, SLOT_Y + SLOT_PITCH * d.quot);
 	}
 
 	void UICashShop::send_key(int32_t keycode, bool pressed, bool escape)
@@ -464,6 +507,9 @@ namespace ms
 	{
 		UIElement::update();
 
+		if (status_ticks > 0)
+			status_ticks--;
+
 		preview_look.update(Constants::TIMESTEP);
 
 		// Walk
@@ -480,11 +526,13 @@ namespace ms
 			char_x += dx;
 			facing_right = dx > 0.0f;
 
-			if (char_x < 662.0f)
-				char_x = 662.0f;
+			// The stage is the preview panel now, not the right-hand third
+			// of the window the old picture gave it.
+			if (char_x < static_cast<float>(STAGE_MIN_X))
+				char_x = static_cast<float>(STAGE_MIN_X);
 
-			if (char_x > 992.0f)
-				char_x = 992.0f;
+			if (char_x > static_cast<float>(STAGE_MAX_X))
+				char_x = static_cast<float>(STAGE_MAX_X);
 		}
 
 		// Jump arc
@@ -525,31 +573,8 @@ namespace ms
 			preview_index = buttonid;
 			return Button::State::PRESSED;
 		case Buttons::BtExit:
-		{
-			uint16_t width = Setting<Width>::get().load();
-			uint16_t height = Setting<Height>::get().load();
-
-			// Restore the user's pre-cashshop UI scale (transition() forced
-			Constants::Constants::get().set_viewwidth(width);
-			Constants::Constants::get().set_viewheight(height);
-
-			float fadestep = 0.025f;
-
-			Window::get().fadeout(
-				fadestep,
-				[]()
-				{
-					GraphicsGL::get().clear();
-					ChangeMapPacket(false, Stage::get().get_mapid(), "", false).dispatch();
-				}
-			);
-
-			GraphicsGL::get().lock();
-			Stage::get().clear();
-			Timer::get().start();
-
+			exit_cashshop();
 			return Button::State::NORMAL;
-		}
 		case Buttons::BtNext:
 		{
 			size_t size = promotion_sprites.size() - 1;
@@ -596,6 +621,21 @@ namespace ms
 			if (index >= 0 && index < static_cast<int16_t>(filtered.size()))
 			{
 				Item item = items[filtered[index]];
+
+				// Say so when it cannot be afforded.
+				//
+				// Cosmic answers a purchase it refuses with nothing but a
+				// fresh balance - `canBuy` fails and it calls
+				// enableCSActions() - so an unaffordable item and a
+				// successful one looked exactly alike from here: nothing
+				// happened. The server still checks; this only makes the
+				// commonest refusal visible.
+				if (item.get_price() > get_cash_balance(0))
+				{
+					show_message(Color::Name::RED, "Not enough Maple Points for that.");
+
+					return Button::State::NORMAL;
+				}
 
 				// Currency type 1 = NX Credit (standard purchase)
 				int8_t currency = 1;
@@ -648,6 +688,24 @@ namespace ms
 				return Cursor::State::CANCLICK;
 			}
 
+			// A locker slot: tapping one takes that item out of the shop's
+			// locker and puts it on the character.
+			const std::vector<CashLockerItem>& locker = get_cash_locker();
+
+			for (int16_t n = 0; n < static_cast<int16_t>(locker.size()) && n < SLOT_COLS * SLOT_ROWS; n++)
+			{
+				Point<int16_t> at = locker_slot(n);
+				Rectangle<int16_t> slot(at, at + Point<int16_t>(32, 32));
+
+				if (!slot.contains(off))
+					continue;
+
+				set_pending_cash_take(locker[n].cashid);
+				TakeFromCashInventoryPacket(locker[n].cashid).dispatch();
+
+				return Cursor::State::CANCLICK;
+			}
+
 			for (int16_t i = 0; i < MAX_ITEMS; i++)
 			{
 				int16_t index = i + list_offset;
@@ -690,32 +748,35 @@ namespace ms
 		return TYPE;
 	}
 
+	void UICashShop::show_message(Color::Name color, const std::string& text)
+	{
+		status_label = Text(Text::Font::A12B, Text::Alignment::CENTER, color, text);
+
+		// About five seconds at the fixed timestep.
+		status_ticks = 300;
+	}
+
 	void UICashShop::exit_cashshop()
 	{
-		UI& ui = UI::get();
-		ui.change_state(UI::State::GAME);
+		// Ask, and wait to be told - do not walk out on our own.
+		//
+		// This used to change state to GAME and load the map locally without
+		// telling the server anything, which left Cosmic still holding the
+		// character in the shop and off the map. The other half of it sent a
+		// full CHANGE_MAP, which Cosmic treats as a hack while the shop is
+		// open and answers by disconnecting - the white screen.
+		//
+		// The real exit is an EMPTY change-map. The server replies with
+		// CHANGE_CHANNEL and the whole return trip is driven from
+		// ChangeChannelHandler: reconnect, log in, and the SET_FIELD that
+		// follows puts the world back, restores the view size and returns
+		// the UI to GAME. Nothing here should anticipate any of that.
+		if (exiting)
+			return;
 
-		// Restore UI scale + physical window size that were overridden in
-		// SetCashShopHandler::transition(). Without this the game world would
-		// remain confined to the 1024x768 cash-shop window at scale 1.0.
-		uint16_t width = Setting<Width>::get().load();
-		uint16_t height = Setting<Height>::get().load();
-		Constants::Constants::get().set_viewwidth(width);
-		Constants::Constants::get().set_viewheight(height);
+		exiting = true;
 
-		Stage& stage = Stage::get();
-		Player& player = stage.get_player();
-
-		PlayerLoginPacket(player.get_oid()).dispatch();
-
-		int32_t mapid = player.get_stats().get_mapid();
-		uint8_t portalid = player.get_stats().get_portal();
-
-		stage.load(mapid, portalid);
-
-		ui.enable();
-		Timer::get().start();
-		GraphicsGL::get().unlock();
+		ExitCashShopPacket().dispatch();
 	}
 
 	void UICashShop::update_items()

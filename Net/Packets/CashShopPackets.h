@@ -37,6 +37,36 @@ namespace ms
 		}
 	};
 
+	// Move an item out of the cash shop's locker and onto the character.
+	// Action 0x0D, and the id is the item's cash id, truncated to an int -
+	// the server reads it with readInt().
+	class TakeFromCashInventoryPacket : public OutPacket
+	{
+	public:
+		TakeFromCashInventoryPacket(int64_t cashid) : OutPacket(OutPacket::Opcode::BUY_CS_ITEM)
+		{
+			write_byte(0x0D);
+			write_int(static_cast<int32_t>(cashid));
+		}
+	};
+
+	// Leave the cash shop and go back to the world.
+	//
+	// Cosmic's ChangeMapHandler decides what a CHANGE_MAP means by its
+	// LENGTH: `enteringMapFromCashShop = p.available() == 0`. An empty body
+	// is the way out of the shop; a body of any size, sent while the shop is
+	// open, is read as a hack and the client is disconnected outright -
+	// which is what the white screen on exit was. So this packet carries
+	// nothing, deliberately, and nothing may be added to it.
+	//
+	// The reply is CHANGE_CHANNEL: leaving the shop is a reconnect to the
+	// channel server, not a map change. See ChangeChannelHandler.
+	class ExitCashShopPacket : public OutPacket
+	{
+	public:
+		ExitCashShopPacket() : OutPacket(OutPacket::Opcode::CHANGEMAP) {}
+	};
+
 	// Opcode: COUPON_CODE(216)
 	class CouponCodePacket : public OutPacket
 	{

@@ -50,6 +50,14 @@ namespace ms
 
 		void exit_cashshop();
 
+		// Say something across the top of the shop for a few seconds.
+		//
+		// The shop cannot use UIStatusMessenger: that lives in the GAME UI
+		// state and this is the CASHSHOP one, so every message sent to it
+		// while the shop was open went nowhere - which is a large part of
+		// why buying appeared to do nothing.
+		void show_message(Color::Name color, const std::string& text);
+
 	private:
 		void update_items();
 
@@ -64,37 +72,58 @@ namespace ms
 		//
 		// Left column: the character and what they own. Right: what is for
 		// sale. Modelled on the classic shop rather than this UI version's.
+		//
+		// The window's own buttons (exit, help, coupon) carry absolute
+		// positions in their origins and land in a band across the top at
+		// y 10-30, so everything below starts at 34.
 		static constexpr int16_t PAD = 8;
 
 		static constexpr int16_t LEFT_X = PAD;
 		static constexpr int16_t LEFT_W = 292;
 
-		static constexpr int16_t PREVIEW_Y = 30;
-		static constexpr int16_t PREVIEW_H = 250;
+		static constexpr int16_t PREVIEW_Y = 34;
+		static constexpr int16_t PREVIEW_H = 296;
 
-		static constexpr int16_t WARDROBE_Y = PREVIEW_Y + PREVIEW_H + PAD;
-		static constexpr int16_t WARDROBE_H = 150;
+		static constexpr int16_t SELECTED_Y = PREVIEW_Y + PREVIEW_H + PAD;
+		static constexpr int16_t SELECTED_H = 108;
 
-		static constexpr int16_t INVENTORY_Y = WARDROBE_Y + WARDROBE_H + PAD;
-		static constexpr int16_t INVENTORY_H = 220;
+		static constexpr int16_t INVENTORY_Y = SELECTED_Y + SELECTED_H + PAD;
+		static constexpr int16_t INVENTORY_H = 244;
 
 		// The tab row and the grid of things to buy.
 		static constexpr int16_t RIGHT_X = LEFT_X + LEFT_W + PAD;
 		static constexpr int16_t RIGHT_W = 1024 - RIGHT_X - PAD;
 
-		static constexpr int16_t TAB_Y = 30;
+		static constexpr int16_t TAB_Y = 34;
 		static constexpr int16_t TAB_H = 26;
-		static constexpr int16_t TAB_W = 96;
+		static constexpr int16_t TAB_W = 88;
 
 		static constexpr uint8_t GRID_COLS = 4u;
 		static constexpr uint8_t GRID_ROWS = 3u;
 		static constexpr uint8_t MAX_ITEMS = GRID_COLS * GRID_ROWS;
-		static constexpr int16_t GRID_X = RIGHT_X + 6;
-		static constexpr int16_t GRID_Y = TAB_Y + TAB_H + 12;
+		static constexpr int16_t GRID_X = RIGHT_X + 12;
+		static constexpr int16_t GRID_Y = TAB_Y + TAB_H + 14;
 		static constexpr int16_t STRIDE_X = 170;
 		static constexpr int16_t STRIDE_Y = 200;
 		static constexpr int16_t CARD_W = 119;
 		static constexpr int16_t CARD_H = 184;
+
+		// The locker grid inside MY CASH ITEMS: 32x32 icons on a 36px pitch,
+		// centred in the panel.
+		static constexpr int16_t SLOT_COLS = 7;
+		static constexpr int16_t SLOT_PITCH = 36;
+		static constexpr int16_t SLOT_X = LEFT_X + (LEFT_W - SLOT_COLS * SLOT_PITCH) / 2;
+		static constexpr int16_t SLOT_Y = INVENTORY_Y + 26;
+		static constexpr int16_t SLOT_ROWS = (INVENTORY_H - 30) / SLOT_PITCH;
+
+		static Point<int16_t> locker_slot(int16_t n);
+
+		// Where the character stands inside the preview panel, and how far
+		// left and right the arrow keys may walk them without leaving it.
+		static constexpr int16_t STAGE_X = LEFT_X + LEFT_W / 2;
+		static constexpr int16_t STAGE_Y = PREVIEW_Y + PREVIEW_H - 40;
+		static constexpr int16_t STAGE_MIN_X = LEFT_X + 40;
+		static constexpr int16_t STAGE_MAX_X = LEFT_X + LEFT_W - 40;
 
 		// One wallet, not three. The server keeps NX credit, maple points and
 		// NX prepaid separately, but only NX credit is ever spent here (every
@@ -102,7 +131,7 @@ namespace ms
 		// this server unless a coupon is redeemed. Showing three numbers where
 		// two are always nought invites exactly the confusion it caused: a
 		// balance of 100 read as maple points when it was NX.
-		static constexpr int16_t WALLET_Y = 700;
+		static constexpr int16_t WALLET_Y = INVENTORY_Y + INVENTORY_H + PAD;
 
 		// What the tabs sort by. MapleStory encodes an item's kind in the
 		// leading digits of its id, which is the only category information
@@ -124,6 +153,11 @@ namespace ms
 
 		Category current_category = CAT_ALL;
 
+		// Set once the exit packet is away. Escape and the exit button both
+		// reach exit_cashshop(), and asking twice would leave the server
+		// answering a request from a client that had already left.
+		bool exiting = false;
+
 		// Every item on sale, and the subset the chosen tab shows.
 		std::vector<size_t> filtered;
 
@@ -133,6 +167,9 @@ namespace ms
 		mutable Text panel_title;
 		mutable Text tab_label;
 		mutable Text wallet_label;
+
+		Text status_label;
+		int16_t status_ticks = 0;
 
 		class Item
 		{
@@ -240,7 +277,7 @@ namespace ms
 		CharLook preview_look;
 
 		// Controllable stage character
-		float char_x = 820.0f;
+		float char_x = static_cast<float>(STAGE_X);
 		float char_yoff = 0.0f;
 		float char_vy = 0.0f;
 		bool char_jumping = false;

@@ -75,22 +75,33 @@ namespace ms
 		transition(mapid, portalid);
 	}
 
+	// Who we last logged in as.
+	//
+	// This packet arrives twice in a session: once from the login screen,
+	// where the character select can be asked who the id belongs to, and
+	// again on coming back from the cash shop, where the login screen is
+	// long gone and there is nothing left to ask. The answer has not changed
+	// in between, so it is kept.
+	static CharEntry s_last_entry;
+
 	void SetfieldHandler::set_field(InPacket& recv) const
 	{
 		recv.skip(23);
 
 		int32_t cid = recv.read_int();
-		auto charselect = UI::get().get_element<UICharSelect>();
 
-		if (!charselect)
+		if (auto charselect = UI::get().get_element<UICharSelect>())
+		{
+			const CharEntry& entry = charselect->get_character(cid);
+
+			if (entry.id == cid)
+				s_last_entry = entry;
+		}
+
+		if (s_last_entry.id != cid)
 			return;
 
-		const CharEntry& playerentry = charselect->get_character(cid);
-
-		if (playerentry.id != cid)
-			return;
-
-		Stage::get().loadplayer(playerentry);
+		Stage::get().loadplayer(s_last_entry);
 
 		LoginParser::parse_stats(recv);
 

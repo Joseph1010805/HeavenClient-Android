@@ -22,6 +22,8 @@
 #include "../Session.h"
 
 #include "../Packets/LoginPackets.h"
+
+#include "../../Gameplay/Stage.h"
 #include "../IO/UI.h"
 
 #include "../IO/UITypes/UILoginNotice.h"
@@ -259,6 +261,32 @@ namespace ms
 		int32_t cid = recv.read_int();
 
 		// Attempt to reconnect to the server and if successfull, login to the game.
+		Session::get().reconnect(addrstr.c_str(), portstr.c_str());
+		PlayerLoginPacket(cid).dispatch();
+	}
+
+	void ChangeChannelHandler::handle(InPacket& recv) const
+	{
+		recv.read_byte(); // always 1
+
+		std::string addrstr;
+
+		for (int i = 0; i < 4; i++)
+		{
+			uint8_t num = static_cast<uint8_t>(recv.read_byte());
+			addrstr.append(std::to_string(num));
+
+			if (i < 3)
+				addrstr.push_back('.');
+		}
+
+		std::string portstr = std::to_string(recv.read_short());
+
+		// No character id is sent - the server takes it that we still know
+		// who we are, and we do: the player survives Stage::clear(), which
+		// is the only thing the cash shop transition did to it.
+		int32_t cid = Stage::get().get_player().get_oid();
+
 		Session::get().reconnect(addrstr.c_str(), portstr.c_str());
 		PlayerLoginPacket(cid).dispatch();
 	}
