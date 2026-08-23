@@ -641,10 +641,20 @@ namespace ms
 				// Touching this screen brings the pointer back to it.
 				UI::get().set_cursor_visible(true);
 
+				// The touch arrives as a FRACTION of the screen, so it has to be
+				// multiplied by the size the game is currently drawing at - not
+				// the size it was drawing at when the window was made.
+				//
+				// `width` and `height` are captured once at startup. The cash
+				// shop draws at 1024x768 rather than 800x600, so every tap was
+				// landing at 78% of the distance across, which is far enough to
+				// miss the button being aimed at. Same shape of bug as the
+				// renderer being left on the old size - a cached copy of
+				// something that can change.
 				UI::get().send_cursor(
 					Point<int16_t>(
-						static_cast<int16_t>(ev.tfinger.x * width),
-						static_cast<int16_t>(ev.tfinger.y * height)
+						static_cast<int16_t>(ev.tfinger.x * Constants::Constants::get().get_viewwidth()),
+						static_cast<int16_t>(ev.tfinger.y * Constants::Constants::get().get_viewheight())
 					)
 				);
 
