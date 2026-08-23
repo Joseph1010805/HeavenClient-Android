@@ -613,7 +613,7 @@ namespace ms
 			// only way out.
 			//
 			// Re-enable once the reply is read to the end.
-			// OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
+			OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
 			break;
 		case Buttons::BT_MENU:
 			toggle_menu();

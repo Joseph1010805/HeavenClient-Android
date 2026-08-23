@@ -394,7 +394,7 @@ namespace ms
 			// only way out.
 			//
 			// Re-enable once the reply is read to the end.
-			// OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
+			OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
 
 			return Button::State::NORMAL;
 		}
