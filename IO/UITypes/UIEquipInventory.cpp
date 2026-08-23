@@ -132,6 +132,63 @@ namespace ms
 		change_tab(Buttons::BT_TAB0);
 	}
 
+	// Everything the grid shows, in reading order. Short names: a cell is 52
+	// wide and "SHOULDER" is not.
+	const UIEquipInventory::PanelSlot UIEquipInventory::PANEL_SLOTS[] = {
+		{ Equipslot::Id::HAT,      "HAT"    },
+		{ Equipslot::Id::FACE,     "FACE"   },
+		{ Equipslot::Id::EYEACC,   "EYE"    },
+		{ Equipslot::Id::EARACC,   "EAR"    },
+		{ Equipslot::Id::TOP,      "TOP"    },
+		{ Equipslot::Id::BOTTOM,   "BOTTOM" },
+		{ Equipslot::Id::SHOES,    "SHOES"  },
+		{ Equipslot::Id::GLOVES,   "GLOVE"  },
+		{ Equipslot::Id::CAPE,     "CAPE"   },
+		{ Equipslot::Id::SHIELD,   "SHIELD" },
+		{ Equipslot::Id::WEAPON,   "WEAPON" },
+		{ Equipslot::Id::SHOULDER, "SHLDR"  },
+		{ Equipslot::Id::RING1,    "RING 1" },
+		{ Equipslot::Id::RING2,    "RING 2" },
+		{ Equipslot::Id::RING3,    "RING 3" },
+		{ Equipslot::Id::RING4,    "RING 4" },
+		{ Equipslot::Id::PENDANT1, "PEND 1" },
+		{ Equipslot::Id::PENDANT2, "PEND 2" },
+		{ Equipslot::Id::MEDAL,    "MEDAL"  },
+		{ Equipslot::Id::BELT,     "BELT"   },
+		{ Equipslot::Id::POCKET,   "POCKET" },
+		{ Equipslot::Id::EMBLEM,   "EMBLEM" },
+		{ Equipslot::Id::BADGE,    "BADGE"  }
+	};
+
+	const size_t UIEquipInventory::PANEL_SLOT_COUNT =
+		sizeof(PANEL_SLOTS) / sizeof(PANEL_SLOTS[0]);
+
+	void UIEquipInventory::build_panel_grid()
+	{
+		int16_t grid_w = PANEL_COLS * PANEL_CELL_W;
+		int16_t left = (panel_screen.x() - grid_w) / 2;
+
+		// Every slot the rack knew about is forgotten first: anything left
+		// with its old character-shaped position would still answer to a
+		// touch there, on a part of the screen now showing something else.
+		for (auto iter : iconpositions)
+			iter.second = Point<int16_t>(-1000, -1000);
+
+		for (size_t i = 0; i < PANEL_SLOT_COUNT; i++)
+		{
+			int16_t col = static_cast<int16_t>(i % PANEL_COLS);
+			int16_t row = static_cast<int16_t>(i / PANEL_COLS);
+
+			iconpositions[PANEL_SLOTS[i].slot] = Point<int16_t>(
+				left + col * PANEL_CELL_W + PANEL_ICON_X,
+				PANEL_GRID_TOP + row * PANEL_CELL_H);
+
+			panel_slot_names[PANEL_SLOTS[i].slot] = Text(
+				Text::Font::A11M, Text::Alignment::CENTER,
+				Color::Name::WHITE, PANEL_SLOTS[i].name);
+		}
+	}
+
 	void UIEquipInventory::set_panel(Point<int16_t> screen)
 	{
 		panel = true;
@@ -162,6 +219,17 @@ namespace ms
 			Color::Name::WHITE, Color::Name::TUNA);
 
 		action_text.change_text("UNEQUIP");
+
+		// Lay the boxes out and move every slot onto them. Last, so it
+		// overwrites the rack positions set up by the constructor.
+		build_panel_grid();
+
+		// As tall as the grid needs, so the page centres it correctly.
+		int16_t rows = static_cast<int16_t>(
+			(PANEL_SLOT_COUNT + PANEL_COLS - 1) / PANEL_COLS);
+
+		dimension = Point<int16_t>(screen.x(),
+			PANEL_GRID_TOP + rows * PANEL_CELL_H + 8);
 	}
 
 	Rectangle<int16_t> UIEquipInventory::action_bounds() const
@@ -234,11 +302,20 @@ namespace ms
 			// later-version feature and are inert here.
 			UIElement::draw_buttons(alpha);
 
-			// The slot squares stay, at half strength: they carry the labels -
-			// RING, WEAPON, CAPE - and without them nothing says which square
-			// is which. What goes IN them is drawn at full strength below.
-			for (auto slot : Slots[tab])
-				slot.draw(DrawArgument(position, PANEL_FADE));
+			// A box per slot, captioned with what goes in it - the same shape
+			// as the bag rather than the character-shaped rack, whose labels
+			// live in artwork that is not drawn here.
+			for (size_t i = 0; i < PANEL_SLOT_COUNT; i++)
+			{
+				Equipslot::Id id = PANEL_SLOTS[i].slot;
+				Point<int16_t> at = position + iconpositions[id];
+
+				GraphicsGL::get().drawrectangle(
+					at.x(), at.y(), 32, 32, 1.0f, 1.0f, 1.0f, 0.14f);
+
+				panel_slot_names[id].draw(
+					Point<int16_t>(at.x() + 16, at.y() + 33));
+			}
 
 			// What is picked, marked rather than faded - nothing here greys out.
 			if (selected != Equipslot::Id::NONE)

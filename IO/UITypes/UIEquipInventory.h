@@ -94,6 +94,31 @@ namespace ms
 		void load_icons();
 		void update_slot(Equipslot::Id slot);
 		Equipslot::Id slot_by_position(Point<int16_t> position) const;
+
+		// On the panel the worn equipment is a grid of captioned boxes rather
+		// than the character-shaped rack the window uses. The rack labels its
+		// squares in the artwork, and that artwork is not drawn here - so each
+		// box carries its slot's name instead, and the whole thing reads the
+		// same way the bag does.
+		static constexpr int16_t PANEL_COLS = 6;
+		static constexpr int16_t PANEL_CELL_W = 52;
+		static constexpr int16_t PANEL_CELL_H = 50;
+		static constexpr int16_t PANEL_GRID_TOP = 46;
+
+		// Where the 32x32 icon sits inside its cell.
+		static constexpr int16_t PANEL_ICON_X = 10;
+
+		// Which slots the grid shows, in order, and what to call each.
+		struct PanelSlot { Equipslot::Id slot; const char* name; };
+		static const PanelSlot PANEL_SLOTS[];
+		static const size_t PANEL_SLOT_COUNT;
+
+		// Lays the grid out and puts every slot's position in iconpositions,
+		// which is what slot_by_position already reads - so hit-testing
+		// follows the boxes without being told about them separately.
+		void build_panel_grid();
+
+		mutable Text panel_slot_names[Equipslot::Id::LENGTH];
 		void change_tab(uint16_t tabid);
 
 		class EquipIcon : public Icon::Type
