@@ -37,17 +37,30 @@ command -v keytool >/dev/null 2>&1 || {
 
 echo "Making a 10,000-day signing key in '$OUT'."
 echo
-echo "You will be asked for a password. Choose one you can find again in five"
-echo "years; write it down with the backup of the keystore itself. There is no"
-echo "way to recover either."
+echo "The ONLY thing you will be asked for is a password. Choose one you can"
+echo "find again in five years and write it down with the backup of the"
+echo "keystore itself - there is no way to recover either."
+echo
+echo "Type it yourself. Do not let it get typed into a chat window, a script,"
+echo "or a command line: shell history and transcripts outlive the moment, and"
+echo "this is the one credential that can never be rotated."
 echo
 
+# The certificate's identity fields are supplied here rather than prompted for.
+#
+# keytool otherwise asks six questions - name, unit, organisation, city,
+# state, country - none of which mean anything for a self-signed app signing
+# key. Nothing checks them and no authority vouches for them; Android cares
+# only that today's signature matches the one the app was installed with. Six
+# prompts that do not matter are six chances to give up halfway through
+# something you only get one shot at.
 keytool -genkeypair \
 	-keystore "$OUT" \
 	-alias "$ALIAS" \
 	-keyalg RSA \
 	-keysize 4096 \
-	-validity 10000
+	-validity 10000 \
+	-dname "CN=LocalStory, OU=LocalStory, O=LocalStory, L=Unknown, ST=Unknown, C=US"
 
 echo
 echo "================================================================"
