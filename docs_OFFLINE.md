@@ -51,17 +51,48 @@ collations, no JSON functions, no CHECK constraints. One
 `latin1_german1_ci`, which MariaDB supports. The dialect difference does not
 reach us.
 
+## ⚠ Android 12 and up will kill the server unless told not to
+
+The single most important thing on this page, and it is invisible until the
+server dies for no reason ten minutes in.
+
+Android 12 introduced the **phantom process killer**: child processes spawned
+by an app - which is exactly what `mariadbd` and `java` are under Termux -
+are counted, capped at 32, and killed for using CPU in the background. A
+database and a game server are the textbook case. Over adb, no root:
+
+    adb shell settings put global settings_enable_monitor_phantom_procs false
+    adb shell /system/bin/device_config set_sync_disabled_for_tests persistent
+    adb shell /system/bin/device_config put activity_manager max_phantom_processes 2147483647
+
+Done on the Thor (Android 13) on 23 August. **It must be redone on any other
+device, and may need redoing after a system update.** Check with:
+
+    adb shell settings get global settings_enable_monitor_phantom_procs
+
 ## Doing it
 
     tools/stage_server.sh <device-serial>     # on the PC
 
-then on the handheld, in Termux (from **F-Droid** - the Play Store build is
-years old and its repository no longer resolves):
+Termux itself can be installed over adb rather than by hand - the official
+build, from the project's own GitHub releases:
 
-    termux-setup-storage
-    cp /sdcard/Download/cosmic/termux_setup.sh ~
-    bash ~/termux_setup.sh
-    ~/cosmic/run.sh
+    # arm64 device; there are per-ABI APKs and a universal one
+    curl -LO https://github.com/termux/termux-app/releases/download/    v0.118.3/termux-app_v0.118.3%2Bgithub-debug_arm64-v8a.apk
+    adb install -r termux-app_*.apk
+    adb shell pm grant com.termux android.permission.READ_EXTERNAL_STORAGE
+    adb shell pm grant com.termux android.permission.WRITE_EXTERNAL_STORAGE
+
+Granting storage that way saves the on-screen prompt `termux-setup-storage`
+would otherwise raise. **Do not mix the GitHub and F-Droid builds** - they
+are signed with different keys and will not upgrade over one another.
+
+Then, on the handheld, one line:
+
+    bash /sdcard/Download/cosmic/termux_setup.sh
+
+and after it finishes, the SERVER switch on the game's login screen does the
+rest. `~/cosmic/run.sh` still starts it by hand if wanted.
 
 Both scripts are re-runnable and check every step before doing it.
 
