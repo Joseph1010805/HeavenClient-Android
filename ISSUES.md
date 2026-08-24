@@ -168,17 +168,20 @@ Wanted layout, left to right:
   zero guilds - but it is the same class of bug as the quest-progress one, and
   it will bite the day somebody makes a guild.
 
-- **Second screen (Thor branch).** Menus - map, skills, inventory - on the
-  handheld's lower display instead of over the game. Confirmed feasible:
-  display 4 is a real touch-capable screen carrying FLAG_PRESENTATION. Needs a
-  Presentation and a second EGL surface sharing the GL context, since SDL2
-  supports only one window on Android.
 - **Windows build.** The desktop code is still in the tree. Would make UI work
   far quicker to check, since it could be run and looked at directly rather than
   pushed to a device each time.
 
 ## Fixed
 
+- **The AYN Thor's second screen.** The menus live on the handheld's lower
+  display instead of on top of the game: a deck of eight swipeable pages -
+  world map, inventory, equipment, ability, skills, quests, hotkeys, chat -
+  each staying where it was left. Display 4 is a real touch-capable screen
+  carrying FLAG_PRESENTATION; it works through a Presentation and a second EGL
+  surface sharing the GL context, since SDL2 allows only one window on Android.
+  `android/.../SecondScreen.java` and `IO/SecondScreenPanel.cpp`.
+  *(Its remaining rough edges are under Open, in "the lower panel".)*
 - **A dead host left the client stuck on a Start button that did nothing.**
   Killing an app doesn't reliably send a FIN, so a client that isn't writing
   never finds out. 45 seconds of silence is now treated as a disconnect and

@@ -79,8 +79,8 @@ crash if you don't know to expect it.
 **Works:** moving, jumping, ladders and ropes, combat, dying, loot, the
 inventory, equipping, skills and spending points, shops, NPC conversation,
 levelling, standing HP and MP recovery, the minimap and the world map, the
-cash shop (browsing, buying, taking out, wearing), and hosting or joining a
-game from the login screen.
+cash shop (browsing, buying, taking out, wearing), hosting or joining a game
+from the login screen, and the AYN Thor's second screen.
 
 **Doesn't, yet:**
 
@@ -231,6 +231,24 @@ client needs has a sensible default, so those four lines are enough.
 Use 800x600. The login and character screens were built for that size and don't
 adapt, so anything else leaves buttons and characters in the wrong places. The
 picture is scaled up to fill your screen either way.
+
+## The second screen (AYN Thor)
+
+On a Thor the menus move off the game and onto the handheld's lower display -
+a deck of eight pages you swipe between, each staying where you left it:
+
+**world map · inventory · equipment · ability · skills · quests · hotkeys · chat**
+
+So the map is simply *there* while you play, rather than something you open on
+top of what you're looking at.
+
+Display 4 on the Thor is a real touch-capable screen carrying
+`FLAG_PRESENTATION`. It's driven through an Android `Presentation` with a
+second EGL surface sharing the GL context, because SDL2 allows only one window
+on Android - `android/.../SecondScreen.java` and `IO/SecondScreenPanel.cpp`.
+
+Devices without a second display are unaffected; the panel simply doesn't
+appear and the menus behave normally.
 
 ## Playing together
 
