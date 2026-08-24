@@ -99,9 +99,8 @@ Both scripts are re-runnable and check every step before doing it.
 
 ## What is still unknown
 
-Cosmic under Termux has never been run. Java 21 on aarch64 is routine, the
-JAR needs no rebuild, and the SQL checks out, so it ought to start. What
-cannot be predicted from here:
+Cosmic under Termux now runs on both handhelds - the RP5 comes up in about
+6.5 seconds from a cold `run.sh`. What is still not measured:
 
 - **Memory.** Cosmic, MariaDB and the game all on one handheld, and the game
   holds an 8192x8192 texture atlas of its own. `run.sh` asks for 1536m rather
@@ -112,20 +111,83 @@ cannot be predicted from here:
 
 It fails cheaply. Either it starts or it prints why.
 
-## Carrying a character, and the trap in it
+## Carrying a character
 
 Two different problems, and conflating them makes the easy one look hard.
 
 **One place at a time** - everyone is in the car, nobody is playing at home.
-Copy the whole database out before leaving and back afterwards. It is 6.7 MB;
-`mysqldump` each way takes seconds. **This is almost certainly the real case,
-and it needs no work at all.**
+Copy the whole database out before leaving and back afterwards; that is
+`tools/sync_world.sh`, and it refuses to run in the wrong direction.
 
-**Two places at once** - somebody plays at home while a character is away.
-Now a whole-database copy destroys whichever side is written second, and the
-answer is per-character export/import: the `characters` row plus the ~21
-tables keyed by `characterid` (inventoryitems, equipment, skills, cooldowns,
-skillmacros, quest*, keymap, savedlocations, famelog, monsterbook, ...). A
-bounded few days' work.
+**Several places at once** - the day this house actually has. The Thor joins
+somebody for two hours, the RP5 hosts alone for four, the Quest hosts with
+friends for another two, and in the evening all three play together. Three
+worlds, all changed, none of them merge-able. A whole-database copy destroys
+whichever side is written second.
 
-Do the trivial one first. Build the other when somebody actually needs it.
+But nothing needs to merge. Each of those is a different **character**.
+Nobody's progress collided - it just ended up in three places. So the answer
+is not to reconcile worlds, it is to gather characters, and that is
+`tools/character.py`:
+
+```
+python tools/character.py where pc 6b0cf210          what is where
+python tools/character.py account joey pc 6b0cf210   take a player with you
+python tools/character.py verify joey pc 6b0cf210    prove it arrived whole
+```
+
+The unit is an **account**, not a character, because Cosmic gives an account
+three slots and a person thinks of all three as theirs. Each character is
+still judged on its own `lastLogoutTime`, so a stale copy of one cannot ride
+along on a fresh copy of another, and moving a copy over a newer one is
+refused - that is somebody's evening. `--force` overrides.
+
+What a character IS gets read out of `information_schema` rather than listed
+here, so it cannot drift when the server is updated: the `characters` row,
+the ~20 tables keyed by `characterid`, and `inventoryequipment` - which hangs
+off the inventory **item**, not the character. That last level is the one a
+naive copy silently loses, taking every scroll and every stat on every equip
+with it.
+
+Three things this cost, every one of them silent:
+
+- The tabbed transport **ate the last field of the last row**. A row whose
+  final column is an empty string ends in a tab, and `.strip()` removes it;
+  `zip()` then dropped the last *column* without complaining. It surfaced only
+  because `giftFrom` happens to be NOT NULL with no default. Had it been
+  nullable, characters would have arrived subtly wrong forever.
+- **The PC and the handhelds are at different Liquibase revisions**, so a
+  column on one side may not exist on the other. Only shared columns travel.
+- The first failed run **left an account and a stub character behind**. The
+  whole move is one transaction now.
+
+`verify` walks all 72 character fields and all 22 equipment fields rather
+than counting rows, because the count was right while the data was wrong.
+
+**What is NOT built:** any of this from inside the game. `character.py` needs
+a PC and adb, so today it is a tool for one person, not for the family. The
+in-game "bring my characters with me" flow is the next piece.
+
+## If the host dies mid-session
+
+Cosmic autosaves every logged-in character **every 60 seconds**
+(`World.java`, `CharacterAutosaverTask`) - it was every two minutes, and the
+`config.yaml` comment claiming "each 1 hour" was simply wrong. The save is a
+full one: inventory and equipment included. `notAutosave` only changes a log
+line.
+
+That interval is exactly how much of everyone's evening an outage costs, and
+this server runs on a handheld somebody can close, drop, or run flat with no
+warning.
+
+The autosaver now says so at INFO, once per pass - `autosaved 3 character(s)
+in 41 ms` in `cosmic.log`. The per-character line it replaced was at DEBUG,
+which is off, so there was no way to tell the difference between saving every
+minute and not running at all.
+
+On the client side, losing the host is no longer fatal: `Net/Session.cpp`
+treats 45 seconds of silence as a disconnect and returns to the login screen,
+where hosting yourself or joining somebody else is two taps away. Killing an
+app does not always close its sockets, so a client that is not writing can sit
+forever on a character select it can no longer act on - which is exactly what
+happened, and looked like a broken Start button.
