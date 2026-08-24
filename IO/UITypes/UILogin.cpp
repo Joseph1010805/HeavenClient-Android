@@ -19,6 +19,7 @@
 
 #include "../../Graphics/GraphicsGL.h"
 #include "../../Util/LocalServer.h"
+#include "../../Util/Silent.h"
 #include "../../Net/Session.h"
 #include "UILoginwait.h"
 #include "UILoginNotice.h"
@@ -233,7 +234,7 @@ namespace ms
 			{
 				{ readiness.termux,      "Termux installed",  "install it - see docs_OFFLINE.md" },
 				{ readiness.permission,  "May start the server", "tap HOST again and allow it" },
-				{ readiness.server,      "Game server set up", "run termux_setup.sh once" },
+				{ readiness.server,      "Server running here", "starting - give it half a minute" },
 				{ readiness.wifi_direct, "Can make its own network", "not needed if there is wifi" }
 			};
 
@@ -327,10 +328,18 @@ namespace ms
 
 		readiness = LocalServer::check();
 
-		// Nothing else here can work until the device is set up, and saying
-		// so as a list beats failing later with one message.
-		if (!readiness.ready())
+		// Nothing here can work until the device is set up, and saying so as
+		// a list beats failing later with one message.
+		if (!readiness.can_try())
+		{
+			Silent::report("UILogin::choose_host",
+				std::string("cannot host - termux=") + (readiness.termux ? "1" : "0")
+				+ " permission=" + (readiness.permission ? "1" : "0")
+				+ " server=" + (readiness.server ? "1" : "0")
+				+ " wifidirect=" + (readiness.wifi_direct ? "1" : "0"));
+
 			return;
+		}
 
 		// Hosting means playing against the server on this device, whoever
 		// else joins - so the client points at its own loopback either way.
@@ -393,10 +402,13 @@ namespace ms
 				// So that finishing the setup in Termux turns the list green
 				// while the game is still open, rather than needing a
 				// restart to notice.
-				bool was_ready = readiness.ready();
+				bool could = readiness.can_try();
 				readiness = LocalServer::check();
 
-				if (!was_ready && readiness.ready())
+				// Finishing the setup in Termux turns the list green while
+				// the game is open, and starts hosting, rather than needing
+				// a restart to notice.
+				if (!could && readiness.can_try())
 					choose_host();
 			}
 		}

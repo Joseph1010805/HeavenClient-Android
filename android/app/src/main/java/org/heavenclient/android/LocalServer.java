@@ -8,7 +8,9 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
 
-import java.io.File;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 
 /**
  * Starts the game server on this device, so it can be played with nothing to
@@ -47,19 +49,29 @@ public final class LocalServer {
     private static final String SCRIPT = "/data/data/com.termux/files/home/cosmic/run.sh";
 
     /**
-     * The marker the setup script drops when it has finished.
+     * Whether the server is answering, cached.
      *
-     * The app cannot look inside Termux - that storage is Termux's own - so
-     * asking "is the server set up?" directly is impossible. Instead the
-     * setup script writes a file somewhere BOTH can see, at the very end,
-     * once everything else has worked. Its presence is the answer.
+     * The obvious test - does the setup script's marker file exist - does not
+     * work. The app cannot look inside Termux's storage, and on Android 13 it
+     * cannot read /sdcard/Download either: READ_EXTERNAL_STORAGE is no longer
+     * granted and a plain file is not "media". The app can only read its own
+     * directory, and the setup script cannot write there. There is nowhere
+     * both sides can meet.
+     *
+     * So ask the SERVER instead. A connection to the login port needs no
+     * permission of any kind, and answers a better question than the marker
+     * did: not "was this installed once" but "is it working right now".
      */
-    private static final String READY_MARKER =
-            "/sdcard/Download/cosmic/ready";
+    private static final int LOGIN_PORT = 8484;
+
+    private static boolean serverUp = false;
+    private static long lastProbe = 0;
+    private static Thread probing = null;
 
     /** What is needed before this device can host, as a set of flags. */
     public static final int HAS_TERMUX     = 1;
     public static final int HAS_PERMISSION = 2;
+    /** The server is answering on this device right now. */
     public static final int HAS_SERVER     = 4;
     public static final int HAS_WIFI_DIRECT = 8;
 
@@ -82,7 +94,9 @@ public final class LocalServer {
             flags |= HAS_PERMISSION;
         }
 
-        if (new File(READY_MARKER).exists()) {
+        probeServer();
+
+        if (serverUp) {
             flags |= HAS_SERVER;
         }
 
@@ -105,6 +119,36 @@ public final class LocalServer {
         } catch (PackageManager.NameNotFoundException e) {
             return false;
         }
+    }
+
+    /**
+     * Knock on the login port, off the calling thread.
+     *
+     * A blocking connect belongs nowhere near the frame loop - even a failed
+     * one against loopback is fast, but "fast" is not "bounded". The answer is
+     * cached and refreshed at most every two seconds, which is far quicker
+     * than anybody can read a line of text changing.
+     */
+    private static void probeServer() {
+        long now = System.currentTimeMillis();
+
+        if (now - lastProbe < 2000 || (probing != null && probing.isAlive())) {
+            return;
+        }
+
+        lastProbe = now;
+
+        probing = new Thread(() -> {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress("127.0.0.1", LOGIN_PORT), 400);
+                serverUp = true;
+            } catch (IOException e) {
+                serverUp = false;
+            }
+        });
+
+        probing.setDaemon(true);
+        probing.start();
     }
 
     /** Whether this app may drive Termux yet. */

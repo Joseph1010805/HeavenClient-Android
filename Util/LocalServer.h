@@ -71,12 +71,19 @@ namespace ms
 		{
 			bool termux = false;
 			bool permission = false;
+			// The server is ANSWERING, not merely installed - see the note in
+			// LocalServer.java about why the question had to change.
 			bool server = false;
 			bool wifi_direct = false;
 
-			// Hosting needs the first three. Wi-Fi Direct only matters where
-			// there is no other network, so it is reported but not required.
-			bool ready() const { return termux && permission && server; }
+			// What has to be true before hosting can even be ATTEMPTED. The
+			// server answering is a status, not a prerequisite: starting it
+			// is the whole point of pressing HOST, so requiring it first
+			// would mean it could never be started at all.
+			//
+			// Wi-Fi Direct only matters where there is no other network, so
+			// it is reported and never required.
+			bool can_try() const { return termux && permission; }
 		};
 
 		Readiness check();
