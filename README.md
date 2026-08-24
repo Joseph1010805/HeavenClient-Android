@@ -130,6 +130,36 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 Run it once and let it complain about missing data. That first run creates the
 folder your files go in, with the right permissions.
 
+## ⚠ Upgrading from a build you made yourself
+
+**Read this before installing a release over a hand-built APK, or you will lose
+the game data.**
+
+Android identifies an app by its signature and refuses to install an update
+signed by a different key. Everything before v0.7 was debug-signed; releases
+are signed with the real key. So the first release has to go on over an
+*uninstall* - and the game data lives in
+`/sdcard/Android/data/org.heavenclient.android/files/`, which **Android deletes
+along with the app.** That's several GB of NX you'd have to push again.
+
+Move it aside first. It's the same volume, so this is an instant rename rather
+than a copy:
+
+```bash
+DIR=/sdcard/Android/data/org.heavenclient.android/files/HeavenClient
+
+adb shell mv $DIR /sdcard/HeavenClient-keep
+adb uninstall org.heavenclient.android
+adb install LocalStory-0.7.apk
+adb shell mkdir -p $(dirname $DIR)
+adb shell mv /sdcard/HeavenClient-keep $DIR
+```
+
+Only needed once. Every later release is signed with the same key and installs
+straight over the top.
+
+A fresh device needs none of this - there's nothing to preserve.
+
 ## Cutting a release
 
 Pushing a `v*` tag builds an APK and opens a draft release with it attached:
