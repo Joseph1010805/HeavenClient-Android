@@ -126,6 +126,18 @@ cat > "$HOME_DIR/run.sh" <<'RUN'
 #!/data/data/com.termux/files/usr/bin/bash
 cd "$(dirname "$0")" || exit 1
 
+# One server, not seven.
+#
+# The game asks for the server every time HOST is pressed, and it has no way
+# of knowing whether one is already up - so without this, every press starts
+# another. Only the first can hold the login port; the rest fail to bind and
+# sit there having asked the system for up to 1536 MB each. Seven of them
+# were found on the Thor after an evening of testing.
+if pgrep -f Cosmic.jar >/dev/null 2>&1; then
+	echo "the server is already running"
+	exit 0
+fi
+
 # The database has to be up before the server looks for it, and Termux does
 # not keep it running across a reboot.
 if ! pgrep -f mariadbd >/dev/null 2>&1; then
