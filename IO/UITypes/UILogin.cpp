@@ -435,6 +435,17 @@ namespace ms
 		// Stop being a host: two servers announcing themselves on one network
 		// is how a child ends up joining their own device.
 		Multiplayer::stop_hosting();
+
+		// And stop BEING A NETWORK. The app defaults to HOST at launch, so a
+		// device with no wifi has already made itself a Wi-Fi Direct group by
+		// the time anybody taps JOIN - and a group owner cannot join another
+		// group. It IS a network; networks do not join networks.
+		//
+		// Two handhelds both doing that sit there being networks at each
+		// other forever, which is exactly what happened the first time this
+		// was tried in a room with no wifi.
+		Multiplayer::remove_group();
+
 		LocalServer::set_offline(false);
 
 		found.clear();
@@ -486,6 +497,16 @@ namespace ms
 			if (mode == Mode::JOIN)
 			{
 				found = Multiplayer::games();
+
+				Multiplayer::refresh_role();
+
+				// Once we are a client in somebody's Wi-Fi Direct group, the
+				// host is at a KNOWN address - a group owner is always
+				// 192.168.49.1. Offer it by hand if discovery has not managed
+				// to name it, because mDNS does not always cross a p2p link
+				// and a game you cannot see is worse than one without a name.
+				if (found.empty() && Multiplayer::role() == Multiplayer::Role::CLIENT)
+					found.push_back({ "Nearby game", Multiplayer::GROUP_OWNER });
 			}
 			else
 			{

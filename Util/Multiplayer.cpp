@@ -354,6 +354,42 @@ namespace ms
 #endif
 		}
 
+		Role role()
+		{
+#ifdef PLATFORM_ANDROID
+			Env e;
+
+			if (!e)
+				return Role::NONE;
+
+			int value = 0;
+			jclass cls = e.env->FindClass("org/heavenclient/android/WifiDirect");
+
+			if (cls)
+			{
+				jmethodID id = e.env->GetStaticMethodID(cls, "role", "()I");
+
+				if (id)
+					value = e.env->CallStaticIntMethod(cls, id);
+
+				e.env->DeleteLocalRef(cls);
+			}
+
+			e.clear_exception();
+
+			return static_cast<Role>(value);
+#else
+			return Role::NONE;
+#endif
+		}
+
+		void refresh_role()
+		{
+#ifdef PLATFORM_ANDROID
+			call_void("org/heavenclient/android/WifiDirect", "refreshRole");
+#endif
+		}
+
 		bool find_groups()
 		{
 #ifdef PLATFORM_ANDROID

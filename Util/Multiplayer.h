@@ -97,5 +97,15 @@ namespace ms
 		bool find_groups();
 
 		constexpr char GROUP_OWNER[] = "192.168.49.1";
+
+		// What this device currently IS: nothing, the group owner, or a
+		// client in somebody else's group.
+		//
+		// A device that OWNS a group is being a network, and cannot join
+		// another one. That has to be undone before looking for a host.
+		enum class Role : uint8_t { NONE, OWNER, CLIENT };
+
+		Role role();
+		void refresh_role();
 	}
 }

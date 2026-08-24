@@ -43,6 +43,20 @@ public final class WifiDirect {
     private static WifiP2pManager manager;
     private static WifiP2pManager.Channel channel;
 
+    /**
+     * What this device currently IS in Wi-Fi Direct terms, cached.
+     *
+     * 0 nothing, 1 the group owner, 2 a client in somebody's group.
+     *
+     * This matters more than it looks. A device that owns a group is being a
+     * network; it cannot join another one. The app defaults to HOST at
+     * launch, so it would create a group and then - on tapping JOIN - go
+     * looking for a host while still being one. Two devices doing that sit
+     * there being networks at each other forever, which is exactly what
+     * happened.
+     */
+    private static volatile int role = 0;
+
     private WifiDirect() {
     }
 
@@ -93,6 +107,31 @@ public final class WifiDirect {
         } catch (Exception e) {
             Log.e(TAG, "could not open the wifi settings - " + e);
             return false;
+        }
+    }
+
+    /** 0 nothing, 1 group owner, 2 client. Cached - see `role`. */
+    public static int role() {
+        return role;
+    }
+
+    /** Refresh what we are. Cheap, and the answer arrives on a callback. */
+    public static void refreshRole(Context context) {
+        if (manager == null || channel == null) {
+            role = 0;
+            return;
+        }
+
+        try {
+            manager.requestConnectionInfo(channel, info -> {
+                if (info == null || !info.groupFormed) {
+                    role = 0;
+                } else {
+                    role = info.isGroupOwner ? 1 : 2;
+                }
+            });
+        } catch (SecurityException ignored) {
+            role = 0;
         }
     }
 
@@ -179,6 +218,7 @@ public final class WifiDirect {
                 @Override
                 public void onSuccess() {
                     Log.i(TAG, "wifi direct: group created, we are " + GROUP_OWNER);
+                    role = 1;
                 }
 
                 @Override
@@ -195,14 +235,32 @@ public final class WifiDirect {
         }
     }
 
-    /** Tear the group down and give the wifi back. */
+    /**
+     * Tear our own group down and give the wifi back.
+     *
+     * Called before looking for somebody to join, because a device that owns
+     * a group cannot join another - it IS a network, and networks do not join
+     * networks.
+     */
     public static void removeGroup(Context context) {
-        if (manager == null || channel == null) {
+        if (!connect(context)) {
             return;
         }
 
         try {
-            manager.removeGroup(channel, null);
+            manager.removeGroup(channel, new WifiP2pManager.ActionListener() {
+                @Override
+                public void onSuccess() {
+                    Log.i(TAG, "wifi direct: stopped being a network");
+                    role = 0;
+                }
+
+                @Override
+                public void onFailure(int reason) {
+                    // 2 = BUSY here usually means there was no group anyway.
+                    role = 0;
+                }
+            });
         } catch (SecurityException ignored) {
         }
     }
