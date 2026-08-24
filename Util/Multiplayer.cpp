@@ -289,6 +289,16 @@ namespace ms
 #endif
 		}
 
+		bool on_network()
+		{
+#ifdef PLATFORM_ANDROID
+			return call_bool("org/heavenclient/android/Discovery", "hasNetwork",
+				"(Landroid/content/Context;)Z");
+#else
+			return true;
+#endif
+		}
+
 		bool wifi_direct_supported()
 		{
 #ifdef PLATFORM_ANDROID

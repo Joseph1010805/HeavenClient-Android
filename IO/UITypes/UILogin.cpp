@@ -264,7 +264,9 @@ namespace ms
 		{
 			if (found.empty())
 			{
-				game_name.change_text("Looking for games...");
+				game_name.change_text(tried_wifi_direct
+					? "Looking for a nearby device..."
+					: "Looking for games...");
 				game_name.draw(Point<int16_t>(row.left() + 4, row.bottom() + 21));
 			}
 			else
@@ -358,6 +360,15 @@ namespace ms
 
 		LocalServer::start();
 
+		// With no network at all - a car - nobody can hear us however loudly
+		// we shout, so make one. This device becomes a small access point at
+		// 192.168.49.1 and the others join it.
+		//
+		// Only when there is nothing else: creating a group takes over the
+		// wifi radio, and a house with a router does not need it.
+		if (!Multiplayer::on_network() && Multiplayer::wifi_direct_supported())
+			Multiplayer::create_group();
+
 		// Shout our name onto the network so the others can find us without
 		// anybody reading out an address.
 		Multiplayer::start_hosting(Multiplayer::suggested_name());
@@ -374,6 +385,8 @@ namespace ms
 
 		found.clear();
 		until_refresh = 1;
+		looking_for = 0;
+		tried_wifi_direct = false;
 
 		Multiplayer::start_browsing();
 	}
@@ -389,6 +402,19 @@ namespace ms
 		// answer changes on its threads, so it is polled here rather than
 		// pushed - about twice a second, which is faster than anybody can
 		// read a new name appearing.
+		// Nothing on this network yet? Give it a few seconds, then look for a
+		// device making its own.
+		if (mode == Mode::JOIN && found.empty() && !tried_wifi_direct)
+		{
+			if (++looking_for > PATIENCE)
+			{
+				tried_wifi_direct = true;
+
+				if (Multiplayer::wifi_direct_supported())
+					Multiplayer::find_groups();
+			}
+		}
+
 		if (--until_refresh <= 0)
 		{
 			until_refresh = 30;

@@ -93,6 +93,19 @@ namespace ms
 		std::vector<Multiplayer::Game> found;
 		int16_t until_refresh = 1;
 
+		// Wi-Fi Direct is the LAST resort, not the first.
+		//
+		// Searching the network the device is already on costs nothing and
+		// covers every ordinary case - the house wifi, a phone's hotspot, a
+		// travel router. Only when that turns up nothing is it worth making a
+		// network of our own, which takes over the wifi radio and asks the
+		// other person to accept a prompt.
+		//
+		// So: browse for this long first, and only then reach for it.
+		static constexpr int16_t PATIENCE = 6 * 60;
+		int16_t looking_for = 0;
+		bool tried_wifi_direct = false;
+
 		// What is stopping this device hosting, if anything. Refreshed when
 		// HOST is chosen and every few seconds after, so finishing the setup
 		// in Termux turns the list green without restarting the game.

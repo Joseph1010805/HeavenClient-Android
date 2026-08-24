@@ -64,6 +64,12 @@ namespace ms
 		// What to call this device by default.
 		std::string suggested_name();
 
+		// Whether there is a network to search at all - wifi or ethernet, not
+		// mobile data, which reaches the internet and not the handheld next
+		// to you. When this is false, Wi-Fi Direct is the only way anybody
+		// plays together.
+		bool on_network();
+
 		// --- making a network where there is none ---
 
 		bool wifi_direct_supported();

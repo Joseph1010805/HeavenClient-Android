@@ -1,6 +1,9 @@
 package org.heavenclient.android;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.os.Build;
@@ -235,6 +238,43 @@ public final class Discovery {
 
             return out;
         }
+    }
+
+    /**
+     * Whether this device is on a network at all - any network that could
+     * carry other players, which means wifi or ethernet but NOT mobile data.
+     * Mobile data reaches the internet and not the handheld sitting next to
+     * you, which is the opposite of what is wanted here.
+     *
+     * When this is false there is nothing for discovery to search, and
+     * Wi-Fi Direct is the only way anybody is playing together.
+     */
+    public static boolean hasNetwork(Context context) {
+        if (context == null) {
+            return false;
+        }
+
+        ConnectivityManager cm = (ConnectivityManager)
+                context.getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        if (cm == null) {
+            return false;
+        }
+
+        Network active = cm.getActiveNetwork();
+
+        if (active == null) {
+            return false;
+        }
+
+        NetworkCapabilities caps = cm.getNetworkCapabilities(active);
+
+        if (caps == null) {
+            return false;
+        }
+
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
     }
 
     /** A name for this device that a child would recognise. */
