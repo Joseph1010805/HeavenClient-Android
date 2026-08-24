@@ -133,7 +133,21 @@ cd "$(dirname "$0")" || exit 1
 # another. Only the first can hold the login port; the rest fail to bind and
 # sit there having asked the system for up to 1536 MB each. Seven of them
 # were found on the Thor after an evening of testing.
-if pgrep -f Cosmic.jar >/dev/null 2>&1; then
+#
+# The test is whether the LOGIN PORT is taken, not whether a process exists,
+# because the port is the thing that actually cannot be shared - a Cosmic
+# that is still shutting down holds no port and should not block a restart,
+# and one that is alive but failed to bind is not a server at all.
+#
+# The pgrep fallback is written [C]osmic so it cannot match the shell running
+# this script if that shell was invoked with the word in its command line.
+# Left as itself, `pgrep -f Cosmic.jar` will happily find its own parent.
+if netstat -ltn 2>/dev/null | grep -q ':8484 '; then
+	echo "the server is already running"
+	exit 0
+fi
+
+if pgrep -f '[C]osmic\.jar' >/dev/null 2>&1; then
 	echo "the server is already running"
 	exit 0
 fi
