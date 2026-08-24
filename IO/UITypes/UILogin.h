@@ -79,6 +79,27 @@ namespace ms
 			JOIN
 		};
 
+		// The whole section, where the logo used to be. It has room to
+		// EXPLAIN rather than just offer two buttons - what hosting means,
+		// what is missing, who is out there - because the person reading it
+		// may be setting a handheld up for the first time.
+		//
+		// On its own black plate: this is drawn over painted artwork, and
+		// white text on a bright sky is unreadable.
+		static constexpr int16_t SECTION_X = 498;
+		static constexpr int16_t SECTION_Y = 10;
+		static constexpr int16_t SECTION_W = 294;
+		static constexpr int16_t SECTION_H = 300;
+
+		static constexpr int16_t PAD = 10;
+		static constexpr int16_t BUTTON_W = 132;
+		static constexpr int16_t BUTTON_H = 34;
+
+		// Where the explanation starts, under the buttons.
+		static constexpr int16_t BODY_Y = SECTION_Y + BUTTON_H + 14;
+		static constexpr int16_t LINE_H = 16;
+		static constexpr int16_t ROW_H = 24;
+
 		Rectangle<int16_t> mode_bounds(Mode which) const;
 		Rectangle<int16_t> game_bounds(int16_t row) const;
 

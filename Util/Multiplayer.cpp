@@ -231,8 +231,18 @@ namespace ms
 							size_t split = line.find('\t');
 
 							if (split != std::string::npos)
-								out.push_back({ line.substr(0, split),
-									line.substr(split + 1) });
+							{
+								std::string name = line.substr(0, split);
+
+								// Never list ourselves. Tapping JOIN stops the
+								// announcement, but Android's own cache keeps
+								// the entry for a few seconds longer - so this
+								// device turned up in its own list of games to
+								// join, which is nonsense: joining yourself is
+								// what HOST already is.
+								if (name != suggested_name())
+									out.push_back({ name, line.substr(split + 1) });
+							}
 
 							e.env->DeleteLocalRef(item);
 						}

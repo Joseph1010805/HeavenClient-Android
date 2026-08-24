@@ -95,7 +95,10 @@ namespace ms
 		{
 			sprites.emplace_back(custom["LoginBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
 
-			sprites.emplace_back(custom["Logo"], LOGO_POS);
+			// The logo is deliberately NOT drawn. The HOST / JOIN section
+			// lives here now, and it needs the room more: it is the first
+			// thing a person setting up a handheld has to understand, and
+			// the game says its own name on the sign already.
 		}
 		else
 		{
@@ -200,8 +203,15 @@ namespace ms
 
 		version.draw(position + Point<int16_t>(707, 1));
 
-		// HOST and JOIN, top-left where nothing else lives and the mount is
-		// not in the way.
+		// The HOST / JOIN section, where the logo used to be.
+		//
+		// On its own black plate. This is drawn over painted artwork - a
+		// bright sky, in the stock backdrop - and white text on that is
+		// unreadable however carefully it is placed.
+		GraphicsGL::get().drawrectangle(
+			position.x() + SECTION_X, position.y() + SECTION_Y,
+			SECTION_W, SECTION_H, 0.0f, 0.0f, 0.0f, 0.82f);
+
 		for (Mode m : { Mode::HOST, Mode::JOIN })
 		{
 			Rectangle<int16_t> at = mode_bounds(m);
@@ -209,84 +219,115 @@ namespace ms
 
 			GraphicsGL::get().drawrectangle(
 				at.left(), at.top(), at.width(), at.height(),
-				here ? 0.20f : 0.10f,
-				here ? 0.30f : 0.12f,
-				here ? 0.24f : 0.16f, 0.92f);
+				here ? 0.20f : 0.11f,
+				here ? 0.34f : 0.12f,
+				here ? 0.26f : 0.16f, 1.0f);
 
 			mode_label.change_text(m == Mode::HOST ? "HOST" : "JOIN");
-			mode_label.draw(Point<int16_t>(at.left() + at.width() / 2, at.top() + 3));
+			mode_label.draw(Point<int16_t>(
+				at.left() + at.width() / 2, at.top() + (at.height() - 14) / 2));
 		}
 
-		Rectangle<int16_t> row = mode_bounds(Mode::JOIN);
+		int16_t left = position.x() + SECTION_X + PAD;
+		int16_t y = position.y() + BODY_Y;
 
 		mode_hint.change_text(mode == Mode::HOST
 			? "Play solo, or host a play session"
 			: "Join a host's play session");
 
-		mode_hint.draw(Point<int16_t>(mode_bounds(Mode::HOST).left(), row.bottom() + 3));
+		mode_hint.draw(Point<int16_t>(left, y));
+		y += LINE_H + 6;
 
-		// Under HOST: what is ready and what is not. Somebody setting a
-		// device up for the first time should be able to SEE what is left,
-		// rather than tapping HOST and being told one vague thing.
 		if (mode == Mode::HOST)
 		{
+			// What is ready and what is not. Somebody setting a device up for
+			// the first time should be able to SEE what is left, rather than
+			// tapping HOST and being told one vague thing.
 			struct { bool ok; const char* label; const char* fix; } lines[] =
 			{
-				{ readiness.termux,      "Termux installed",  "install it - see docs_OFFLINE.md" },
-				{ readiness.permission,  "May start the server", "tap HOST again and allow it" },
-				{ readiness.server,      "Server running here", "starting - give it half a minute" },
-				{ readiness.wifi_direct, "Can make its own network", "not needed if there is wifi" }
+				{ readiness.termux,      "Termux installed",        "install it - see docs_OFFLINE.md" },
+				{ readiness.permission,  "May start the server",    "tap HOST again and allow it" },
+				{ readiness.server,      "Server running here",     "starting - give it half a minute" },
+				{ readiness.wifi_direct, "Can make its own network", "only needed where there is no wifi" }
 			};
-
-			int16_t y = row.bottom() + 21;
 
 			for (const auto& line : lines)
 			{
-				// A tick or a cross, then what it is. The last one is not
-				// required, so it is never a hard failure - it only decides
-				// whether a car with no router will work.
 				check_line.change_text(std::string(line.ok ? "[+] " : "[X] ") + line.label);
-				check_line.draw(Point<int16_t>(mode_bounds(Mode::HOST).left() + 4, y));
-				y += 15;
+				check_line.draw(Point<int16_t>(left, y));
+				y += LINE_H;
 
 				if (!line.ok)
 				{
-					check_line.change_text(std::string("      ") + line.fix);
-					check_line.draw(Point<int16_t>(mode_bounds(Mode::HOST).left() + 4, y));
-					y += 15;
+					check_line.change_text(std::string("     ") + line.fix);
+					check_line.draw(Point<int16_t>(left, y));
+					y += LINE_H;
 				}
 			}
-		}
 
-		// The list of games, by NAME. Only while JOIN is chosen - browsing
-		// costs battery and there is nothing to show otherwise.
-		if (mode == Mode::JOIN)
+			y += 6;
+
+			// The room to explain. Hosting is not obvious - that it is also
+			// how you play alone, and that everyone plays in the host's
+			// world, are both things people get wrong once and then remember.
+			check_line.change_text(readiness.server
+				? "Others can find this game by name."
+				: "");
+
+			check_line.draw(Point<int16_t>(left, y));
+			y += LINE_H;
+
+			check_line.change_text("Everyone plays in YOUR world -");
+			check_line.draw(Point<int16_t>(left, y));
+			y += LINE_H;
+
+			check_line.change_text("their characters must live here.");
+			check_line.draw(Point<int16_t>(left, y));
+		}
+		else
 		{
+			// The list of games, by NAME. Never an address: not typing one is
+			// the entire point.
+			for (size_t i = 0; i < found.size() && i < 6; i++)
+			{
+				Rectangle<int16_t> at = game_bounds(static_cast<int16_t>(i));
+				bool chosen = found[i].address == Setting<ServerIP>::get().load();
+
+				GraphicsGL::get().drawrectangle(
+					at.left(), at.top(), at.width(), at.height() - 3,
+					chosen ? 0.20f : 0.10f,
+					chosen ? 0.36f : 0.11f,
+					chosen ? 0.26f : 0.14f, 1.0f);
+
+				game_name.change_text(found[i].name);
+				game_name.draw(Point<int16_t>(at.left() + 8, at.top() + 4));
+			}
+
+			int16_t after = position.y() + BODY_Y + LINE_H + 6
+				+ static_cast<int16_t>(found.size() < 6 ? found.size() : 6) * ROW_H;
+
+			// Always say it is still looking, even once something has been
+			// found. A list that looks settled a second before the other
+			// handheld appears reads as a failure - which is exactly how the
+			// first test of this looked.
+			check_line.change_text(!found.empty()
+				? "Still looking..."
+				: (tried_wifi_direct
+					? "No network - looking for a nearby device..."
+					: "Looking for games..."));
+
+			check_line.draw(Point<int16_t>(left, after + 4));
+
 			if (found.empty())
 			{
-				game_name.change_text(tried_wifi_direct
-					? "Looking for a nearby device..."
-					: "Looking for games...");
-				game_name.draw(Point<int16_t>(row.left() + 4, row.bottom() + 21));
-			}
-			else
-			{
-				for (size_t i = 0; i < found.size() && i < 5; i++)
-				{
-					Rectangle<int16_t> at = game_bounds(static_cast<int16_t>(i));
-					bool chosen = found[i].address == Setting<ServerIP>::get().load();
+				check_line.change_text("They must be on HOST, and on the");
+				check_line.draw(Point<int16_t>(left, after + 4 + LINE_H + 6));
 
-					GraphicsGL::get().drawrectangle(
-						at.left(), at.top(), at.width(), at.height() - 2,
-						chosen ? 0.20f : 0.08f,
-						chosen ? 0.34f : 0.09f,
-						chosen ? 0.24f : 0.12f, 0.9f);
-
-					game_name.change_text(found[i].name);
-					game_name.draw(Point<int16_t>(at.left() + 6, at.top() + 2));
-				}
+				check_line.change_text("same wifi - a phone hotspot will do.");
+				check_line.draw(Point<int16_t>(left, after + 4 + LINE_H * 2 + 6));
 			}
 		}
+
 		account.draw(position);
 		password.draw(position);
 
@@ -301,24 +342,20 @@ namespace ms
 
 	Rectangle<int16_t> UILogin::mode_bounds(Mode which) const
 	{
-		constexpr int16_t W = 86;
-		constexpr int16_t H = 22;
+		int16_t x = SECTION_X + PAD + (which == Mode::JOIN ? BUTTON_W + 10 : 0);
 
-		int16_t x = 8 + (which == Mode::JOIN ? W + 4 : 0);
+		Point<int16_t> at = position + Point<int16_t>(x, SECTION_Y + PAD);
 
-		Point<int16_t> at = position + Point<int16_t>(x, 6);
-
-		return Rectangle<int16_t>(at, at + Point<int16_t>(W, H));
+		return Rectangle<int16_t>(at, at + Point<int16_t>(BUTTON_W, BUTTON_H));
 	}
 
 	Rectangle<int16_t> UILogin::game_bounds(int16_t row) const
 	{
-		constexpr int16_t H = 20;
+		Point<int16_t> at = position + Point<int16_t>(
+			SECTION_X + PAD, BODY_Y + LINE_H + 6 + row * ROW_H);
 
-		Point<int16_t> at = position
-			+ Point<int16_t>(8, 6 + 22 + 18 + row * H);
-
-		return Rectangle<int16_t>(at, at + Point<int16_t>(176, H));
+		return Rectangle<int16_t>(at,
+			at + Point<int16_t>(SECTION_W - 2 * PAD, ROW_H));
 	}
 
 	void UILogin::choose_host()
@@ -402,11 +439,18 @@ namespace ms
 		// answer changes on its threads, so it is polled here rather than
 		// pushed - about twice a second, which is faster than anybody can
 		// read a new name appearing.
-		// Nothing on this network yet? Give it a few seconds, then look for a
-		// device making its own.
+		// Reach for Wi-Fi Direct only when there is genuinely nothing else.
+		//
+		// The first version fell back on a timer alone, and fired while
+		// sitting on the house wifi with a host two feet away - it had simply
+		// not resolved yet. Making a network of our own in that situation is
+		// wrong, and saying "looking for a nearby device" while a perfectly
+		// good one is listed is worse.
+		//
+		// So: no network at all is the trigger. A slow network is not.
 		if (mode == Mode::JOIN && found.empty() && !tried_wifi_direct)
 		{
-			if (++looking_for > PATIENCE)
+			if (++looking_for > PATIENCE && !Multiplayer::on_network())
 			{
 				tried_wifi_direct = true;
 
