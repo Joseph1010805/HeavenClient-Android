@@ -8,6 +8,8 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
 
+import java.io.File;
+
 /**
  * Starts the game server on this device, so it can be played with nothing to
  * connect to.
@@ -44,7 +46,51 @@ public final class LocalServer {
     private static final String BIN = "/data/data/com.termux/files/usr/bin/bash";
     private static final String SCRIPT = "/data/data/com.termux/files/home/cosmic/run.sh";
 
+    /**
+     * The marker the setup script drops when it has finished.
+     *
+     * The app cannot look inside Termux - that storage is Termux's own - so
+     * asking "is the server set up?" directly is impossible. Instead the
+     * setup script writes a file somewhere BOTH can see, at the very end,
+     * once everything else has worked. Its presence is the answer.
+     */
+    private static final String READY_MARKER =
+            "/sdcard/Download/cosmic/ready";
+
+    /** What is needed before this device can host, as a set of flags. */
+    public static final int HAS_TERMUX     = 1;
+    public static final int HAS_PERMISSION = 2;
+    public static final int HAS_SERVER     = 4;
+    public static final int HAS_WIFI_DIRECT = 8;
+
     private LocalServer() {
+    }
+
+    /**
+     * Everything that has to be true before HOST will work, in one call, so
+     * the screen can show a list of ticks and crosses instead of failing
+     * later with one vague message.
+     */
+    public static int readiness(Context context) {
+        int flags = 0;
+
+        if (isAvailable(context)) {
+            flags |= HAS_TERMUX;
+        }
+
+        if (hasPermission(context)) {
+            flags |= HAS_PERMISSION;
+        }
+
+        if (new File(READY_MARKER).exists()) {
+            flags |= HAS_SERVER;
+        }
+
+        if (WifiDirect.isSupported(context)) {
+            flags |= HAS_WIFI_DIRECT;
+        }
+
+        return flags;
     }
 
     /** Whether Termux is even installed. */

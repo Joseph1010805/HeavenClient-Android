@@ -147,6 +147,14 @@ RUN
 
 chmod +x "$HOME_DIR/run.sh"
 
+# The one thing the game can see from outside Termux.
+#
+# The app cannot look inside Termux's storage, so it cannot check directly
+# whether the server is set up. This file is written LAST, once everything
+# above has worked, and its presence is what turns the HOST readiness list
+# green.
+date > "$STAGE/ready" 2>/dev/null || echo "(could not write the ready marker to $STAGE)"
+
 cat <<NEXT
 
 === Done

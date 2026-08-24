@@ -125,6 +125,46 @@ namespace ms
 #endif
 		}
 
+		Readiness check()
+		{
+			Readiness out;
+
+#ifdef PLATFORM_ANDROID
+			JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+			jobject activity = env ? static_cast<jobject>(SDL_AndroidGetActivity()) : nullptr;
+
+			if (!env || !activity)
+				return out;
+
+			jclass cls = env->FindClass("org/heavenclient/android/LocalServer");
+
+			if (cls)
+			{
+				jmethodID id = env->GetStaticMethodID(
+					cls, "readiness", "(Landroid/content/Context;)I");
+
+				if (id)
+				{
+					jint flags = env->CallStaticIntMethod(cls, id, activity);
+
+					out.termux      = (flags & 1) != 0;
+					out.permission  = (flags & 2) != 0;
+					out.server      = (flags & 4) != 0;
+					out.wifi_direct = (flags & 8) != 0;
+				}
+
+				env->DeleteLocalRef(cls);
+			}
+
+			if (env->ExceptionCheck())
+				env->ExceptionClear();
+
+			env->DeleteLocalRef(activity);
+#endif
+
+			return out;
+		}
+
 		bool start()
 		{
 #ifdef PLATFORM_ANDROID

@@ -22,6 +22,7 @@
 #include "../Components/Textfield.h"
 
 #include "../../Util/Multiplayer.h"
+#include "../../Util/LocalServer.h"
 #include "../Template/BoolPair.h"
 
 namespace ms
@@ -92,6 +93,12 @@ namespace ms
 		std::vector<Multiplayer::Game> found;
 		int16_t until_refresh = 1;
 
+		// What is stopping this device hosting, if anything. Refreshed when
+		// HOST is chosen and every few seconds after, so finishing the setup
+		// in Termux turns the list green without restarting the game.
+		LocalServer::Readiness readiness;
+
+		mutable Text check_line;
 		mutable Text mode_label;
 		mutable Text mode_hint;
 		mutable Text game_name;

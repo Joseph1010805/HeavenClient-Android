@@ -66,6 +66,7 @@ namespace ms
 		mode_label = Text(Text::Font::A11B, Text::Alignment::CENTER, Color::Name::WHITE);
 		mode_hint = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LIGHTGREY);
 		game_name = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE);
+		check_line = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE);
 
 		// Hosting is the default, because it is also what playing alone is.
 		choose_host();
@@ -223,6 +224,39 @@ namespace ms
 
 		mode_hint.draw(Point<int16_t>(mode_bounds(Mode::HOST).left(), row.bottom() + 3));
 
+		// Under HOST: what is ready and what is not. Somebody setting a
+		// device up for the first time should be able to SEE what is left,
+		// rather than tapping HOST and being told one vague thing.
+		if (mode == Mode::HOST)
+		{
+			struct { bool ok; const char* label; const char* fix; } lines[] =
+			{
+				{ readiness.termux,      "Termux installed",  "install it - see docs_OFFLINE.md" },
+				{ readiness.permission,  "May start the server", "tap HOST again and allow it" },
+				{ readiness.server,      "Game server set up", "run termux_setup.sh once" },
+				{ readiness.wifi_direct, "Can make its own network", "not needed if there is wifi" }
+			};
+
+			int16_t y = row.bottom() + 21;
+
+			for (const auto& line : lines)
+			{
+				// A tick or a cross, then what it is. The last one is not
+				// required, so it is never a hard failure - it only decides
+				// whether a car with no router will work.
+				check_line.change_text(std::string(line.ok ? "[+] " : "[X] ") + line.label);
+				check_line.draw(Point<int16_t>(mode_bounds(Mode::HOST).left() + 4, y));
+				y += 15;
+
+				if (!line.ok)
+				{
+					check_line.change_text(std::string("      ") + line.fix);
+					check_line.draw(Point<int16_t>(mode_bounds(Mode::HOST).left() + 4, y));
+					y += 15;
+				}
+			}
+		}
+
 		// The list of games, by NAME. Only while JOIN is chosen - browsing
 		// costs battery and there is nothing to show otherwise.
 		if (mode == Mode::JOIN)
@@ -291,6 +325,13 @@ namespace ms
 		Multiplayer::stop_browsing();
 		found.clear();
 
+		readiness = LocalServer::check();
+
+		// Nothing else here can work until the device is set up, and saying
+		// so as a list beats failing later with one message.
+		if (!readiness.ready())
+			return;
+
 		// Hosting means playing against the server on this device, whoever
 		// else joins - so the client points at its own loopback either way.
 		LocalServer::set_offline(true);
@@ -339,10 +380,25 @@ namespace ms
 		// answer changes on its threads, so it is polled here rather than
 		// pushed - about twice a second, which is faster than anybody can
 		// read a new name appearing.
-		if (mode == Mode::JOIN && --until_refresh <= 0)
+		if (--until_refresh <= 0)
 		{
 			until_refresh = 30;
-			found = Multiplayer::games();
+
+			if (mode == Mode::JOIN)
+			{
+				found = Multiplayer::games();
+			}
+			else
+			{
+				// So that finishing the setup in Termux turns the list green
+				// while the game is still open, rather than needing a
+				// restart to notice.
+				bool was_ready = readiness.ready();
+				readiness = LocalServer::check();
+
+				if (!was_ready && readiness.ready())
+					choose_host();
+			}
 		}
 	}
 

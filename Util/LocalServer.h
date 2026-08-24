@@ -63,6 +63,24 @@ namespace ms
 		// the honest thing to tell the player rather than failing later.
 		bool can_host();
 
+		// Everything that has to be true before hosting will work, so the
+		// screen can show a list of ticks and crosses rather than failing
+		// later with one vague message. Somebody setting a device up for the
+		// first time should be able to SEE what is left to do.
+		struct Readiness
+		{
+			bool termux = false;
+			bool permission = false;
+			bool server = false;
+			bool wifi_direct = false;
+
+			// Hosting needs the first three. Wi-Fi Direct only matters where
+			// there is no other network, so it is reported but not required.
+			bool ready() const { return termux && permission && server; }
+		};
+
+		Readiness check();
+
 		// Ask for the server to start. Returns whether the request was
 		// accepted, NOT whether the server came up - that takes a minute and
 		// shows itself when the client connects.
