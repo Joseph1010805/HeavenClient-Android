@@ -63,8 +63,12 @@ namespace ms
 		Music("BgmUI.img/Title").play();
 
 		std::string version_text = Configuration::get().get_version();
-		server_label = Text(Text::Font::A11B, Text::Alignment::LEFT, Color::Name::WHITE);
-		server_hint = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LIGHTGREY);
+		mode_label = Text(Text::Font::A11B, Text::Alignment::CENTER, Color::Name::WHITE);
+		mode_hint = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LIGHTGREY);
+		game_name = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE);
+
+		// Hosting is the default, because it is also what playing alone is.
+		choose_host();
 
 		version = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LEMONGRASS, "Ver. " + version_text);
 
@@ -194,27 +198,58 @@ namespace ms
 
 		version.draw(position + Point<int16_t>(707, 1));
 
-		// The server switch, top-left where nothing else lives and the
-		// mount is not in the way.
-		Rectangle<int16_t> sw = server_switch_bounds();
-		bool offline = LocalServer::is_offline();
+		// HOST and JOIN, top-left where nothing else lives and the mount is
+		// not in the way.
+		for (Mode m : { Mode::HOST, Mode::JOIN })
+		{
+			Rectangle<int16_t> at = mode_bounds(m);
+			bool here = (m == mode);
 
-		GraphicsGL::get().drawrectangle(
-			sw.left(), sw.top(), sw.width(), sw.height(),
-			offline ? 0.16f : 0.10f,
-			offline ? 0.30f : 0.12f,
-			offline ? 0.20f : 0.16f, 0.92f);
+			GraphicsGL::get().drawrectangle(
+				at.left(), at.top(), at.width(), at.height(),
+				here ? 0.20f : 0.10f,
+				here ? 0.30f : 0.12f,
+				here ? 0.24f : 0.16f, 0.92f);
 
-		server_label.change_text(offline ? "SERVER: THIS DEVICE" : "SERVER: HOME");
-		server_label.draw(Point<int16_t>(sw.left() + 8, sw.top() + 3));
+			mode_label.change_text(m == Mode::HOST ? "HOST" : "JOIN");
+			mode_label.draw(Point<int16_t>(at.left() + at.width() / 2, at.top() + 3));
+		}
 
-		// Under it, what that actually means, because "this device" is not
-		// obviously an address.
-		server_hint.change_text(offline
-			? "offline - tap to use home"
-			: LocalServer::home_address() + " - tap for offline");
+		Rectangle<int16_t> row = mode_bounds(Mode::JOIN);
 
-		server_hint.draw(Point<int16_t>(sw.left() + 8, sw.top() + sw.height() + 2));
+		mode_hint.change_text(mode == Mode::HOST
+			? "Play solo, or host a play session"
+			: "Join a host's play session");
+
+		mode_hint.draw(Point<int16_t>(mode_bounds(Mode::HOST).left(), row.bottom() + 3));
+
+		// The list of games, by NAME. Only while JOIN is chosen - browsing
+		// costs battery and there is nothing to show otherwise.
+		if (mode == Mode::JOIN)
+		{
+			if (found.empty())
+			{
+				game_name.change_text("Looking for games...");
+				game_name.draw(Point<int16_t>(row.left() + 4, row.bottom() + 21));
+			}
+			else
+			{
+				for (size_t i = 0; i < found.size() && i < 5; i++)
+				{
+					Rectangle<int16_t> at = game_bounds(static_cast<int16_t>(i));
+					bool chosen = found[i].address == Setting<ServerIP>::get().load();
+
+					GraphicsGL::get().drawrectangle(
+						at.left(), at.top(), at.width(), at.height() - 2,
+						chosen ? 0.20f : 0.08f,
+						chosen ? 0.34f : 0.09f,
+						chosen ? 0.24f : 0.12f, 0.9f);
+
+					game_name.change_text(found[i].name);
+					game_name.draw(Point<int16_t>(at.left() + 6, at.top() + 2));
+				}
+			}
+		}
 		account.draw(position);
 		password.draw(position);
 
@@ -227,40 +262,70 @@ namespace ms
 		checkbox[saveid].draw(DrawArgument(position + Point<int16_t>(291, 335) + PANEL));
 	}
 
-	Rectangle<int16_t> UILogin::server_switch_bounds() const
+	Rectangle<int16_t> UILogin::mode_bounds(Mode which) const
 	{
-		constexpr int16_t W = 176;
+		constexpr int16_t W = 86;
 		constexpr int16_t H = 22;
 
-		Point<int16_t> at = position + Point<int16_t>(8, 6);
+		int16_t x = 8 + (which == Mode::JOIN ? W + 4 : 0);
+
+		Point<int16_t> at = position + Point<int16_t>(x, 6);
 
 		return Rectangle<int16_t>(at, at + Point<int16_t>(W, H));
 	}
 
-	void UILogin::toggle_server()
+	Rectangle<int16_t> UILogin::game_bounds(int16_t row) const
 	{
-		bool going_offline = !LocalServer::is_offline();
+		constexpr int16_t H = 20;
 
-		LocalServer::set_offline(going_offline);
+		Point<int16_t> at = position
+			+ Point<int16_t>(8, 6 + 22 + 18 + row * H);
 
-		if (!going_offline)
-			return;
+		return Rectangle<int16_t>(at, at + Point<int16_t>(176, H));
+	}
 
-		// Going offline is worth more than a changed address: the server on
-		// this device has to be running for there to be anything to connect
-		// to. Asking is all that can be done from here - whether it came up
-		// shows itself a minute later, when logging in either works or does
-		// not.
+	void UILogin::choose_host()
+	{
+		mode = Mode::HOST;
+
+		Multiplayer::stop_browsing();
+		found.clear();
+
+		// Hosting means playing against the server on this device, whoever
+		// else joins - so the client points at its own loopback either way.
+		LocalServer::set_offline(true);
+
 		if (!LocalServer::can_host())
 		{
+			// Termux is how the server runs, and it is not here yet. Say so
+			// once, plainly, rather than failing at the login.
 			UI::get().emplace<UIOk>(
-				"This device has no server on it yet.\\nSet one up with tools/stage_server.sh, or switch back to HOME.",
+				"There is no server on this device yet.\\nIt needs Termux installed and set up once - see docs_OFFLINE.md.",
 				[](bool) {});
 
 			return;
 		}
 
 		LocalServer::start();
+
+		// Shout our name onto the network so the others can find us without
+		// anybody reading out an address.
+		Multiplayer::start_hosting(Multiplayer::suggested_name());
+	}
+
+	void UILogin::choose_join()
+	{
+		mode = Mode::JOIN;
+
+		// Stop being a host: two servers announcing themselves on one network
+		// is how a child ends up joining their own device.
+		Multiplayer::stop_hosting();
+		LocalServer::set_offline(false);
+
+		found.clear();
+		until_refresh = 1;
+
+		Multiplayer::start_browsing();
 	}
 
 	void UILogin::update()
@@ -269,6 +334,16 @@ namespace ms
 
 		account.update(position);
 		password.update(position);
+
+		// While the list is showing, ask Android what it has found. The
+		// answer changes on its threads, so it is polled here rather than
+		// pushed - about twice a second, which is faster than anybody can
+		// read a new name appearing.
+		if (mode == Mode::JOIN && --until_refresh <= 0)
+		{
+			until_refresh = 30;
+			found = Multiplayer::games();
+		}
 	}
 
 	void UILogin::login()
@@ -423,12 +498,39 @@ namespace ms
 		if (Cursor::State new_state = password.send_cursor(cursorpos, clicked))
 			return new_state;
 
-		if (server_switch_bounds().contains(cursorpos))
+		for (Mode m : { Mode::HOST, Mode::JOIN })
 		{
-			if (clicked)
-				toggle_server();
+			if (!mode_bounds(m).contains(cursorpos))
+				continue;
+
+			if (clicked && mode != m)
+			{
+				if (m == Mode::HOST)
+					choose_host();
+				else
+					choose_join();
+			}
 
 			return Cursor::State::CANCLICK;
+		}
+
+		// Picking a game out of the list. A NAME is tapped; the address goes
+		// quietly into the settings and is never shown.
+		if (mode == Mode::JOIN)
+		{
+			for (size_t i = 0; i < found.size() && i < 5; i++)
+			{
+				if (!game_bounds(static_cast<int16_t>(i)).contains(cursorpos))
+					continue;
+
+				if (clicked)
+				{
+					Setting<ServerIP>::get().save(found[i].address);
+					Configuration::get().save();
+				}
+
+				return Cursor::State::CANCLICK;
+			}
 		}
 
 		return UIElement::send_cursor(clicked, cursorpos);

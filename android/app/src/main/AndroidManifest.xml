@@ -14,6 +14,22 @@
          so the permission on its own grants nothing. See LocalServer.java. -->
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 
+    <!-- Finding games by name on the local network, so nobody types an
+         address. Plain mDNS - the mechanism a printer uses to appear in a
+         print dialog. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Making a network exist where there is none: Wi-Fi Direct, for a car
+         with no router and no hotspot. Android 13 renamed this; below 13 the
+         same capability was filed under location, because a list of nearby
+         wifi devices says roughly where you are. -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
     <!-- Android 11 and up hide other packages unless they are named here.
          Without this the client cannot even tell whether Termux is installed,
          and the offline toggle would have nothing to report. -->

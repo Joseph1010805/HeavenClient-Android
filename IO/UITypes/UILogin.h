@@ -20,6 +20,8 @@
 #include "../UIElement.h"
 
 #include "../Components/Textfield.h"
+
+#include "../../Util/Multiplayer.h"
 #include "../Template/BoolPair.h"
 
 namespace ms
@@ -59,18 +61,40 @@ namespace ms
 			NUM_BUTTONS
 		};
 
-		// Where this client is pointed, and a way to change it without
-		// editing a file on the device.
+		// HOST or JOIN, and the list of games found on the network.
 		//
-		// It sits on the login screen because that is where the choice
-		// matters - before anything connects - and because the alternative,
-		// finding a settings file in Android's storage on a handheld, is not
-		// something anybody should have to do to play in the car.
-		Rectangle<int16_t> server_switch_bounds() const;
-		void toggle_server();
+		// Not "online" and "offline" - there is no such distinction when
+		// every device carries a server. There is only who is hosting, and
+		// playing alone is hosting with nobody joining.
+		//
+		// It lives on the login screen because that is where the choice
+		// matters, before anything connects, and top-left because the mount
+		// clamps the bottom edge of the screen.
+		enum class Mode : uint8_t
+		{
+			// Run the world here. Alone, or with others joining.
+			HOST,
+			// Play on somebody else's.
+			JOIN
+		};
 
-		mutable Text server_label;
-		mutable Text server_hint;
+		Rectangle<int16_t> mode_bounds(Mode which) const;
+		Rectangle<int16_t> game_bounds(int16_t row) const;
+
+		void choose_host();
+		void choose_join();
+
+		Mode mode = Mode::HOST;
+
+		// What browsing has turned up, refreshed on a timer while the JOIN
+		// list is showing. Names, never addresses - the address is nobody's
+		// business and typing one is what this exists to abolish.
+		std::vector<Multiplayer::Game> found;
+		int16_t until_refresh = 1;
+
+		mutable Text mode_label;
+		mutable Text mode_hint;
+		mutable Text game_name;
 
 		Text version;
 		Textfield account;

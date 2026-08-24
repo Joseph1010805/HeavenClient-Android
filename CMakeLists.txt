@@ -495,6 +495,8 @@ set(HEAVEN_SOURCES
         Util/HashUtility.cpp
         Util/HashUtility.h
         Util/Lerp.h
+        Util/Multiplayer.cpp
+        Util/Multiplayer.h
         Util/LocalServer.cpp
         Util/LocalServer.h
         Util/Misc.cpp
