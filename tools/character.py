@@ -1,7 +1,8 @@
 """Carry ONE character between worlds, so it can be played anywhere.
 
     python tools/character.py where <place> [<place>]      what is where
-    python tools/character.py move <name> <from> <to>      take it with you
+    python tools/character.py account <who> <from> <to>    take a PLAYER with you
+    python tools/character.py move <name> <from> <to>      take one character
     python tools/character.py verify <name> <a> <b>        prove it arrived whole
 
 `from` and `to` are `pc` or a device serial (`adb devices`).
@@ -215,16 +216,16 @@ def show(worlds):
                   % (name, level, account, last))
 
 
-def move(name, source, dest, force):
-    print("Moving '%s' from %s to %s" % (name, source, dest))
-
-    got = source.sql("SELECT id, accountid, IFNULL(lastLogoutTime,'') "
+def one_character(name, source, dest, force, statements):
+    """Everything needed to put ONE character on `dest`, appended to
+    `statements`. Returns the number of rows, or None if it was refused."""
+    got = source.sql("SELECT id, IFNULL(lastLogoutTime,'') "
                      "FROM characters WHERE name=%s;" % quote(name))
 
     if not got or not got[0][0]:
         raise SystemExit("%s has no character called '%s'." % (source, name))
 
-    cid, accountid, mine_last = got[0]
+    cid, mine_last = got[0]
 
     # --- refuse to overwrite something newer -----------------------------
     theirs = dest.sql("SELECT id, IFNULL(lastLogoutTime,'') "
@@ -236,34 +237,20 @@ def move(name, source, dest, force):
         dest_cid, their_last = theirs[0]
 
         if their_last and mine_last and their_last > mine_last and not force:
-            raise SystemExit(
-                "%s already has a NEWER '%s'.\n"
-                "  there: last put down %s\n"
-                "  here:  last put down %s\n"
-                "Moving this copy over it would throw that away. Use --force "
-                "if you are certain." % (dest, name, their_last, mine_last))
+            print("  REFUSED '%s' - %s has a NEWER one" % (name, dest))
+            print("           there: %s" % their_last)
+            print("           here:  %s" % mine_last)
+            print("           that is somebody's evening. --force overrides.")
 
-    # --- the account has to exist over there -----------------------------
-    acc_cols, acc_rows = rows_of(source, "accounts", "id=%s" % accountid)
-    acc_name = acc_rows[0][acc_cols.index("name")]
+            return None
 
-    dest_acc = dest.one("SELECT id FROM accounts WHERE name=%s;" % quote(acc_name))
-
-    # All of it or none of it.
-    #
-    # The first attempt at this died partway through - on a column the
-    # destination's schema did not have - and left an account and a stub
-    # character behind that nobody asked for. The client stops at the first
-    # error and exits without committing, so the whole move rolls back.
-    statements = ["SET FOREIGN_KEY_CHECKS=0;", "START TRANSACTION;"]
-
-    if dest_acc is None:
-        print("  account '%s' does not exist there - taking it too" % acc_name)
-        statements.append(insert(dest, "accounts", acc_cols, acc_rows[0], skip=("id",)))
+    acc_name = source.one(
+        "SELECT a.name FROM accounts a JOIN characters c ON c.accountid=a.id "
+        "WHERE c.id=%s;" % cid)
 
     # --- out with the old copy, if there is one --------------------------
     if dest_cid:
-        print("  replacing the copy already there (id %s)" % dest_cid)
+        print("  '%s' replaces the copy already there" % name)
 
         for table, key in child_tables(dest):
             statements.append("DELETE FROM `%s` WHERE `%s`=%s;" % (table, key, dest_cid))
@@ -290,7 +277,7 @@ def move(name, source, dest, force):
     statements.append("SET @cid = LAST_INSERT_ID();")
 
     # --- everything keyed to the character -------------------------------
-    carried = 0
+    carried = 1
 
     for table, key in child_tables(source):
         cols, rows = rows_of(source, table, "`%s`=%s" % (key, cid))
@@ -330,6 +317,47 @@ def move(name, source, dest, force):
 
             carried += 1
 
+    return carried
+
+
+def bring_account(acc_name, source, dest, statements):
+    """The account row has to exist over there - a character with no account
+    cannot be logged into."""
+    acc_cols, acc_rows = rows_of(source, "accounts", "name=%s" % quote(acc_name))
+
+    if not acc_rows:
+        raise SystemExit("%s has no account called '%s'." % (source, acc_name))
+
+    if dest.one("SELECT id FROM accounts WHERE name=%s;" % quote(acc_name)) is None:
+        print("  account '%s' does not exist there - taking it too" % acc_name)
+        statements.append(insert(dest, "accounts", acc_cols, acc_rows[0], skip=("id",)))
+
+
+def apply(names, acc_name, source, dest, force):
+    """Carry a set of characters. All of it or none of it."""
+    # The first attempt at this died partway through - on a column the
+    # destination's schema did not have - and left an account and a stub
+    # character behind that nobody asked for. The client stops at the first
+    # error and exits without committing, so a failed move rolls back.
+    statements = ["SET FOREIGN_KEY_CHECKS=0;", "START TRANSACTION;"]
+
+    bring_account(acc_name, source, dest, statements)
+
+    carried = 0
+    brought = []
+
+    for name in names:
+        rows = one_character(name, source, dest, force, statements)
+
+        if rows is not None:
+            carried += rows
+            brought.append(name)
+
+    if not brought:
+        print("  nothing to carry - nothing was changed on %s" % dest)
+
+        return
+
     statements.append("COMMIT;")
     statements.append("SET FOREIGN_KEY_CHECKS=1;")
 
@@ -337,13 +365,51 @@ def move(name, source, dest, force):
 
     print("  carried %d rows" % carried)
 
-    now = dest.sql("SELECT name, level, meso FROM characters WHERE name=%s;" % quote(name))
+    for name in brought:
+        now = dest.sql("SELECT name, level, meso FROM characters WHERE name=%s;"
+                       % quote(name))
 
-    if now and now[0][0]:
+        if not now or not now[0][0]:
+            raise SystemExit("'%s' did not arrive" % name)
+
         print("  '%s' is now on %s: level %s, %s mesos"
               % (now[0][0], dest, now[0][1], now[0][2]))
-    else:
-        raise SystemExit("the character did not arrive - nothing was changed there")
+
+
+def move(name, source, dest, force):
+    print("Moving '%s' from %s to %s" % (name, source, dest))
+
+    acc_name = source.one(
+        "SELECT a.name FROM accounts a JOIN characters c ON c.accountid=a.id "
+        "WHERE c.name=%s;" % quote(name))
+
+    if acc_name is None:
+        raise SystemExit("%s has no character called '%s'." % (source, name))
+
+    apply([name], acc_name, source, dest, force)
+
+
+def move_account(acc_name, source, dest, force):
+    """A PLAYER, not a character.
+
+    Cosmic gives an account three character slots and a person thinks of all
+    three as theirs. Carrying one and leaving the others is how somebody finds
+    two of their characters missing on the handheld they took out for the
+    afternoon - so the whole account travels together.
+
+    Each character is still judged on its own age, so a stale copy of one
+    cannot ride along on a fresh copy of another."""
+    names = [r[0] for r in source.sql(
+        "SELECT c.name FROM characters c JOIN accounts a ON a.id=c.accountid "
+        "WHERE a.name=%s ORDER BY c.name;" % quote(acc_name)) if r and r[0]]
+
+    if not names:
+        raise SystemExit("%s has no characters on account '%s'." % (source, acc_name))
+
+    print("Moving account '%s' (%s) from %s to %s"
+          % (acc_name, ", ".join(names), source, dest))
+
+    apply(names, acc_name, source, dest, force)
 
 
 def verify(name, a, b):
@@ -366,11 +432,11 @@ def verify(name, a, b):
 
     faults = 0
 
-    def compare(what, table, where_a, where_b, order):
+    def compare(what, table, where_a, where_b):
         nonlocal faults
 
-        cols_a, rows_a = rows_of(a, table, "%s ORDER BY %s" % (where_a, order))
-        cols_b, rows_b = rows_of(b, table, "%s ORDER BY %s" % (where_b, order))
+        cols_a, rows_a = rows_of(a, table, where_a)
+        cols_b, rows_b = rows_of(b, table, where_b)
 
         # Ids differ by design - the same character is a different row number
         # in each world - so they are not part of the comparison.
@@ -382,7 +448,15 @@ def verify(name, a, b):
         def shrink(cols, rows):
             index = [cols.index(c) for c in common]
 
-            return [tuple(r[i] for i in index) for r in rows]
+            # Sorted on the compared values themselves, so this asks whether
+            # the two sides hold the same SET of rows - which is the real
+            # question. An ORDER BY on hand-picked columns is not unique: two
+            # low-level armours that agree on those columns sorted differently
+            # on each side and the walk below reported a difference in wdef
+            # between two rows that were never the same row.
+            got = [tuple(r[i] for i in index) for r in rows]
+
+            return sorted(got, key=lambda t: tuple("" if v is None else v for v in t))
 
         left, right = shrink(cols_a, rows_a), shrink(cols_b, rows_b)
 
@@ -410,20 +484,16 @@ def verify(name, a, b):
 
     ca, cb = cids[str(a)], cids[str(b)]
 
-    compare("characters", "characters", "id=%s" % ca, "id=%s" % cb, "id")
+    compare("characters", "characters", "id=%s" % ca, "id=%s" % cb)
 
     for table, key in child_tables(a):
-        compare(table, table, "`%s`=%s" % (key, ca), "`%s`=%s" % (key, cb),
-                # inventory has to be ordered by something stable and shared,
-                # because the row ids are not.
-                "itemid, position, quantity" if table == "inventoryitems" else "1")
+        compare(table, table, "`%s`=%s" % (key, ca), "`%s`=%s" % (key, cb))
 
     compare("inventoryequipment", "inventoryequipment",
             "inventoryitemid IN (SELECT inventoryitemid FROM inventoryitems "
             "WHERE characterid=%s)" % ca,
             "inventoryitemid IN (SELECT inventoryitemid FROM inventoryitems "
-            "WHERE characterid=%s)" % cb,
-            "itemlevel, str, dex, watk, upgradeslots")
+            "WHERE characterid=%s)" % cb)
 
     print("\n%s" % ("IDENTICAL" if not faults else "%d TABLES DIFFER" % faults))
 
@@ -451,6 +521,15 @@ def main():
         name, src, dst = args.rest
 
         move(name, World(src), World(dst), args.force)
+        return
+
+    if args.command == "account":
+        if len(args.rest) != 3:
+            raise SystemExit(__doc__)
+
+        name, src, dst = args.rest
+
+        move_account(name, World(src), World(dst), args.force)
         return
 
     if args.command == "verify":
