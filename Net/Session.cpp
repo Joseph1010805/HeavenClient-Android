@@ -64,6 +64,17 @@ namespace ms
 		return Error::NONE;
 	}
 
+	bool Session::reconnect_to_configured()
+	{
+		if (connected)
+			return true;
+
+		std::string HOST = Setting<ServerIP>::get().load();
+		std::string PORT = Setting<ServerPort>::get().load();
+
+		return init(HOST.c_str(), PORT.c_str());
+	}
+
 	void Session::reconnect(const char* address, const char* port)
 	{
 	    printf("called reconnect\n");

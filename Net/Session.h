@@ -55,6 +55,9 @@ namespace ms
 		void reconnect(const char* address, const char* port);
 		// Check if the connection is alive.
 		bool is_connected() const;
+		// Try again, against whatever the settings now say. Used when logging
+		// in, since the client is allowed to open with no server at all.
+		bool reconnect_to_configured();
 
 	private:
 		bool init(const char* host, const char* port);

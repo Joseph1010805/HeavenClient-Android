@@ -53,13 +53,19 @@ namespace ms
             //return error;
         }
 
+		// A server that is not there must NOT stop the client opening.
+		//
+		// This used to exit, which meant the app would not start at all
+		// unless something was already listening - and since the way to
+		// choose a different server is a switch on the LOGIN screen, anyone
+		// whose server was off could not reach the control that would have
+		// fixed it. The same trap catches a PC that is simply turned off.
+		//
+		// Connecting is retried when they try to log in, which is the first
+		// moment it is actually needed.
 		printf("[*] Initializing session.\n");
-		if (Error error = Session::get().init()) {
-			printf("[!] Error initializing session.\n");
-            //return error;
-            if (error)
-                exit(error);
-        }
+		if (Session::get().init())
+			printf("[!] No server yet - the login screen will say so.\n");
 
 		printf("[*] Initializing nxfiles.\n");
 		if (Error error = NxFiles::init()) {

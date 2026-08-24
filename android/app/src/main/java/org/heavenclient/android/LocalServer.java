@@ -1,5 +1,6 @@
 package org.heavenclient.android;
 
+import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -31,6 +32,15 @@ public final class LocalServer {
     private static final String RUN_SERVICE = "com.termux.app.RunCommandService";
     private static final String RUN_ACTION = "com.termux.RUN_COMMAND";
 
+    /**
+     * Termux protects RUN_COMMAND at `dangerous` level, so declaring it in the
+     * manifest is NOT enough - Android will not grant it until it is asked for
+     * at runtime and the person says yes. Declared-but-not-granted looks
+     * exactly like working right up to the moment the service refuses.
+     */
+    private static final String RUN_PERMISSION = "com.termux.permission.RUN_COMMAND";
+    private static final int RUN_PERMISSION_REQUEST = 4711;
+
     private static final String BIN = "/data/data/com.termux/files/usr/bin/bash";
     private static final String SCRIPT = "/data/data/com.termux/files/home/cosmic/run.sh";
 
@@ -51,6 +61,16 @@ public final class LocalServer {
         }
     }
 
+    /** Whether this app may drive Termux yet. */
+    public static boolean hasPermission(Context context) {
+        if (context == null) {
+            return false;
+        }
+
+        return context.checkSelfPermission(RUN_PERMISSION)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
     /**
      * Asks Termux to run the server, in the background, with a notification of
      * its own so it is not killed the moment the game takes the foreground.
@@ -62,6 +82,20 @@ public final class LocalServer {
     public static boolean start(Context context) {
         if (!isAvailable(context)) {
             Log.i(TAG, "local server: Termux is not installed");
+            return false;
+        }
+
+        if (!hasPermission(context)) {
+            // Ask, and give up for now. The person has to answer a dialog, and
+            // the answer arrives long after this call has returned - so the
+            // honest thing is to report failure and let them tap again.
+            if (context instanceof Activity) {
+                Log.i(TAG, "local server: asking for permission to drive Termux");
+
+                ((Activity) context).requestPermissions(
+                        new String[] { RUN_PERMISSION }, RUN_PERMISSION_REQUEST);
+            }
+
             return false;
         }
 

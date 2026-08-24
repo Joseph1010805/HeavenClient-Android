@@ -19,6 +19,7 @@
 
 #include "../../Graphics/GraphicsGL.h"
 #include "../../Util/LocalServer.h"
+#include "../../Net/Session.h"
 #include "UILoginwait.h"
 #include "UILoginNotice.h"
 #include "UINotice.h"
@@ -288,6 +289,26 @@ namespace ms
 			else
 				account.set_state(Textfield::State::FOCUSED);
 		};
+
+		// The client is allowed to open with nothing listening, so this is
+		// where a missing server is first noticed - and it has to be said
+		// plainly, naming the address, or "nothing happens" is all anyone
+		// sees.
+		if (!Session::get().is_connected() && !Session::get().reconnect_to_configured())
+		{
+			std::string where = LocalServer::is_offline()
+				? std::string("this device")
+				: LocalServer::home_address();
+
+			// By value, like every other notice here. The dialog outlives this
+			// function and calls back long after it has returned, so a
+			// reference to a local would be dangling by then.
+			UI::get().emplace<UIOk>(
+				"No answer from " + where + ".\\nIs the server running? The SERVER switch is top left.",
+				[okhandler](bool) { okhandler(); });
+
+			return;
+		}
 
 		if (account_text.empty())
 		{
