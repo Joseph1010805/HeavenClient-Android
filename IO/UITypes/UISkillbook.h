@@ -116,6 +116,15 @@ namespace ms
 		void spend_sp(int32_t skill_id);
 
 		Job::Level joblevel_by_tab(uint16_t tab) const;
+
+		// The spare points for whichever book is open.
+		//
+		// This used to be read back out of the label with std::stoi, which
+		// throws on an empty string - and the label IS empty until change_sp()
+		// has run at least once. Every button in the window parsed it before
+		// doing anything, the Close button included, so the window could take
+		// the whole game down rather than shut.
+		int16_t spare_sp() const;
 		const UISkillbook::SkillDisplayMeta* skill_by_position(Point<int16_t> cursorpos) const;
 
 		void close();
@@ -186,8 +195,13 @@ namespace ms
 		Text splabel;
 
 		Job job;
-		int16_t sp;
-		int16_t beginner_sp;
+
+		// Zeroed here rather than left to the constructor, which does not
+		// mention either of them. change_sp() is what fills them in, and
+		// anything asking before that ran would otherwise be reading whatever
+		// happened to be on the stack.
+		int16_t sp = 0;
+		int16_t beginner_sp = 0;
 
 		uint16_t tab;
 		uint16_t skillcount;

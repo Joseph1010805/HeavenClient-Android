@@ -322,7 +322,7 @@ namespace ms
 
 	Button::State UISkillbook::button_pressed(uint16_t id)
 	{
-		int16_t cur_sp = std::stoi(splabel.get_text());
+		int16_t cur_sp = spare_sp();
 
 		switch (id)
 		{
@@ -616,6 +616,14 @@ namespace ms
 		change_tab(level - Job::Level::BEGINNER);
 	}
 
+	int16_t UISkillbook::spare_sp() const
+	{
+		// Straight from the members change_sp() maintains, rather than parsed
+		// back out of the text drawn from them. Beginners spend a separate
+		// pool that is worked out here rather than sent by the server.
+		return joblevel_by_tab(tab) == Job::Level::BEGINNER ? beginner_sp : sp;
+	}
+
 	void UISkillbook::change_sp()
 	{
 		Job::Level joblevel = joblevel_by_tab(tab);
@@ -767,7 +775,7 @@ namespace ms
 
 		const SkillData& skillData = SkillData::get(id);
 		std::string name = skillData.get_name();
-		int16_t cur_sp = std::stoi(splabel.get_text());
+		int16_t cur_sp = spare_sp();
 
 		sp_before_text = std::to_string(level);
 		sp_after_text = std::to_string(level + used);

@@ -9,11 +9,6 @@ raised at the table gets quietly forgotten.
 
 - **Stats do not sit inside their boxes** on character select. Same cause as the
   Start button, which is fixed - positions were tuned for a later UI version.
-- **The skill window is too narrow for its contents.** The client lays skills out
-  in two columns needing 297px; the artwork here is 174x299. Needs a
-  single-column layout, using the scrollbar that is already there.
-- **SKILL POINT shows no number.** Probably the same thing - the label drawn at a
-  coordinate outside this version's frame.
 
 ### Client - the settings menu
 
@@ -173,6 +168,20 @@ Wanted layout, left to right:
   pushed to a device each time.
 
 ## Fixed
+
+- **The skill window was too narrow for its contents, and SKILL POINT showed no
+  number.** Fixed 22 August in `8f274c9` - the client laid skills out in two
+  columns needing 297px against artwork 174x299 wide, which put half the
+  spend-point arrows at x278 where they could not be clicked, and the SP label
+  at x304 where it was off the window entirely. Now one column with the
+  scrollbar that was already there. *(These sat under Open for two days after
+  being fixed, and the stale entries were convincing enough to argue from.)*
+- **The skill window could take the whole game down instead of closing.** Three
+  places read the spare SP by parsing it back out of the label text with
+  `std::stoi`, and that label is empty until `change_sp()` has run - `std::stoi("")`
+  throws. The parse sat at the top of `button_pressed()` before the switch, so
+  every button in the window went through it, Close included. It reads the
+  `sp` / `beginner_sp` members directly now, and both are initialised.
 
 - **The AYN Thor's second screen.** The menus live on the handheld's lower
   display instead of on top of the game: a deck of eight swipeable pages -
