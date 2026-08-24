@@ -110,19 +110,68 @@ def quote(value):
     return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
+# Tables that hang off ANOTHER ROW of the character's data rather than off the
+# character directly, and the column that points at their parent.
+#
+# Cosmic loads quest progress by looking the parent up in a map keyed on
+# `queststatusid` - so a progress row carrying the id it had in the world it
+# came from finds nothing there, and `loadedQuestStatus.get(...)` quietly
+# returns null. The quest stays STARTED and "12 of 20 killed" is simply gone.
+# `medalmaps` is loaded the same way, and `inventorymerchant` points at an
+# item the same way `inventoryequipment` does.
+#
+# Nothing in `information_schema` describes any of this - the schema declares
+# foreign keys for famelog and skills but not for a single one of these - so
+# it is the one thing here that has to be written down.
+SECOND_LEVEL = {
+    "inventoryitems": [("inventoryequipment", "inventoryitemid"),
+                       ("inventorymerchant", "inventoryitemid")],
+    "queststatus": [("questprogress", "queststatusid"),
+                    ("medalmaps", "queststatusid")],
+}
+
+# Anything reached through SECOND_LEVEL must not ALSO be carried by the
+# character loop, or it arrives twice. Most of them do carry a characterid as
+# well - which still has to be set, just not used to find them.
+NESTED = {child for kids in SECOND_LEVEL.values() for child, _ in kids}
+
+# `worldtransfers` and `namechanges` are records of administrative acts on a
+# particular server. They are not part of who the character IS, and carrying
+# them would claim a history that did not happen here. `characterexplogs` is
+# logging and grows without bound; `playerdiseases` are temporary debuffs
+# nobody should keep across a move; the family tables describe a relationship
+# to characters that are not coming along.
+SKIP = {"worldtransfers", "namechanges", "mts_cart",
+        "family_character", "family_entitlement",
+        "characterexplogs", "playerdiseases"}
+
+
 def child_tables(world):
-    """Every table that hangs off a character, read from the schema."""
+    """Every table that hangs off a character, read from the schema.
+
+    Cosmic spells the key THREE ways - `characterid`, `cid` and `charid` -
+    and looking for only the first two silently left behind the monster book,
+    skill cooldowns, and `area_info`, which is where NPC scripts keep their
+    per-character memory."""
     rows = world.sql(
         "SELECT table_name, column_name FROM information_schema.columns "
         "WHERE table_schema='%s' AND column_name IN "
-        "('characterid','cid') ORDER BY table_name;" % DB)
+        "('characterid','cid','charid') ORDER BY table_name;" % DB)
 
-    # `worldtransfers` and `namechanges` are records of administrative acts on
-    # a particular server. They are not part of who the character IS, and
-    # carrying them would claim a history that did not happen here.
-    skip = {"worldtransfers", "namechanges", "mts_cart", "family_character"}
+    return [(t, c) for t, c in rows if t not in SKIP and t not in NESTED]
 
-    return [(t, c) for t, c in rows if t not in skip]
+
+def key_of(world, table, cache={}):
+    """A table's own primary key column."""
+    if (str(world), table) not in cache:
+        got = world.sql(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema='%s' AND table_name='%s' AND column_key='PRI' "
+            "ORDER BY ordinal_position;" % (DB, table))
+
+        cache[(str(world), table)] = got[0][0] if got and got[0] else None
+
+    return cache[(str(world), table)]
 
 
 def columns(world, table):
@@ -252,12 +301,26 @@ def one_character(name, source, dest, force, statements):
     if dest_cid:
         print("  '%s' replaces the copy already there" % name)
 
+        # Nested rows first, while their parents are still there to find them
+        # by - afterwards they are unreachable orphans, and `inventoryequipment`
+        # has no owner column of its own, so nothing could ever find them again.
+        #
+        # The parent is selected by ITS CHARACTER, not by its own primary key.
+        # Getting that wrong reads as `WHERE inventoryitemid = <a character id>`,
+        # which matches nothing, deletes nothing, and quietly left ten dead
+        # equipment rows in the database on every single move.
+        for parent, kids in SECOND_LEVEL.items():
+            owner = [c for c in ("characterid", "cid", "charid")
+                     if c in columns(dest, parent)][0]
+
+            for child, link in kids:
+                statements.append(
+                    "DELETE FROM `%s` WHERE `%s` IN (SELECT `%s` FROM `%s` "
+                    "WHERE `%s`=%s);" % (child, link, link, parent,
+                                         owner, dest_cid))
+
         for table, key in child_tables(dest):
             statements.append("DELETE FROM `%s` WHERE `%s`=%s;" % (table, key, dest_cid))
-
-        statements.append(
-            "DELETE FROM inventoryequipment WHERE inventoryitemid IN "
-            "(SELECT inventoryitemid FROM inventoryitems WHERE characterid=%s);" % dest_cid)
 
         statements.append("DELETE FROM characters WHERE id=%s;" % dest_cid)
 
@@ -281,39 +344,57 @@ def one_character(name, source, dest, force, statements):
 
     for table, key in child_tables(source):
         cols, rows = rows_of(source, table, "`%s`=%s" % (key, cid))
+        kids = SECOND_LEVEL.get(table, [])
+
+        # The parent's own id is dropped on the way in - the destination
+        # assigns its own - but it is still needed HERE, to find the rows
+        # that hang off it in the world it came from.
+        own_id = key_of(source, table) if kids else None
 
         for row in rows:
-            keep = pairs(cols, row, dest, table,
-                         drop=(key, "inventoryitemid") if table == "inventoryitems"
-                         else (key,))
+            drop = [key] + ([own_id] if own_id else [])
+
+            keep = pairs(cols, row, dest, table, drop=drop)
 
             statements.append("INSERT INTO `%s` (`%s`, %s) VALUES (@cid, %s);" % (
                 table, key,
                 ", ".join("`%s`" % c for c, _ in keep),
                 ", ".join(quote(v) for _, v in keep)))
 
-            # Equipment hangs off the ITEM, not the character. This is the
-            # level a naive copy loses - and losing it means every scroll and
-            # every stat on every equip quietly vanishes.
-            if table == "inventoryitems":
-                # Held in a variable rather than read again with
-                # LAST_INSERT_ID(), which the equipment insert below would
-                # itself overwrite.
-                statements.append("SET @item = LAST_INSERT_ID();")
+            if not kids:
+                carried += 1
+                continue
 
-                item_id = row[cols.index("inventoryitemid")]
-                eq_cols, eq_rows = rows_of(source, "inventoryequipment",
-                                           "inventoryitemid=%s" % item_id)
+            # Held in a variable rather than read again with LAST_INSERT_ID(),
+            # which the child inserts below would themselves overwrite.
+            statements.append("SET @parent = LAST_INSERT_ID();")
 
-                for eq in eq_rows:
-                    keep_eq = pairs(eq_cols, eq, dest, "inventoryequipment",
-                                    drop=("inventoryequipmentid", "inventoryitemid"))
+            was = row[cols.index(own_id)]
 
-                    statements.append(
-                        "INSERT INTO inventoryequipment (inventoryitemid, %s) "
-                        "VALUES (@item, %s);" % (
-                            ", ".join("`%s`" % c for c, _ in keep_eq),
-                            ", ".join(quote(v) for _, v in keep_eq)))
+            for child, link in kids:
+                kid_cols, kid_rows = rows_of(source, child, "`%s`=%s" % (link, was))
+
+                for kid in kid_rows:
+                    kid_key = key_of(source, child)
+
+                    # A nested row may ALSO carry a characterid, and Cosmic
+                    # reads questprogress by characterid before joining on the
+                    # parent - so both have to be right, not just the link.
+                    mine = [c for c in ("characterid", "cid", "charid") if c in kid_cols]
+
+                    keep_kid = pairs(kid_cols, kid, dest, child,
+                                     drop=[kid_key, link] + mine)
+
+                    cols_sql = ["`%s`" % link] + ["`%s`" % c for c in mine]
+                    vals_sql = ["@parent"] + ["@cid"] * len(mine)
+
+                    cols_sql += ["`%s`" % c for c, _ in keep_kid]
+                    vals_sql += [quote(v) for _, v in keep_kid]
+
+                    statements.append("INSERT INTO `%s` (%s) VALUES (%s);" % (
+                        child, ", ".join(cols_sql), ", ".join(vals_sql)))
+
+                    carried += 1
 
             carried += 1
 
@@ -331,6 +412,34 @@ def bring_account(acc_name, source, dest, statements):
     if dest.one("SELECT id FROM accounts WHERE name=%s;" % quote(acc_name)) is None:
         print("  account '%s' does not exist there - taking it too" % acc_name)
         statements.append(insert(dest, "accounts", acc_cols, acc_rows[0], skip=("id",)))
+
+    statements.append("SET @acc = (SELECT id FROM accounts WHERE name=%s);"
+                      % quote(acc_name))
+
+    # The bank belongs to the ACCOUNT, not to any of its characters.
+    #
+    # `storages` is keyed on accountid alone, so nothing in the per-character
+    # walk ever reaches it - and it holds the slot count and the stored mesos,
+    # of which one account here has a billion. Items sitting in storage are
+    # rows in `inventoryitems` with an account-scoped `type` (ItemFactory:
+    # STORAGE is 2, the CASH_* tabs are 3/4/5/7), and those DO carry a
+    # characterid, so they travel with whichever character holds them - which
+    # is another reason the unit is the account and not one character.
+    src_acc = source.one("SELECT id FROM accounts WHERE name=%s;" % quote(acc_name))
+
+    st_cols, st_rows = rows_of(source, "storages", "accountid=%s" % src_acc)
+
+    if st_rows:
+        statements.append("DELETE FROM storages WHERE accountid=@acc;")
+
+        for row in st_rows:
+            keep = pairs(st_cols, row, dest, "storages", drop=("storageid", "accountid"))
+
+            statements.append("INSERT INTO storages (accountid, %s) VALUES (@acc, %s);" % (
+                ", ".join("`%s`" % c for c, _ in keep),
+                ", ".join(quote(v) for _, v in keep)))
+
+        print("  carrying the bank (%d storage row(s))" % len(st_rows))
 
 
 def apply(names, acc_name, source, dest, force):
@@ -440,8 +549,9 @@ def verify(name, a, b):
 
         # Ids differ by design - the same character is a different row number
         # in each world - so they are not part of the comparison.
-        ignore = {"id", "characterid", "cid", "accountid",
-                  "inventoryitemid", "inventoryequipmentid"}
+        ignore = {"id", "characterid", "cid", "charid", "accountid",
+                  "inventoryitemid", "inventoryequipmentid",
+                  "queststatusid", "inventorymerchantid", "storageid"}
 
         common = [c for c in cols_a if c in set(cols_b) and c not in ignore]
 
@@ -489,13 +599,60 @@ def verify(name, a, b):
     for table, key in child_tables(a):
         compare(table, table, "`%s`=%s" % (key, ca), "`%s`=%s" % (key, cb))
 
+    # The nested tables are deliberately absent from child_tables - they are
+    # carried through their parent, not by characterid - so they have to be
+    # asked for by name here or they would go unchecked entirely.
     compare("inventoryequipment", "inventoryequipment",
             "inventoryitemid IN (SELECT inventoryitemid FROM inventoryitems "
             "WHERE characterid=%s)" % ca,
             "inventoryitemid IN (SELECT inventoryitemid FROM inventoryitems "
             "WHERE characterid=%s)" % cb)
 
-    print("\n%s" % ("IDENTICAL" if not faults else "%d TABLES DIFFER" % faults))
+    for nested in sorted(NESTED - {"inventoryequipment"}):
+        compare(nested, nested, "characterid=%s" % ca, "characterid=%s" % cb)
+
+    # And the bank, which hangs off the account rather than the character.
+    aa = a.one("SELECT accountid FROM characters WHERE id=%s;" % ca)
+    bb = b.one("SELECT accountid FROM characters WHERE id=%s;" % cb)
+
+    compare("storages", "storages", "accountid=%s" % aa, "accountid=%s" % bb)
+
+    # --- and that nothing points at a row that is not there ---------------
+    #
+    # The comparison above deliberately ignores id columns, because the same
+    # character legitimately holds different row numbers in each world. That
+    # blind spot is exactly where the worst bug lived: a questprogress row
+    # carrying the queststatusid it had somewhere else compares EQUAL on
+    # every field it is judged on, and still points at nothing. Cosmic reads
+    # that as no progress at all - the quest stays started and the kill count
+    # is gone - so the link itself has to be checked separately.
+    for world, cid in ((a, ca), (b, cb)):
+        for parent, kids in SECOND_LEVEL.items():
+            parent_key = key_of(world, parent)
+
+            for child, link in kids:
+                # Some children carry a character column and can be asked
+                # about this character alone. `inventoryequipment` does not -
+                # it is reachable ONLY through its item - so an orphan there
+                # belongs to nobody and the only honest question is whether
+                # the world holds any at all.
+                mine = [c for c in ("characterid", "cid", "charid")
+                        if c in columns(world, child)]
+
+                scope = ("c.`%s`=%s" % (mine[0], cid)) if mine else "1=1"
+
+                lost = world.one(
+                    "SELECT COUNT(*) FROM `%s` c LEFT JOIN `%s` p "
+                    "ON p.`%s` = c.`%s` WHERE %s AND p.`%s` IS NULL;"
+                    % (child, parent, parent_key, link, scope, parent_key))
+
+                if lost and int(lost) > 0:
+                    faults += 1
+                    print("  ORPHANS %s on %s: %s row(s) point at no %s%s"
+                          % (child, world, lost, parent,
+                             "" if mine else " (world-wide - this table has no owner column)"))
+
+    print("\n%s" % ("IDENTICAL" if not faults else "%d PROBLEM(S)" % faults))
 
     if faults:
         raise SystemExit(1)
