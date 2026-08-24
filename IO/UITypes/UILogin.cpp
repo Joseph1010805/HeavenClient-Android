@@ -248,7 +248,11 @@ namespace ms
 				{ readiness.termux,      "Termux installed",        "install it - see docs_OFFLINE.md" },
 				{ readiness.permission,  "May start the server",    "tap HOST again and allow it" },
 				{ readiness.server,      "Server running here",     "starting - give it half a minute" },
-				{ readiness.wifi_direct, "Can make its own network", "only needed where there is no wifi" }
+				{ readiness.wifi_direct && Multiplayer::wifi_radio_on(),
+					"Can make its own network",
+					Multiplayer::wifi_direct_supported()
+						? "turn WIFI ON - it needs the radio, not a network"
+						: "this device cannot do Wi-Fi Direct" }
 			};
 
 			for (const auto& line : lines)
@@ -320,10 +324,21 @@ namespace ms
 
 			if (found.empty())
 			{
-				check_line.change_text("They must be on HOST, and on the");
+				// The single most useful thing this screen can say when
+				// nothing is found in a car: wifi OFF is not the same as no
+				// network, and it stops Wi-Fi Direct dead.
+				bool radio = Multiplayer::wifi_radio_on();
+
+				check_line.change_text(radio
+					? "They must be on HOST, and on the"
+					: "Turn WIFI ON. It needs no network -");
+
 				check_line.draw(Point<int16_t>(left, after + 4 + LINE_H + 6));
 
-				check_line.change_text("same wifi - a phone hotspot will do.");
+				check_line.change_text(radio
+					? "same wifi - a phone hotspot will do."
+					: "just the radio, to reach the other device.");
+
 				check_line.draw(Point<int16_t>(left, after + 4 + LINE_H * 2 + 6));
 			}
 		}
@@ -403,7 +418,9 @@ namespace ms
 		//
 		// Only when there is nothing else: creating a group takes over the
 		// wifi radio, and a house with a router does not need it.
-		if (!Multiplayer::on_network() && Multiplayer::wifi_direct_supported())
+		if (!Multiplayer::on_network()
+			&& Multiplayer::wifi_direct_supported()
+			&& Multiplayer::wifi_radio_on())
 			Multiplayer::create_group();
 
 		// Shout our name onto the network so the others can find us without
@@ -454,7 +471,10 @@ namespace ms
 			{
 				tried_wifi_direct = true;
 
-				if (Multiplayer::wifi_direct_supported())
+				// With the radio off there is nothing to try. Saying so beats
+				// a string of BUSY failures in the log that look like broken
+				// hardware.
+				if (Multiplayer::wifi_direct_supported() && Multiplayer::wifi_radio_on())
 					Multiplayer::find_groups();
 			}
 		}

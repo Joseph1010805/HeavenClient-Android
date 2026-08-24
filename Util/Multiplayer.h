@@ -74,6 +74,17 @@ namespace ms
 
 		bool wifi_direct_supported();
 
+		// Whether the wifi RADIO is on, which is not the same as being
+		// connected to anything. Wi-Fi Direct needs no network, no router and
+		// no internet - but it does need the radio. Switching wifi off
+		// switches the peer-to-peer side off with it, and every call comes
+		// back BUSY, which reads exactly like a device that cannot do it.
+		bool wifi_radio_on();
+
+		// Put Android's own wifi switch in front of the player. An app has
+		// not been allowed to turn wifi on by itself since Android 10.
+		void open_wifi_settings();
+
 		// Become the network. This device turns into a small access point and
 		// always takes 192.168.49.1, which is why a client that has joined a
 		// group knows where the server is even if discovery fails.

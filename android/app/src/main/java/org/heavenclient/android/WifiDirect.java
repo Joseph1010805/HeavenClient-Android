@@ -3,8 +3,14 @@ package org.heavenclient.android;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.wifi.WifiManager;
+import android.net.wifi.p2p.WifiP2pConfig;
+import android.net.wifi.p2p.WifiP2pDevice;
+import android.net.wifi.p2p.WifiP2pDeviceList;
 import android.net.wifi.p2p.WifiP2pManager;
+import android.provider.Settings;
 import android.os.Build;
 import android.os.Looper;
 import android.util.Log;
@@ -38,6 +44,56 @@ public final class WifiDirect {
     private static WifiP2pManager.Channel channel;
 
     private WifiDirect() {
+    }
+
+    /**
+     * Whether the wifi RADIO is on - which is not the same as being connected
+     * to anything, and is the trap that stopped this working the first time
+     * it was tried in earnest.
+     *
+     * Wi-Fi Direct needs no network, no router and no internet. It does need
+     * the radio. Switching wifi off switches the peer-to-peer side off with
+     * it: the p2p state machine drops into P2pDisabledState and every call
+     * comes back BUSY, which reads exactly like a device that cannot do it.
+     *
+     * "Offline" means no network. It must not mean wifi off.
+     */
+    public static boolean isRadioOn(Context context) {
+        if (context == null) {
+            return false;
+        }
+
+        WifiManager wifi = (WifiManager) context.getApplicationContext()
+                .getSystemService(Context.WIFI_SERVICE);
+
+        return wifi != null && wifi.isWifiEnabled();
+    }
+
+    /**
+     * Show Android's own wifi panel so it can be switched on.
+     *
+     * An app has not been allowed to enable wifi by itself since Android 10 -
+     * `setWifiEnabled` does nothing for us - so the honest thing is to put
+     * the switch in front of the person rather than fail quietly.
+     */
+    public static boolean openWifiSettings(Context context) {
+        if (context == null) {
+            return false;
+        }
+
+        try {
+            Intent panel = new Intent(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    ? Settings.Panel.ACTION_WIFI
+                    : Settings.ACTION_WIFI_SETTINGS);
+
+            panel.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(panel);
+
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "could not open the wifi settings - " + e);
+            return false;
+        }
     }
 
     /** Whether this device has the hardware at all. The Quest is the doubt. */
@@ -152,9 +208,21 @@ public final class WifiDirect {
     }
 
     /**
-     * Look for a group to join. Android shows its own picker and its own
-     * confirmation on the other device, which is why this cannot simply
-     * connect: joining somebody's network is their decision as well as ours.
+     * Look for somebody hosting, and JOIN them when found.
+     *
+     * The first version of this only looked. It called discoverPeers, logged
+     * that it was looking, and stopped - so even with everything else right
+     * the two devices would find each other and sit there. Discovering a peer
+     * is not connecting to one.
+     *
+     * The peer we want is the group owner: the host called createGroup, which
+     * makes it a small access point advertising itself. Connecting to it puts
+     * this device on its network at 192.168.49.x, and from there ordinary
+     * discovery finds the game by name exactly as it does on any other wifi.
+     *
+     * Android puts a confirmation in front of the OTHER person. That is not
+     * something to design around - joining somebody's network is their
+     * decision as much as ours.
      */
     public static boolean discoverPeers(Context context) {
         if (!isSupported(context)) {
@@ -174,12 +242,13 @@ public final class WifiDirect {
             manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
                 @Override
                 public void onSuccess() {
-                    Log.i(TAG, "wifi direct: looking for groups");
+                    Log.i(TAG, "wifi direct: looking for a host");
+                    askForPeers();
                 }
 
                 @Override
                 public void onFailure(int reason) {
-                    Log.e(TAG, "wifi direct: could not look, reason " + reason);
+                    Log.e(TAG, "wifi direct: could not look, " + explain(reason));
                 }
             });
 
@@ -187,6 +256,71 @@ public final class WifiDirect {
         } catch (SecurityException e) {
             Log.e(TAG, "wifi direct: refused - " + e);
             return false;
+        }
+    }
+
+    /** Ask what discovery has turned up, and connect to a host if one is there. */
+    private static void askForPeers() {
+        try {
+            manager.requestPeers(channel, new WifiP2pManager.PeerListListener() {
+                @Override
+                public void onPeersAvailable(WifiP2pDeviceList peers) {
+                    for (WifiP2pDevice device : peers.getDeviceList()) {
+                        // isGroupOwner is only set once a group exists, so
+                        // prefer it and fall back to any available device -
+                        // a host that has just started may not be flagged yet.
+                        if (device.status == WifiP2pDevice.AVAILABLE
+                                || device.isGroupOwner()) {
+                            join(device);
+                            return;
+                        }
+                    }
+                }
+            });
+        } catch (SecurityException e) {
+            Log.e(TAG, "wifi direct: refused - " + e);
+        }
+    }
+
+    private static void join(WifiP2pDevice device) {
+        WifiP2pConfig config = new WifiP2pConfig();
+        config.deviceAddress = device.deviceAddress;
+
+        // Let the host be the group owner. It is the one running the server,
+        // so it should be the one at the fixed address.
+        config.groupOwnerIntent = 0;
+
+        try {
+            manager.connect(channel, config, new WifiP2pManager.ActionListener() {
+                @Override
+                public void onSuccess() {
+                    Log.i(TAG, "wifi direct: asked to join '" + device.deviceName + "'");
+                }
+
+                @Override
+                public void onFailure(int reason) {
+                    Log.e(TAG, "wifi direct: could not join, " + explain(reason));
+                }
+            });
+        } catch (SecurityException e) {
+            Log.e(TAG, "wifi direct: refused - " + e);
+        }
+    }
+
+    /**
+     * The reason codes are bare integers and BUSY covers a multitude - most
+     * often, in practice, the wifi radio being switched off entirely.
+     */
+    private static String explain(int reason) {
+        switch (reason) {
+        case WifiP2pManager.P2P_UNSUPPORTED:
+            return "this device cannot do Wi-Fi Direct";
+        case WifiP2pManager.ERROR:
+            return "the system refused";
+        case WifiP2pManager.BUSY:
+            return "busy - is the wifi radio switched off?";
+        default:
+            return "reason " + reason;
         }
     }
 }

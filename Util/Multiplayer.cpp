@@ -319,6 +319,24 @@ namespace ms
 #endif
 		}
 
+		bool wifi_radio_on()
+		{
+#ifdef PLATFORM_ANDROID
+			return call_bool("org/heavenclient/android/WifiDirect", "isRadioOn",
+				"(Landroid/content/Context;)Z");
+#else
+			return true;
+#endif
+		}
+
+		void open_wifi_settings()
+		{
+#ifdef PLATFORM_ANDROID
+			call_bool("org/heavenclient/android/WifiDirect", "openWifiSettings",
+				"(Landroid/content/Context;)Z");
+#endif
+		}
+
 		bool create_group()
 		{
 #ifdef PLATFORM_ANDROID
