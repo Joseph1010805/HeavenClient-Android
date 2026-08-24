@@ -57,13 +57,34 @@ say
 say "Nothing you type is shown."
 say
 
-read -rsp "Password: " PW
-echo
-read -rsp "Again:    " PW2
-echo
+if [ -t 0 ]; then
+	read -rsp "Password: " PW
+	echo
+	read -rsp "Again:    " PW2
+	echo
 
-[ "$PW" = "$PW2" ] || die "Those did not match. Nothing was created - run it again."
-[ "${#PW}" -ge 6 ] || die "Android requires at least 6 characters. Nothing was created."
+	[ "$PW" = "$PW2" ] || die "Those did not match. Nothing was created - run it again."
+	[ "${#PW}" -ge 6 ] || die "Android requires at least 6 characters. Nothing was created."
+else
+	# No terminal to type into - so make one up instead of failing.
+	#
+	# bash's `read -p` prints nothing at all when stdin is not a tty, so
+	# running this through anything that is not a real terminal window looked
+	# exactly like the script had hung with no prompt. A generated password is
+	# also simply better: it is long, random, and cannot be forgotten, and it
+	# is written next to the keystore rather than into anyone's memory.
+	PW="$(openssl rand -base64 24 2>/dev/null | tr -d '\n/+=' | cut -c1-24)"
+
+	[ "${#PW}" -ge 12 ] \
+		|| PW="$(head -c 32 /dev/urandom | base64 | tr -d '\n/+=' | cut -c1-24)"
+
+	[ "${#PW}" -ge 12 ] || die "Could not generate a password. Run this in a real terminal instead."
+
+	GENERATED=yes
+
+	say "No terminal to type into, so a 24-character random password was made."
+	say "It is written to the backup folder - see the end."
+fi
 
 # --- the key ---------------------------------------------------------------
 #
@@ -95,6 +116,36 @@ say "  made $OUT and checked it opens"
 mkdir -p "$BACKUP"
 cp "$OUT" "$BACKUP/release.jks"
 say "  copied to $BACKUP/release.jks"
+
+# The password goes with it when nobody chose it, because a generated password
+# that exists only inside a GitHub secret is not recoverable - GitHub will let
+# you REPLACE a secret but never show you one. Written here it can be read back
+# the day the machine dies, which is the day it is needed.
+#
+# Key and password in the same folder is weaker than keeping them apart, and
+# that is the deliberate trade: the realistic risk to a hobby signing key is
+# losing it, not somebody going after it.
+if [ "${GENERATED:-no}" = "yes" ]; then
+	{
+		printf 'LocalStory release signing key\n'
+		printf '==============================\n\n'
+		printf 'Keystore : release.jks (in this folder)\n'
+		printf 'Alias    : %s\n' "$ALIAS"
+		printf 'Password : %s\n\n' "$PW"
+		printf 'This password unlocks release.jks, which is what proves an\n'
+		printf 'update to the app really came from you. Android will refuse to\n'
+		printf 'install an update signed by any other key.\n\n'
+		printf 'If both of these are lost, the app can never be updated again -\n'
+		printf 'every player would have to uninstall first. There is no reset\n'
+		printf 'and nobody to appeal to. Keep this folder backed up.\n\n'
+		printf 'The same values are stored as GitHub Actions secrets on\n'
+		printf '%s, which is where the release build reads them\n' "$REPO"
+		printf 'from. GitHub can replace a secret but will never show you one,\n'
+		printf 'so this file is the only readable copy.\n'
+	} > "$BACKUP/release-key-password.txt"
+
+	say "  password written to $BACKUP/release-key-password.txt"
+fi
 
 # --- GitHub ----------------------------------------------------------------
 if [ -z "$GH" ]; then
