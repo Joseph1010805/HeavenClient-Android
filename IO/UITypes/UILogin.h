@@ -62,74 +62,78 @@ namespace ms
 			NUM_BUTTONS
 		};
 
-		// HOST or JOIN, and the list of games found on the network.
+		// HOST and JOIN, and the popup behind each.
 		//
-		// Not "online" and "offline" - there is no such distinction when
-		// every device carries a server. There is only who is hosting, and
-		// playing alone is hosting with nobody joining.
+		// NOTHING IS CHOSEN AT LAUNCH, and that is the important part rather
+		// than a matter of taste. The old screen defaulted to HOST and acted
+		// on it immediately - starting the server and, with no wifi, making
+		// itself a Wi-Fi Direct group. So both handhelds became group owners
+		// within seconds of starting, and a group owner cannot join another
+		// group: they sat there being networks at each other. Doing nothing
+		// until asked is what fixes that at the root.
 		//
-		// It lives on the login screen because that is where the choice
-		// matters, before anything connects, and top-left because the mount
-		// clamps the bottom edge of the screen.
-		enum class Mode : uint8_t
+		// Each button opens a popup that shows what is going to happen and
+		// whether it can, and carries a second button to commit. Backing out
+		// undoes it, so a device that hosted can go and join instead.
+		enum class Panel : uint8_t
 		{
-			// Run the world here. Alone, or with others joining.
+			// The login screen as it always was.
+			NONE,
 			HOST,
-			// Play on somebody else's.
 			JOIN
 		};
 
-		// The whole section, where the logo used to be. It has room to
-		// EXPLAIN rather than just offer two buttons - what hosting means,
-		// what is missing, who is out there - because the person reading it
-		// may be setting a handheld up for the first time.
-		//
-		// On its own black plate: this is drawn over painted artwork, and
-		// white text on a bright sky is unreadable.
+		// The section on the right, where the logo used to be.
 		static constexpr int16_t SECTION_X = 498;
 		static constexpr int16_t SECTION_Y = 10;
 		static constexpr int16_t SECTION_W = 294;
-		static constexpr int16_t SECTION_H = 300;
+		static constexpr int16_t SECTION_H = 116;
+
+		// The popup, over the middle of the screen where there is room to
+		// explain and to list.
+		static constexpr int16_t POP_X = 210;
+		static constexpr int16_t POP_Y = 70;
+		static constexpr int16_t POP_W = 380;
+		static constexpr int16_t POP_H = 300;
 
 		static constexpr int16_t PAD = 10;
 		static constexpr int16_t BUTTON_W = 132;
 		static constexpr int16_t BUTTON_H = 34;
-
-		// Where the explanation starts, under the buttons.
-		static constexpr int16_t BODY_Y = SECTION_Y + BUTTON_H + 14;
 		static constexpr int16_t LINE_H = 16;
 		static constexpr int16_t ROW_H = 24;
 
-		Rectangle<int16_t> mode_bounds(Mode which) const;
+		Rectangle<int16_t> section_button(Panel which) const;
+		Rectangle<int16_t> commit_bounds() const;
+		Rectangle<int16_t> cancel_bounds() const;
 		Rectangle<int16_t> game_bounds(int16_t row) const;
 
-		void choose_host();
-		void choose_join();
+		void draw_panel_over(float alpha) const;
+		void open_panel(Panel which);
+		void close_panel();
+		void commit();
+		void stop_hosting();
 
-		Mode mode = Mode::HOST;
+		Panel panel = Panel::NONE;
 
-		// What browsing has turned up, refreshed on a timer while the JOIN
-		// list is showing. Names, never addresses - the address is nobody's
-		// business and typing one is what this exists to abolish.
+		// Whether this device is actually hosting - which is only ever true
+		// because somebody pressed the second HOST button.
+		bool hosting = false;
+
+		// Which game in the list is picked. Nothing until one is, and JOIN
+		// will not commit without it.
+		int16_t picked = -1;
+
 		std::vector<Multiplayer::Game> found;
 		int16_t until_refresh = 1;
 
-		// Wi-Fi Direct is the LAST resort, not the first.
-		//
-		// Searching the network the device is already on costs nothing and
-		// covers every ordinary case - the house wifi, a phone's hotspot, a
-		// travel router. Only when that turns up nothing is it worth making a
-		// network of our own, which takes over the wifi radio and asks the
-		// other person to accept a prompt.
-		//
-		// So: browse for this long first, and only then reach for it.
+		// Wi-Fi Direct is the LAST resort, not the first. Searching a network
+		// the device is already on costs nothing and covers the house wifi, a
+		// phone's hotspot, a travel router. Making a network of our own takes
+		// over the radio and puts a prompt in front of the other person.
 		static constexpr int16_t PATIENCE = 6 * 60;
 		int16_t looking_for = 0;
 		bool tried_wifi_direct = false;
 
-		// What is stopping this device hosting, if anything. Refreshed when
-		// HOST is chosen and every few seconds after, so finishing the setup
-		// in Termux turns the list green without restarting the game.
 		LocalServer::Readiness readiness;
 
 		mutable Text check_line;

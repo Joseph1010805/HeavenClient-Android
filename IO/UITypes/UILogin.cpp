@@ -69,8 +69,9 @@ namespace ms
 		game_name = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE);
 		check_line = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE);
 
-		// Hosting is the default, because it is also what playing alone is.
-		choose_host();
+		// NOTHING happens at launch. Not hosting, not announcing, not making
+		// a network. See UILogin.h for why that matters rather than being a
+		// matter of taste.
 
 		version = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LEMONGRASS, "Ver. " + version_text);
 
@@ -204,50 +205,124 @@ namespace ms
 		version.draw(position + Point<int16_t>(707, 1));
 
 		// The HOST / JOIN section, where the logo used to be.
-		//
-		// On its own black plate. This is drawn over painted artwork - a
-		// bright sky, in the stock backdrop - and white text on that is
-		// unreadable however carefully it is placed.
 		GraphicsGL::get().drawrectangle(
 			position.x() + SECTION_X, position.y() + SECTION_Y,
 			SECTION_W, SECTION_H, 0.0f, 0.0f, 0.0f, 0.82f);
 
-		for (Mode m : { Mode::HOST, Mode::JOIN })
+		for (Panel p : { Panel::HOST, Panel::JOIN })
 		{
-			Rectangle<int16_t> at = mode_bounds(m);
-			bool here = (m == mode);
+			Rectangle<int16_t> at = section_button(p);
 
+			// Neither is "selected". They are things to do, not a setting -
+			// only what has actually been committed shows, underneath.
 			GraphicsGL::get().drawrectangle(
 				at.left(), at.top(), at.width(), at.height(),
-				here ? 0.20f : 0.11f,
-				here ? 0.34f : 0.12f,
-				here ? 0.26f : 0.16f, 1.0f);
+				0.13f, 0.15f, 0.19f, 1.0f);
 
-			mode_label.change_text(m == Mode::HOST ? "HOST" : "JOIN");
+			mode_label.change_text(p == Panel::HOST ? "HOST" : "JOIN");
 			mode_label.draw(Point<int16_t>(
 				at.left() + at.width() / 2, at.top() + (at.height() - 14) / 2));
 		}
 
 		int16_t left = position.x() + SECTION_X + PAD;
-		int16_t y = position.y() + BODY_Y;
+		int16_t y = position.y() + SECTION_Y + PAD + BUTTON_H + 10;
 
-		mode_hint.change_text(mode == Mode::HOST
-			? "Play solo, or host a play session"
-			: "Join a host's play session");
+		// What is actually true right now, in one line.
+		if (hosting)
+			mode_hint.change_text("Hosting as " + Multiplayer::suggested_name());
+		else if (!LocalServer::is_offline())
+			mode_hint.change_text("Joining " + Setting<ServerIP>::get().load());
+		else
+			mode_hint.change_text("Not hosting or joined yet");
 
 		mode_hint.draw(Point<int16_t>(left, y));
-		y += LINE_H + 6;
+		y += LINE_H;
 
-		if (mode == Mode::HOST)
+		check_line.change_text(hosting
+			? "Tap HOST again to stop."
+			: "Pick one to play together.");
+
+		check_line.draw(Point<int16_t>(left, y));
+
+		if (panel != Panel::NONE)
+			draw_panel_over(alpha);
+
+		account.draw(position);
+		password.draw(position);
+
+		if (account.get_state() == Textfield::State::NORMAL && account.empty())
+			accountbg.draw(DrawArgument(position + Point<int16_t>(291, 279) + PANEL));
+
+		if (password.get_state() == Textfield::State::NORMAL && password.empty())
+			passwordbg.draw(DrawArgument(position + Point<int16_t>(291, 305) + PANEL));
+
+		checkbox[saveid].draw(DrawArgument(position + Point<int16_t>(291, 335) + PANEL));
+	}
+
+	Rectangle<int16_t> UILogin::section_button(Panel which) const
+	{
+		int16_t x = SECTION_X + PAD + (which == Panel::JOIN ? BUTTON_W + 10 : 0);
+
+		Point<int16_t> at = position + Point<int16_t>(x, SECTION_Y + PAD);
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(BUTTON_W, BUTTON_H));
+	}
+
+	Rectangle<int16_t> UILogin::commit_bounds() const
+	{
+		Point<int16_t> at = position + Point<int16_t>(
+			POP_X + POP_W - PAD - 120, POP_Y + POP_H - PAD - BUTTON_H);
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(120, BUTTON_H));
+	}
+
+	Rectangle<int16_t> UILogin::cancel_bounds() const
+	{
+		Point<int16_t> at = position + Point<int16_t>(
+			POP_X + PAD, POP_Y + POP_H - PAD - BUTTON_H);
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(110, BUTTON_H));
+	}
+
+	Rectangle<int16_t> UILogin::game_bounds(int16_t row) const
+	{
+		Point<int16_t> at = position + Point<int16_t>(
+			POP_X + PAD, POP_Y + 62 + row * ROW_H);
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(POP_W - 2 * PAD, ROW_H));
+	}
+
+	void UILogin::draw_panel_over(float alpha) const
+	{
+		// Dim everything behind it, so the popup is plainly the thing being
+		// answered rather than more decoration on an already busy screen.
+		GraphicsGL::get().drawrectangle(
+			position.x(), position.y(), 800, 600, 0.0f, 0.0f, 0.0f, 0.55f);
+
+		GraphicsGL::get().drawrectangle(
+			position.x() + POP_X, position.y() + POP_Y, POP_W, POP_H,
+			0.04f, 0.05f, 0.07f, 0.97f);
+
+		int16_t left = position.x() + POP_X + PAD;
+		int16_t y = position.y() + POP_Y + PAD;
+
+		mode_label.change_text(panel == Panel::HOST ? "HOST A GAME" : "JOIN A GAME");
+		mode_label.draw(Point<int16_t>(position.x() + POP_X + POP_W / 2, y));
+		y += 24;
+
+		bool can_commit = false;
+
+		if (panel == Panel::HOST)
 		{
-			// What is ready and what is not. Somebody setting a device up for
-			// the first time should be able to SEE what is left, rather than
-			// tapping HOST and being told one vague thing.
+			mode_hint.change_text("Play solo, or let others join you.");
+			mode_hint.draw(Point<int16_t>(left, y));
+			y += LINE_H + 8;
+
 			struct { bool ok; const char* label; const char* fix; } lines[] =
 			{
-				{ readiness.termux,      "Termux installed",        "install it - see docs_OFFLINE.md" },
-				{ readiness.permission,  "May start the server",    "tap HOST again and allow it" },
-				{ readiness.server,      "Server running here",     "starting - give it half a minute" },
+				{ readiness.termux,     "Termux installed",     "install it - see docs_OFFLINE.md" },
+				{ readiness.permission, "May start the server", "press HOST below and allow it" },
+				{ readiness.server,     "Server running here",  "not started yet - press HOST below" },
 				{ readiness.wifi_direct && Multiplayer::wifi_radio_on(),
 					"Can make its own network",
 					Multiplayer::wifi_direct_supported()
@@ -269,17 +344,7 @@ namespace ms
 				}
 			}
 
-			y += 6;
-
-			// The room to explain. Hosting is not obvious - that it is also
-			// how you play alone, and that everyone plays in the host's
-			// world, are both things people get wrong once and then remember.
-			check_line.change_text(readiness.server
-				? "Others can find this game by name."
-				: "");
-
-			check_line.draw(Point<int16_t>(left, y));
-			y += LINE_H;
+			y += 8;
 
 			check_line.change_text("Everyone plays in YOUR world -");
 			check_line.draw(Point<int16_t>(left, y));
@@ -287,15 +352,18 @@ namespace ms
 
 			check_line.change_text("their characters must live here.");
 			check_line.draw(Point<int16_t>(left, y));
+
+			can_commit = readiness.can_try();
 		}
 		else
 		{
-			// The list of games, by NAME. Never an address: not typing one is
-			// the entire point.
+			mode_hint.change_text("Pick the game you want to join.");
+			mode_hint.draw(Point<int16_t>(left, y));
+
 			for (size_t i = 0; i < found.size() && i < 6; i++)
 			{
 				Rectangle<int16_t> at = game_bounds(static_cast<int16_t>(i));
-				bool chosen = found[i].address == Setting<ServerIP>::get().load();
+				bool chosen = (static_cast<int16_t>(i) == picked);
 
 				GraphicsGL::get().drawrectangle(
 					at.left(), at.top(), at.width(), at.height() - 3,
@@ -307,146 +375,83 @@ namespace ms
 				game_name.draw(Point<int16_t>(at.left() + 8, at.top() + 4));
 			}
 
-			int16_t after = position.y() + BODY_Y + LINE_H + 6
-				+ static_cast<int16_t>(found.size() < 6 ? found.size() : 6) * ROW_H;
+			int16_t shown = static_cast<int16_t>(found.size() < 6 ? found.size() : 6);
+			int16_t after = position.y() + POP_Y + 62 + shown * ROW_H;
 
-			// Always say it is still looking, even once something has been
-			// found. A list that looks settled a second before the other
-			// handheld appears reads as a failure - which is exactly how the
-			// first test of this looked.
+			// Always say it is still looking. Discovery is slower than a
+			// person, and a list that looks settled a second before the other
+			// handheld appears reads as a failure.
 			check_line.change_text(!found.empty()
 				? "Still looking..."
 				: (tried_wifi_direct
 					? "No network - looking for a nearby device..."
 					: "Looking for games..."));
 
-			check_line.draw(Point<int16_t>(left, after + 4));
+			check_line.draw(Point<int16_t>(left, after + 6));
 
 			if (found.empty())
 			{
-				// The single most useful thing this screen can say when
-				// nothing is found in a car: wifi OFF is not the same as no
-				// network, and it stops Wi-Fi Direct dead.
 				bool radio = Multiplayer::wifi_radio_on();
 
 				check_line.change_text(radio
-					? "They must be on HOST, and on the"
+					? "They must have pressed HOST, and be on"
 					: "Turn WIFI ON. It needs no network -");
 
-				check_line.draw(Point<int16_t>(left, after + 4 + LINE_H + 6));
+				check_line.draw(Point<int16_t>(left, after + 6 + LINE_H + 6));
 
 				check_line.change_text(radio
-					? "same wifi - a phone hotspot will do."
+					? "the same wifi - a phone hotspot will do."
 					: "just the radio, to reach the other device.");
 
-				check_line.draw(Point<int16_t>(left, after + 4 + LINE_H * 2 + 6));
+				check_line.draw(Point<int16_t>(left, after + 6 + LINE_H * 2 + 6));
 			}
+
+			// Nothing to join until one is picked, which is the whole point
+			// of the second button.
+			can_commit = picked >= 0 && picked < static_cast<int16_t>(found.size());
 		}
 
-		account.draw(position);
-		password.draw(position);
+		Rectangle<int16_t> go = commit_bounds();
 
-		if (account.get_state() == Textfield::State::NORMAL && account.empty())
-			accountbg.draw(DrawArgument(position + Point<int16_t>(291, 279) + PANEL));
+		GraphicsGL::get().drawrectangle(
+			go.left(), go.top(), go.width(), go.height(),
+			can_commit ? 0.18f : 0.10f,
+			can_commit ? 0.34f : 0.11f,
+			can_commit ? 0.22f : 0.13f, 1.0f);
 
-		if (password.get_state() == Textfield::State::NORMAL && password.empty())
-			passwordbg.draw(DrawArgument(position + Point<int16_t>(291, 305) + PANEL));
+		mode_label.change_text(panel == Panel::HOST ? "HOST" : "JOIN");
+		mode_label.draw(Point<int16_t>(
+			go.left() + go.width() / 2, go.top() + (go.height() - 14) / 2));
 
-		checkbox[saveid].draw(DrawArgument(position + Point<int16_t>(291, 335) + PANEL));
+		Rectangle<int16_t> back = cancel_bounds();
+
+		GraphicsGL::get().drawrectangle(
+			back.left(), back.top(), back.width(), back.height(),
+			0.14f, 0.14f, 0.17f, 1.0f);
+
+		mode_label.change_text("BACK");
+		mode_label.draw(Point<int16_t>(
+			back.left() + back.width() / 2, back.top() + (back.height() - 14) / 2));
 	}
 
-	Rectangle<int16_t> UILogin::mode_bounds(Mode which) const
+	void UILogin::open_panel(Panel which)
 	{
-		int16_t x = SECTION_X + PAD + (which == Mode::JOIN ? BUTTON_W + 10 : 0);
+		panel = which;
+		picked = -1;
 
-		Point<int16_t> at = position + Point<int16_t>(x, SECTION_Y + PAD);
-
-		return Rectangle<int16_t>(at, at + Point<int16_t>(BUTTON_W, BUTTON_H));
-	}
-
-	Rectangle<int16_t> UILogin::game_bounds(int16_t row) const
-	{
-		Point<int16_t> at = position + Point<int16_t>(
-			SECTION_X + PAD, BODY_Y + LINE_H + 6 + row * ROW_H);
-
-		return Rectangle<int16_t>(at,
-			at + Point<int16_t>(SECTION_W - 2 * PAD, ROW_H));
-	}
-
-	void UILogin::choose_host()
-	{
-		mode = Mode::HOST;
-
-		Multiplayer::stop_browsing();
-		found.clear();
-
-		readiness = LocalServer::check();
-
-		// Nothing here can work until the device is set up, and saying so as
-		// a list beats failing later with one message.
-		if (!readiness.can_try())
+		if (which == Panel::HOST)
 		{
-			Silent::report("UILogin::choose_host",
-				std::string("cannot host - termux=") + (readiness.termux ? "1" : "0")
-				+ " permission=" + (readiness.permission ? "1" : "0")
-				+ " server=" + (readiness.server ? "1" : "0")
-				+ " wifidirect=" + (readiness.wifi_direct ? "1" : "0"));
+			// Only LOOK. Nothing is started until the second HOST is pressed.
+			readiness = LocalServer::check();
 
 			return;
 		}
 
-		// Hosting means playing against the server on this device, whoever
-		// else joins - so the client points at its own loopback either way.
-		LocalServer::set_offline(true);
-
-		if (!LocalServer::can_host())
-		{
-			// Termux is how the server runs, and it is not here yet. Say so
-			// once, plainly, rather than failing at the login.
-			UI::get().emplace<UIOk>(
-				"There is no server on this device yet.\\nIt needs Termux installed and set up once - see docs_OFFLINE.md.",
-				[](bool) {});
-
-			return;
-		}
-
-		LocalServer::start();
-
-		// With no network at all - a car - nobody can hear us however loudly
-		// we shout, so make one. This device becomes a small access point at
-		// 192.168.49.1 and the others join it.
-		//
-		// Only when there is nothing else: creating a group takes over the
-		// wifi radio, and a house with a router does not need it.
-		if (!Multiplayer::on_network()
-			&& Multiplayer::wifi_direct_supported()
-			&& Multiplayer::wifi_radio_on())
-			Multiplayer::create_group();
-
-		// Shout our name onto the network so the others can find us without
-		// anybody reading out an address.
-		Multiplayer::start_hosting(Multiplayer::suggested_name());
-	}
-
-	void UILogin::choose_join()
-	{
-		mode = Mode::JOIN;
-
-		// Stop being a host: two servers announcing themselves on one network
-		// is how a child ends up joining their own device.
-		Multiplayer::stop_hosting();
-
-		// And stop BEING A NETWORK. The app defaults to HOST at launch, so a
-		// device with no wifi has already made itself a Wi-Fi Direct group by
-		// the time anybody taps JOIN - and a group owner cannot join another
-		// group. It IS a network; networks do not join networks.
-		//
-		// Two handhelds both doing that sit there being networks at each
-		// other forever, which is exactly what happened the first time this
-		// was tried in a room with no wifi.
-		Multiplayer::remove_group();
-
-		LocalServer::set_offline(false);
+		// Looking for somebody to join means not being a host - and not being
+		// a NETWORK either, because a Wi-Fi Direct group owner cannot join
+		// another group. This is where the two handhelds used to deadlock,
+		// each being a network at the other.
+		stop_hosting();
 
 		found.clear();
 		until_refresh = 1;
@@ -456,6 +461,62 @@ namespace ms
 		Multiplayer::start_browsing();
 	}
 
+	void UILogin::close_panel()
+	{
+		if (panel == Panel::JOIN)
+			Multiplayer::stop_browsing();
+
+		panel = Panel::NONE;
+	}
+
+	void UILogin::stop_hosting()
+	{
+		Multiplayer::stop_hosting();
+		Multiplayer::remove_group();
+
+		hosting = false;
+	}
+
+	void UILogin::commit()
+	{
+		if (panel == Panel::HOST)
+		{
+			if (!readiness.can_try())
+			{
+				Silent::report("UILogin::commit",
+					std::string("cannot host - termux=") + (readiness.termux ? "1" : "0")
+					+ " permission=" + (readiness.permission ? "1" : "0"));
+
+				return;
+			}
+
+			// Point at ourselves, start the server, and only THEN become a
+			// network - and only if there is no other one to use.
+			LocalServer::set_offline(true);
+			LocalServer::start();
+
+			if (!Multiplayer::on_network()
+				&& Multiplayer::wifi_direct_supported()
+				&& Multiplayer::wifi_radio_on())
+				Multiplayer::create_group();
+
+			Multiplayer::start_hosting(Multiplayer::suggested_name());
+
+			hosting = true;
+			close_panel();
+
+			return;
+		}
+
+		if (picked < 0 || picked >= static_cast<int16_t>(found.size()))
+			return;
+
+		Setting<ServerIP>::get().save(found[picked].address);
+		Configuration::get().save();
+
+		close_panel();
+	}
+
 	void UILogin::update()
 	{
 		UIElement::update();
@@ -463,66 +524,130 @@ namespace ms
 		account.update(position);
 		password.update(position);
 
-		// While the list is showing, ask Android what it has found. The
-		// answer changes on its threads, so it is polled here rather than
-		// pushed - about twice a second, which is faster than anybody can
-		// read a new name appearing.
+		if (panel == Panel::NONE)
+			return;
+
 		// Reach for Wi-Fi Direct only when there is genuinely nothing else.
 		//
-		// The first version fell back on a timer alone, and fired while
-		// sitting on the house wifi with a host two feet away - it had simply
+		// An earlier version fell back on a timer alone and fired while
+		// sitting on the house wifi with a host two feet away that had simply
 		// not resolved yet. Making a network of our own in that situation is
-		// wrong, and saying "looking for a nearby device" while a perfectly
-		// good one is listed is worse.
-		//
-		// So: no network at all is the trigger. A slow network is not.
-		if (mode == Mode::JOIN && found.empty() && !tried_wifi_direct)
+		// wrong. No network AT ALL is the trigger; a slow one is not.
+		if (panel == Panel::JOIN && found.empty() && !tried_wifi_direct)
 		{
 			if (++looking_for > PATIENCE && !Multiplayer::on_network())
 			{
 				tried_wifi_direct = true;
 
-				// With the radio off there is nothing to try. Saying so beats
-				// a string of BUSY failures in the log that look like broken
+				// With the radio off there is nothing to try, and saying so
+				// beats a string of BUSY failures that look like broken
 				// hardware.
 				if (Multiplayer::wifi_direct_supported() && Multiplayer::wifi_radio_on())
 					Multiplayer::find_groups();
 			}
 		}
 
-		if (--until_refresh <= 0)
+		if (--until_refresh > 0)
+			return;
+
+		until_refresh = 30;
+
+		if (panel == Panel::JOIN)
 		{
-			until_refresh = 30;
+			found = Multiplayer::games();
 
-			if (mode == Mode::JOIN)
-			{
-				found = Multiplayer::games();
+			Multiplayer::refresh_role();
 
-				Multiplayer::refresh_role();
+			// Once we are a client in somebody's Wi-Fi Direct group the host
+			// is at a KNOWN address - a group owner is always 192.168.49.1.
+			// Offer it by hand if discovery has not managed to name it: mDNS
+			// does not reliably cross a p2p link, and a game you cannot see
+			// is worse than one without a pretty name.
+			if (found.empty() && Multiplayer::role() == Multiplayer::Role::CLIENT)
+				found.push_back({ "Nearby game", Multiplayer::GROUP_OWNER });
 
-				// Once we are a client in somebody's Wi-Fi Direct group, the
-				// host is at a KNOWN address - a group owner is always
-				// 192.168.49.1. Offer it by hand if discovery has not managed
-				// to name it, because mDNS does not always cross a p2p link
-				// and a game you cannot see is worse than one without a name.
-				if (found.empty() && Multiplayer::role() == Multiplayer::Role::CLIENT)
-					found.push_back({ "Nearby game", Multiplayer::GROUP_OWNER });
-			}
-			else
-			{
-				// So that finishing the setup in Termux turns the list green
-				// while the game is still open, rather than needing a
-				// restart to notice.
-				bool could = readiness.can_try();
-				readiness = LocalServer::check();
+			// A name that disappears must not leave a stale choice behind.
+			if (picked >= static_cast<int16_t>(found.size()))
+				picked = -1;
 
-				// Finishing the setup in Termux turns the list green while
-				// the game is open, and starts hosting, rather than needing
-				// a restart to notice.
-				if (!could && readiness.can_try())
-					choose_host();
-			}
+			return;
 		}
+
+		// Finishing the setup in Termux turns the list green while the popup
+		// is still open, rather than needing a restart to notice. Nothing is
+		// STARTED by this - only looked at.
+		readiness = LocalServer::check();
+	}
+
+	Cursor::State UILogin::send_cursor(bool clicked, Point<int16_t> cursorpos)
+	{
+		// While a popup is up it owns the screen. Letting taps through to the
+		// login fields behind it is how somebody ends up typing into a box
+		// they cannot see.
+		if (panel != Panel::NONE)
+		{
+			if (cancel_bounds().contains(cursorpos))
+			{
+				if (clicked)
+					close_panel();
+
+				return Cursor::State::CANCLICK;
+			}
+
+			if (commit_bounds().contains(cursorpos))
+			{
+				if (clicked)
+					commit();
+
+				return Cursor::State::CANCLICK;
+			}
+
+			if (panel == Panel::JOIN)
+			{
+				for (size_t i = 0; i < found.size() && i < 6; i++)
+				{
+					if (!game_bounds(static_cast<int16_t>(i)).contains(cursorpos))
+						continue;
+
+					// Picking only PICKS. Joining is the second button, so a
+					// stray tap on a name cannot commit anybody to anything.
+					if (clicked)
+						picked = static_cast<int16_t>(i);
+
+					return Cursor::State::CANCLICK;
+				}
+			}
+
+			return Cursor::State::IDLE;
+		}
+
+		if (Cursor::State new_state = account.send_cursor(cursorpos, clicked))
+			return new_state;
+
+		if (Cursor::State new_state = password.send_cursor(cursorpos, clicked))
+			return new_state;
+
+		for (Panel p : { Panel::HOST, Panel::JOIN })
+		{
+			if (!section_button(p).contains(cursorpos))
+				continue;
+
+			if (clicked)
+			{
+				// HOST while already hosting means stop. There has to be a
+				// way back, or a device that hosted once can never join
+				// anybody - which is the deadlock this whole screen was
+				// rebuilt to prevent.
+				if (p == Panel::HOST && hosting)
+					stop_hosting();
+				else
+					open_panel(p);
+			}
+
+			return Cursor::State::CANCLICK;
+		}
+
+		return UIElement::send_cursor(clicked, cursorpos);
 	}
 
 	void UILogin::login()
@@ -667,52 +792,6 @@ namespace ms
 		default:
 			return Button::State::NORMAL;
 		}
-	}
-
-	Cursor::State UILogin::send_cursor(bool clicked, Point<int16_t> cursorpos)
-	{
-		if (Cursor::State new_state = account.send_cursor(cursorpos, clicked))
-			return new_state;
-
-		if (Cursor::State new_state = password.send_cursor(cursorpos, clicked))
-			return new_state;
-
-		for (Mode m : { Mode::HOST, Mode::JOIN })
-		{
-			if (!mode_bounds(m).contains(cursorpos))
-				continue;
-
-			if (clicked && mode != m)
-			{
-				if (m == Mode::HOST)
-					choose_host();
-				else
-					choose_join();
-			}
-
-			return Cursor::State::CANCLICK;
-		}
-
-		// Picking a game out of the list. A NAME is tapped; the address goes
-		// quietly into the settings and is never shown.
-		if (mode == Mode::JOIN)
-		{
-			for (size_t i = 0; i < found.size() && i < 5; i++)
-			{
-				if (!game_bounds(static_cast<int16_t>(i)).contains(cursorpos))
-					continue;
-
-				if (clicked)
-				{
-					Setting<ServerIP>::get().save(found[i].address);
-					Configuration::get().save();
-				}
-
-				return Cursor::State::CANCLICK;
-			}
-		}
-
-		return UIElement::send_cursor(clicked, cursorpos);
 	}
 
 	UIElement::Type UILogin::get_type() const
