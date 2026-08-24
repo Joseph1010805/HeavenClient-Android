@@ -23,3 +23,8 @@ local.properties
 # Python bytecode from the asset tools.
 __pycache__/
 *.pyc
+
+# Signing keys. Losing one means never updating the app again; leaking one
+# lets somebody else publish an app Android believes is yours.
+*.jks
+*.keystore

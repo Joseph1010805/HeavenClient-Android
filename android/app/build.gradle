@@ -9,8 +9,12 @@ android {
         applicationId 'org.heavenclient.android'
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName '1.0'
+
+        // CI passes these in from the git tag, so a release cannot claim a
+        // version that disagrees with the tag it was built from. A local
+        // build gets the fallbacks and never pretends to be a release.
+        versionCode System.getenv('HC_VERSION_CODE') as Integer ?: 1
+        versionName System.getenv('HC_VERSION_NAME') ?: 'dev'
 
         externalNativeBuild {
             cmake {
@@ -41,10 +45,33 @@ android {
         }
     }
 
+    // The release key never lives in this repository.
+    //
+    // CI writes it to a temporary file from a secret and points HC_KEYSTORE at
+    // it. With no key configured there is no release signing config at all,
+    // which is deliberate: an unsigned release APK cannot be installed, and
+    // finding that out on release day is worse than being told here.
+    signingConfigs {
+        release {
+            def store = System.getenv('HC_KEYSTORE')
+
+            if (store) {
+                storeFile file(store)
+                storePassword System.getenv('HC_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('HC_KEY_ALIAS')
+                keyPassword System.getenv('HC_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            if (System.getenv('HC_KEYSTORE')) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 

@@ -130,6 +130,39 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 Run it once and let it complain about missing data. That first run creates the
 folder your files go in, with the right permissions.
 
+## Cutting a release
+
+Pushing a `v*` tag builds an APK and opens a draft release with it attached:
+
+```
+git tag v0.7
+git push upstream-mine v0.7
+```
+
+Only `v*` triggers it - the repo also carries `latest` and `known-good-*` tags
+that mark states worth returning to, and those must not produce releases. You
+can also run the workflow by hand from the Actions tab to prove a build without
+spending a version number on it.
+
+The version comes from the tag, so a release can't claim a version that
+disagrees with what it was built from. `versionCode` is the commit count, which
+is monotonic - an older tag can never outrank a newer one.
+
+**Signing.** Run `tools/make_release_key.sh` once. It makes a keystore, then
+prints the four values to paste into *Settings → Secrets and variables →
+Actions*. Until those secrets exist, tagged builds still work; they just come
+out debug-signed, and the release notes say so.
+
+> ⚠ **Back the keystore up somewhere that outlives the machine.** Android
+> identifies an app by its signature. Lose that file and you can never ship an
+> update that installs over an existing copy - there's no recovery and nobody to
+> appeal to. It's deliberately not in the repo (`*.jks` is ignored), because
+> anyone holding it can publish an app Android believes is yours.
+
+Nothing Nexon owns is in the repository or in the APK - the client reads its
+data from the device at runtime - so CI builds the app without any game files.
+Keep it that way.
+
 ## Putting the files on your device
 
 They go here:
