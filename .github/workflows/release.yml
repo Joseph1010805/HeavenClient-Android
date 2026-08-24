@@ -40,6 +40,15 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      # Seconds, and it runs BEFORE the twenty-minute native build.
+      #
+      # Windows does not care whether you wrote UIChatbar.h or UIChatBar.h.
+      # Linux does, and this runner is Linux - so a mismatch compiles fine on
+      # the machine it was written on and fails only here. That is precisely
+      # how the first v0.7 build died, two and a half minutes into CMake.
+      - name: Includes that only work on Windows
+        run: python3 tools/check_includes.py
+
       - name: Work out the version from the tag
         id: version
         run: |

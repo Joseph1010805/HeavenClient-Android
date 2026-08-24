@@ -28,7 +28,6 @@
 
 #include "../../Gameplay/Stage.h"
 #include "../../IO/UI.h"
-#include "../../IO/UITypes/UIChatBar.h"
 #include "../../IO/UITypes/UICashShop.h"
 #include "../../IO/UITypes/UIStatusMessenger.h"
 #include "../../IO/Window.h"
