@@ -78,7 +78,8 @@ Termux itself can be installed over adb rather than by hand - the official
 build, from the project's own GitHub releases:
 
     # arm64 device; there are per-ABI APKs and a universal one
-    curl -LO https://github.com/termux/termux-app/releases/download/    v0.118.3/termux-app_v0.118.3%2Bgithub-debug_arm64-v8a.apk
+    BASE=https://github.com/termux/termux-app/releases/download/v0.118.3
+    curl -LO "$BASE/termux-app_v0.118.3%2Bgithub-debug_arm64-v8a.apk"
     adb install -r termux-app_*.apk
     adb shell pm grant com.termux android.permission.READ_EXTERNAL_STORAGE
     adb shell pm grant com.termux android.permission.WRITE_EXTERNAL_STORAGE
