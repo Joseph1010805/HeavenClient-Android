@@ -165,8 +165,34 @@ Three things this cost, every one of them silent:
 than counting rows, because the count was right while the data was wrong.
 
 **What is NOT built:** any of this from inside the game. `character.py` needs
-a PC and adb, so today it is a tool for one person, not for the family. The
-in-game "bring my characters with me" flow is the next piece.
+a PC and adb, so today it is a tool for one person, not for the family.
+
+### The in-game flow: a helper port on the host (DECIDED)
+
+A small listener in Termux beside Cosmic. The joining device exports its
+account as a blob, sends it, the host imports it before login, and it comes
+back on the way out.
+
+The alternative was custom packets inside Cosmic. That is cleaner in principle
+- no new port, no new permission, and it rides the connection already open -
+but it has to happen **around login**, because the joining player has no
+account on the host yet. That means changing the login handler, which is the
+one place where a bug locks everybody out, and keeping new opcodes in sync on
+both sides.
+
+The deciding argument is not elegance. **The entire history of this port is
+silent protocol failures** - a packet read by its length, a sub-opcode off by
+one, a face accessory keyed by the wrong thing. Custom packets put character
+transfer inside that same failure mode. A helper port puts it somewhere errors
+have status codes, and where the whole thing can be exercised from the PC with
+`curl` - no game running, no second person, no handheld in hand.
+
+`character.py` already knows what a character is, and that knowledge - not the
+transport - is the hard part. It carries over either way.
+
+Worth knowing when it is built: anything on the network can push a character
+at the host. For a household that is fine; it should not be left that way if
+this is ever used anywhere else.
 
 ## If the host dies mid-session
 

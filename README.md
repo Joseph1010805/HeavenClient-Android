@@ -5,8 +5,13 @@ MapleStory on your phone or handheld. This is an Android port of
 client written from scratch, and it plays against a v83 private server like
 [Cosmic](https://github.com/P0nk/Cosmic) or HeavenMS.
 
-I built it to play with my son over our home WiFi on an AYN Thor. It works:
+I built it to play with my sons over our home WiFi on an AYN Thor. It works:
 login, character creation, quests, combat, the lot.
+
+It has since grown a second half. The app can **run the server itself**, so a
+handheld can host a game with no PC, no router and no internet at all - one
+device becomes the network and the others join it by name. See
+[Playing together](#playing-together).
 
 **You supply your own game files.** There are none in this repository and I
 can't give you any - see below.
@@ -73,7 +78,9 @@ crash if you don't know to expect it.
 
 **Works:** moving, jumping, ladders and ropes, combat, dying, loot, the
 inventory, equipping, skills and spending points, shops, NPC conversation,
-levelling, standing HP and MP recovery, the minimap and the world map.
+levelling, standing HP and MP recovery, the minimap and the world map, the
+cash shop (browsing, buying, taking out, wearing), and hosting or joining a
+game from the login screen.
 
 **Doesn't, yet:**
 
@@ -192,6 +199,79 @@ Use 800x600. The login and character screens were built for that size and don't
 adapt, so anything else leaves buttons and characters in the wrong places. The
 picture is scaled up to fill your screen either way.
 
+## Playing together
+
+The login screen has **HOST** and **JOIN**. Neither is chosen for you, and
+each opens a panel that checks what it needs before it will commit.
+
+**HOST** starts a server on the device itself, then asks how the others should
+reach you:
+
+- **Use this wifi** - everyone joins over the network you're already on.
+- **Make my own network** - the device *becomes* the network, via Wi-Fi
+  Direct. For a car, a hotel, or a router that blocks devices from seeing each
+  other. Needs the wifi radio on, but no network to be connected.
+
+**JOIN** looks for hosts and lists them **by name** - "AYN Thor", not an IP
+address. You pick one and press Join. There is nowhere to type an address and
+that is deliberate; discovery is mDNS (`_maplestory._tcp`) over the network,
+falling back to Wi-Fi Direct peer discovery.
+
+Losing the host is survivable: 45 seconds of silence returns you to the login
+screen, where hosting yourself or joining someone else is two taps away.
+Killing an app doesn't reliably close its sockets, so a client that isn't
+writing can otherwise sit forever on a character select it can no longer act
+on - which looks exactly like a broken Start button.
+
+**The server needs Termux**, which the app checks for and reports honestly
+rather than failing at the moment you press Host. `tools/stage_server.sh` and
+`tools/termux_setup.sh` put Cosmic on a device; `docs_OFFLINE.md` has the
+whole story.
+
+### Carrying characters between devices
+
+Three devices played separately all day is three worlds, all changed, none of
+them merge-able. But nothing needs to merge - each is a different **character**.
+Nobody's progress collided, it just ended up in three places. So the answer
+isn't to reconcile worlds, it's to gather characters:
+
+```
+python tools/character.py where pc <serial>            what is where
+python tools/character.py account joey pc <serial>     take a player with you
+python tools/character.py verify joey pc <serial>      prove it arrived whole
+```
+
+The unit is an **account**, not a character, because Cosmic gives an account
+three slots and a person thinks of all three as theirs. Each is still judged on
+its own `lastLogoutTime`, so moving a copy over a newer one is refused -
+that's somebody's evening - and a stale copy of one character can't ride along
+on a fresh copy of another. `--force` overrides.
+
+What a character *is* gets read out of `information_schema` rather than listed
+in the script, so it can't drift when the server is updated. Three things this
+cost, every one of them silent, and all three are the same lesson:
+
+- **The last field of the last row went missing.** A tab-separated row whose
+  final column is an empty string ends in a tab, `.strip()` removes it, and
+  `zip()` then drops the last *column* without complaining.
+- **Rows that hang off other rows.** `inventoryequipment` belongs to an
+  inventory *item*, and `questprogress` and `medalmaps` belong to a
+  *queststatus row*, not to the character. Carry their parent id verbatim and
+  Cosmic looks it up, finds nothing, and drops it in silence - the quest stays
+  started and the kill count is gone. `information_schema` declares foreign
+  keys for `famelog` and `skills` and for not one of these.
+- **Cosmic spells the character key three ways** - `characterid`, `cid` and
+  `charid`. Looking for only the first two silently leaves behind the monster
+  book, cooldowns, and `area_info`, where NPC scripts keep their memory.
+
+`verify` compares every field rather than counting rows, because the count was
+right while the data was wrong - and it checks for orphans separately, since
+the field comparison has to ignore id columns and that is precisely where this
+class of bug hides.
+
+**This is a tool, not a feature.** It needs a PC and adb. Doing it from inside
+the game is the next piece of work - see below.
+
 ## If you're running Cosmic
 
 Two settings, or nothing works from a phone:
@@ -208,12 +288,26 @@ completely dead.
 Passwords need five characters or more. Shorter ones are rejected before
 anything is sent, so they look exactly like a wrong password.
 
-Cosmic only saves characters once an hour by default, so a crash can cost you
-an hour of play. It isn't in the config file - it's hardcoded in
-`src/main/java/net/server/world/World.java`, in the line registering
-`CharacterAutosaverTask`. Change both `HOURS.toMillis(1)` to
-`MINUTES.toMillis(2)` and rebuild with `./mvnw -DskipTests package`. `MINUTES`
-is already imported.
+**Turn the autosave up.** Cosmic's own `config.yaml` says it saves "each 1
+hour"; that comment is simply wrong, and the interval isn't in the config file
+at all. It's hardcoded in `src/main/java/net/server/world/World.java`, in the
+line registering `CharacterAutosaverTask` - two minutes in current Cosmic, an
+hour in older builds. Whatever it says there is exactly how much of an evening
+a crash costs you, so set it to `SECONDS.toMillis(60)` and rebuild with
+`./mvnw -DskipTests package`.
+
+It's a full save - inventory and equipment included. The `notAutosave` flag
+only changes a log message. Worth saying out loud at INFO too, so you can see
+it working rather than hoping:
+
+```java
+if (saved > 0) {
+    log.info("autosaved {} character(s) in {} ms", saved, ...);
+}
+```
+
+The line it replaces is at DEBUG, which is off, so there's otherwise no way to
+tell "saving every minute" from "not running at all".
 
 Characters also save when you log out properly, so quit through the game rather
 than closing the app if you can.

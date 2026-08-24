@@ -126,6 +126,48 @@ Wanted layout, left to right:
 
 ## Planned
 
+- **Bringing your characters with you, from inside the game.** DECIDED: a
+  **helper port on the host**. A small listener in Termux beside Cosmic; the
+  joining device exports its account as a blob, sends it, the host imports it
+  before login, and it comes back on the way out.
+
+  The alternative - custom packets inside Cosmic - is cleaner in principle (no
+  new port or permission, rides the connection you already have) but has to
+  happen *around login*, because the joining player has no account on the host
+  yet. That means surgery on the login handler, the one place where a bug locks
+  everybody out, plus new opcodes kept in sync on both sides. This project's
+  entire history is silent protocol failures; the helper port puts the risky
+  part somewhere errors are visible and can be tested from a PC with `curl`,
+  with no game running and no second person.
+
+  `tools/character.py` already knows what a character is, and that knowledge is
+  the hard part - it transfers to either transport.
+
+- **📌 PINNED: party quests have hard minimum headcounts, and three players
+  isn't enough for many of them.** Every PQ script in `scripts/event/` opens
+  with a `minPlayers`. With three:
+
+  | Playable at 3 | Locked out |
+  |---|---|
+  | Kerning (3), Henesys (3), Cafe (3), Ludi Maze (3), Pirate (3), Holiday (3) | Ellin (4), Magatia (4), Treasure (4), **Ludibrium (5)**, Orbis (5), Amoria (6), Crimsonwood (6), Horntail (6) |
+  | plus Boss Rush, Elnath and Zakum, which allow 1 | |
+
+  Kerning PQ - the first one anybody wants - works at exactly three.
+  Ludibrium PQ needing five is the real loss.
+
+  `minPlayers` is one variable at the top of each script and is used only for
+  entry gating, so lowering it is a one-line change per PQ. Not yet done, and
+  not obviously safe: some stages are physically built around N bodies
+  (platforms, simultaneous switches). The gating was checked; the stages were
+  not.
+
+- **Guild and family ids point at rows that don't travel.** A character carries
+  `guildid`, `familyId`, `partnerId` and `allianceRank`, but `guilds` is a
+  world-level table and isn't carried. A guild member arriving in a world
+  without that guild would be pointing at nothing. Latent right now - there are
+  zero guilds - but it is the same class of bug as the quest-progress one, and
+  it will bite the day somebody makes a guild.
+
 - **Second screen (Thor branch).** Menus - map, skills, inventory - on the
   handheld's lower display instead of over the game. Confirmed feasible:
   display 4 is a real touch-capable screen carrying FLAG_PRESENTATION. Needs a
@@ -136,6 +178,24 @@ Wanted layout, left to right:
   pushed to a device each time.
 
 ## Fixed
+
+- **A dead host left the client stuck on a Start button that did nothing.**
+  Killing an app doesn't reliably send a FIN, so a client that isn't writing
+  never finds out. 45 seconds of silence is now treated as a disconnect and
+  returns to the login screen rather than quitting the game - losing the host is
+  an ordinary event when the host is a handheld somebody can close.
+- **Every press of HOST started another server.** Seven Cosmic instances were
+  found on the Thor after an evening of testing; only the first can hold the
+  login port, and the rest sat there having each asked for up to 1536 MB. The
+  guard existed only in the repo and had never reached either device. It now
+  tests whether **port 8484 is taken** rather than whether a process exists -
+  and the `pgrep` fallback is written `[C]osmic`, because `pgrep -f Cosmic.jar`
+  cheerfully matches its own parent and would have made the guard refuse
+  forever.
+- **An outage cost up to two minutes of play** (an hour on older Cosmic).
+  Autosave is now every 60 seconds and says so at INFO.
+- **Characters couldn't leave the device they were made on.**
+  `tools/character.py` - see the README. Not yet reachable from inside the game.
 
 - The login flow had no artwork of its own - the login, character select and
   character creation screens all read numbered frames out of `Map001.wz`, which
