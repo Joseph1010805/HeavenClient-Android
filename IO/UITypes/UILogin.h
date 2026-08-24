@@ -80,6 +80,11 @@ namespace ms
 			// The login screen as it always was.
 			NONE,
 			HOST,
+			// The second step of hosting: HOW others reach this device. It is
+			// its own screen rather than a tick box on the first, because a
+			// box drawn in text does not read as something you can press -
+			// and this is a real choice, not a setting to skim past.
+			HOST_NETWORK,
 			JOIN
 		};
 
@@ -103,6 +108,8 @@ namespace ms
 		static constexpr int16_t ROW_H = 24;
 
 		Rectangle<int16_t> section_button(Panel which) const;
+		// The two ways others can reach a host, as full-width rows.
+		Rectangle<int16_t> choice_bounds(int16_t which) const;
 		Rectangle<int16_t> commit_bounds() const;
 		Rectangle<int16_t> cancel_bounds() const;
 		Rectangle<int16_t> game_bounds(int16_t row) const;
@@ -110,7 +117,13 @@ namespace ms
 		void draw_panel_over(float alpha) const;
 		void open_panel(Panel which);
 		void close_panel();
-		void commit();
+		//  picks Wi-Fi Direct over whatever wifi is already
+		// there. Being ON a network is not the same as being able to reach
+		// the handheld beside you - guest and hotel wifi routinely block
+		// devices from talking to each other - so this is a choice and not
+		// only an automatic fallback.
+		void commit_host(bool own_network);
+		void commit_join();
 		void stop_hosting();
 
 		Panel panel = Panel::NONE;

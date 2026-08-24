@@ -268,6 +268,17 @@ namespace ms
 		return Rectangle<int16_t>(at, at + Point<int16_t>(BUTTON_W, BUTTON_H));
 	}
 
+	Rectangle<int16_t> UILogin::choice_bounds(int16_t which) const
+	{
+		// Full width and tall enough to be obviously pressable. The first
+		// attempt at this was a tick box drawn in text, which nobody could
+		// tell was a control at all.
+		Point<int16_t> at = position + Point<int16_t>(
+			POP_X + PAD, POP_Y + 62 + which * 84);
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(POP_W - 2 * PAD, 38));
+	}
+
 	Rectangle<int16_t> UILogin::commit_bounds() const
 	{
 		Point<int16_t> at = position + Point<int16_t>(
@@ -306,13 +317,63 @@ namespace ms
 		int16_t left = position.x() + POP_X + PAD;
 		int16_t y = position.y() + POP_Y + PAD;
 
-		mode_label.change_text(panel == Panel::HOST ? "HOST A GAME" : "JOIN A GAME");
+		mode_label.change_text(
+			panel == Panel::HOST ? "HOST A GAME"
+			: (panel == Panel::HOST_NETWORK ? "HOW DO THEY REACH YOU?"
+				: "JOIN A GAME"));
 		mode_label.draw(Point<int16_t>(position.x() + POP_X + POP_W / 2, y));
 		y += 24;
 
 		bool can_commit = false;
 
-		if (panel == Panel::HOST)
+		if (panel == Panel::HOST_NETWORK)
+		{
+			mode_hint.change_text("How should the others reach you?");
+			mode_hint.draw(Point<int16_t>(left, y));
+
+			bool on_wifi = Multiplayer::on_network();
+			bool can_make = Multiplayer::wifi_direct_supported()
+				&& Multiplayer::wifi_radio_on();
+
+			struct Choice { bool ok; const char* title; const char* line1; const char* line2; };
+
+			Choice choices[2] =
+			{
+				{ on_wifi, "USE THIS WIFI",
+					on_wifi ? "Everyone joins over the wifi you are on."
+						: "Not available - this device is on no wifi.",
+					on_wifi ? "Best when it works. Try this first."
+						: "" },
+				{ can_make, "MAKE MY OWN NETWORK",
+					can_make ? "This device becomes the network itself."
+						: "Not available - turn the WIFI RADIO on.",
+					can_make ? "For a car, or wifi that blocks devices."
+						: "It needs the radio, not a network." }
+			};
+
+			for (int16_t i = 0; i < 2; i++)
+			{
+				Rectangle<int16_t> at = choice_bounds(i);
+				const Choice& choice = choices[i];
+
+				GraphicsGL::get().drawrectangle(
+					at.left(), at.top(), at.width(), at.height(),
+					choice.ok ? 0.18f : 0.10f,
+					choice.ok ? 0.34f : 0.11f,
+					choice.ok ? 0.22f : 0.13f, 1.0f);
+
+				mode_label.change_text(choice.title);
+				mode_label.draw(Point<int16_t>(
+					at.left() + at.width() / 2, at.top() + 8));
+
+				check_line.change_text(choice.line1);
+				check_line.draw(Point<int16_t>(at.left(), at.bottom() + 3));
+
+				check_line.change_text(choice.line2);
+				check_line.draw(Point<int16_t>(at.left(), at.bottom() + 3 + LINE_H));
+			}
+		}
+		else if (panel == Panel::HOST)
 		{
 			mode_hint.change_text("Play solo, or let others join you.");
 			mode_hint.draw(Point<int16_t>(left, y));
@@ -411,6 +472,25 @@ namespace ms
 			can_commit = picked >= 0 && picked < static_cast<int16_t>(found.size());
 		}
 
+		// The choice screen has no single commit - each row IS one - so only
+		// BACK is drawn under it.
+		if (panel == Panel::HOST_NETWORK)
+		{
+			Rectangle<int16_t> only_back = cancel_bounds();
+
+			GraphicsGL::get().drawrectangle(
+				only_back.left(), only_back.top(),
+				only_back.width(), only_back.height(),
+				0.14f, 0.14f, 0.17f, 1.0f);
+
+			mode_label.change_text("BACK");
+			mode_label.draw(Point<int16_t>(
+				only_back.left() + only_back.width() / 2,
+				only_back.top() + (only_back.height() - 14) / 2));
+
+			return;
+		}
+
 		Rectangle<int16_t> go = commit_bounds();
 
 		GraphicsGL::get().drawrectangle(
@@ -437,6 +517,10 @@ namespace ms
 	void UILogin::open_panel(Panel which)
 	{
 		panel = which;
+
+		if (which == Panel::HOST_NETWORK)
+			return;
+
 		picked = -1;
 
 		if (which == Panel::HOST)
@@ -477,37 +561,35 @@ namespace ms
 		hosting = false;
 	}
 
-	void UILogin::commit()
+	void UILogin::commit_host(bool own_network)
 	{
-		if (panel == Panel::HOST)
+		if (!readiness.can_try())
 		{
-			if (!readiness.can_try())
-			{
-				Silent::report("UILogin::commit",
-					std::string("cannot host - termux=") + (readiness.termux ? "1" : "0")
-					+ " permission=" + (readiness.permission ? "1" : "0"));
-
-				return;
-			}
-
-			// Point at ourselves, start the server, and only THEN become a
-			// network - and only if there is no other one to use.
-			LocalServer::set_offline(true);
-			LocalServer::start();
-
-			if (!Multiplayer::on_network()
-				&& Multiplayer::wifi_direct_supported()
-				&& Multiplayer::wifi_radio_on())
-				Multiplayer::create_group();
-
-			Multiplayer::start_hosting(Multiplayer::suggested_name());
-
-			hosting = true;
-			close_panel();
+			Silent::report("UILogin::commit_host",
+				std::string("cannot host - termux=") + (readiness.termux ? "1" : "0")
+				+ " permission=" + (readiness.permission ? "1" : "0"));
 
 			return;
 		}
 
+		// Point at ourselves and start the server.
+		LocalServer::set_offline(true);
+		LocalServer::start();
+
+		// Then become the network, if that is what was chosen.
+		if (own_network
+			&& Multiplayer::wifi_direct_supported()
+			&& Multiplayer::wifi_radio_on())
+			Multiplayer::create_group();
+
+		Multiplayer::start_hosting(Multiplayer::suggested_name());
+
+		hosting = true;
+		close_panel();
+	}
+
+	void UILogin::commit_join()
+	{
 		if (picked < 0 || picked >= static_cast<int16_t>(found.size()))
 			return;
 
@@ -533,6 +615,9 @@ namespace ms
 		// sitting on the house wifi with a host two feet away that had simply
 		// not resolved yet. Making a network of our own in that situation is
 		// wrong. No network AT ALL is the trigger; a slow one is not.
+		if (panel == Panel::HOST_NETWORK)
+			return;
+
 		if (panel == Panel::JOIN && found.empty() && !tried_wifi_direct)
 		{
 			if (++looking_for > PATIENCE && !Multiplayer::on_network())
@@ -588,16 +673,55 @@ namespace ms
 		{
 			if (cancel_bounds().contains(cursorpos))
 			{
+				// BACK from the network choice returns to the checks rather
+				// than closing everything - it is one step of a flow, not a
+				// separate errand.
 				if (clicked)
-					close_panel();
+				{
+					if (panel == Panel::HOST_NETWORK)
+						open_panel(Panel::HOST);
+					else
+						close_panel();
+				}
 
 				return Cursor::State::CANCLICK;
 			}
 
+			if (panel == Panel::HOST_NETWORK)
+			{
+				bool ok[2] =
+				{
+					Multiplayer::on_network(),
+					Multiplayer::wifi_direct_supported() && Multiplayer::wifi_radio_on()
+				};
+
+				for (int16_t i = 0; i < 2; i++)
+				{
+					if (!choice_bounds(i).contains(cursorpos))
+						continue;
+
+					// Each row IS the commit. There is no separate button,
+					// because picking how and then confirming it would be one
+					// step too many for a choice this plain.
+					if (clicked && ok[i])
+						commit_host(i == 1);
+
+					return Cursor::State::CANCLICK;
+				}
+
+				return Cursor::State::IDLE;
+			}
+
 			if (commit_bounds().contains(cursorpos))
 			{
+				// HOST does not host yet - it asks HOW first.
 				if (clicked)
-					commit();
+				{
+					if (panel == Panel::HOST)
+						open_panel(Panel::HOST_NETWORK);
+					else
+						commit_join();
+				}
 
 				return Cursor::State::CANCLICK;
 			}
