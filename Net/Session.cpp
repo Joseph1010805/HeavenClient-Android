@@ -17,6 +17,10 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "Session.h"
 
+#include "../Gameplay/Stage.h"
+
+#include <chrono>
+
 #include "PacketError.h"
 
 #include "../Configuration.h"
@@ -26,6 +30,20 @@
 
 namespace ms
 {
+	namespace
+	{
+		// Milliseconds on a clock that cannot jump backwards. Wall time can,
+		// and a clock that goes backwards would either never time out or time
+		// out at once.
+		int64_t now_ms()
+		{
+			using namespace std::chrono;
+
+			return duration_cast<milliseconds>(
+				steady_clock::now().time_since_epoch()).count();
+		}
+	}
+
 	Session::Session()
 	{
 		connected = false;
@@ -60,6 +78,8 @@ namespace ms
 
 		if (!init(HOST.c_str(), PORT.c_str()))
 			return Error::CONNECTION;
+
+		last_heard = now_ms();
 
 		return Error::NONE;
 	}
@@ -162,16 +182,46 @@ namespace ms
 
 		printf("[!] connection to the server was lost\n");
 
-		// quit() rather than send_close(), which would raise a second
-		// "do you want to quit" dialog on top of this one.
+		// Back to the login screen, NOT out of the game.
+		//
+		// Losing the host is an ordinary event here, not a fatal one: the
+		// device hosting is a handheld somebody may close, drop, or carry out
+		// of range. Quitting the whole game for it means the other players
+		// have to start the app again to do anything - when what they want is
+		// to pick a different host, or host themselves, both of which are two
+		// taps away on the screen this returns to.
 		UI::get().emplace<UIOk>(
-			"The connection to the server was lost.",
-			[](bool) { UI::get().quit(); });
+			"Lost the connection to the game.\\nThe host may have closed it or gone out of range.",
+			[](bool)
+			{
+				Stage::get().clear();
+				UI::get().change_state(UI::State::LOGIN);
+			});
 	}
 
 	void Session::read()
 	{
 		bool was_connected = connected;
+
+		// Silence is the only reliable sign that a host has gone.
+		//
+		// Killing an app does not always close its sockets cleanly, so the
+		// read below can succeed forever against a peer that no longer
+		// exists. Cosmic pings every few seconds; nothing at all for this
+		// long means it is not there.
+		constexpr int64_t SILENCE_LIMIT = 45'000;
+
+		if (connected && last_heard > 0)
+		{
+			int64_t now = now_ms();
+
+			if (now - last_heard > SILENCE_LIMIT)
+			{
+				disconnected();
+
+				return;
+			}
+		}
 
 		// Check if a packet has arrived. Handle if data is sufficient: 4 bytes(header) + 2 bytes(opcode) = 6.
 		size_t result = socket.receive(&connected);
@@ -190,6 +240,8 @@ namespace ms
 
 		if (result >= MIN_PACKET_LENGTH || length > 0)
 		{
+			last_heard = now_ms();
+
 			// Retrieve buffer from the socket and process it.
 			const int8_t* bytes = socket.get_buffer();
 			process(bytes, result);

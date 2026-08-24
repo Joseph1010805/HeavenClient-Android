@@ -75,6 +75,17 @@ namespace ms
 		size_t pos;
 		bool connected;
 
+		// When something last arrived from the server.
+		//
+		// A host that is killed - the app closed, the battery flat, the
+		// handheld carried out of range - does not always send a TCP FIN, and
+		// a client that is not writing never finds out. So the client sat on
+		// a character select it could no longer act on, with a Start button
+		// that did nothing and no way to tell why.
+		//
+		// Cosmic pings every few seconds, so silence is a reliable signal.
+		int64_t last_heard = 0;
+
 #ifdef USE_ASIO
 		SocketAsio socket;
 #elif USE_WINSOCK
