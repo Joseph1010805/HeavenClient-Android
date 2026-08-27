@@ -149,6 +149,44 @@ if [ "$FAILED" -gt 0 ]; then
 	exit 1
 fi
 
+# --- stop Android killing the server -------------------------------------
+#
+# Two separate mechanisms, and BOTH produce the same symptom: the game plays
+# for a minute or two, the connection drops, and the server log ends with
+# nothing but "Killed".
+#
+#   the phantom process killer  counts child processes of an app - which is
+#                               what mariadbd and java are under Termux - and
+#                               kills them for using CPU in the background.
+#
+#   app standby and Doze        kill Termux ITSELF, and the server dies with
+#                               its parent. run.sh takes a wake lock and the
+#                               wake lock genuinely works, but a partial wake
+#                               lock only stops the CPU sleeping; it says
+#                               nothing about whether the app may be killed.
+#
+# Done here rather than left in the README, because a step that must be
+# remembered per device is a step that will be forgotten - and the way it
+# announces itself is a dropped game an hour later that looks like a network
+# fault. Neither needs root.
+echo
+echo "[$DEV] telling Android to leave the server alone"
+
+adb -s "$DEV" shell "settings put global settings_enable_monitor_phantom_procs false" >/dev/null 2>&1
+adb -s "$DEV" shell "/system/bin/device_config set_sync_disabled_for_tests persistent" >/dev/null 2>&1
+adb -s "$DEV" shell "/system/bin/device_config put activity_manager max_phantom_processes 2147483647" >/dev/null 2>&1
+adb -s "$DEV" shell "dumpsys deviceidle whitelist +com.termux" >/dev/null 2>&1
+
+PHANTOM=$(adb -s "$DEV" shell "settings get global settings_enable_monitor_phantom_procs" 2>/dev/null | tr -d '\r\n')
+DOZE=$(adb -s "$DEV" shell "dumpsys deviceidle whitelist" 2>/dev/null | grep -c termux)
+
+echo "  phantom process killer : ${PHANTOM:-unknown}   (want: false)"
+echo "  termux exempt from doze: $([ "${DOZE:-0}" -gt 0 ] && echo yes || echo NO)"
+
+if [ "${PHANTOM:-}" != "false" ] || [ "${DOZE:-0}" -eq 0 ]; then
+	echo "  ⚠ one of these did not stick - the server will be killed mid-game."
+fi
+
 cat <<'NEXT'
 Everything is on the device, in /sdcard/Download/cosmic.
 

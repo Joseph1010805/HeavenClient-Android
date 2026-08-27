@@ -610,9 +610,47 @@ namespace ms
 			buttons[Buttons::NO]->set_active(true);
 			break;
 		}
-		case TalkType::SENDNEXT:
-		case TalkType::SENDNEXTPREV:
+		// These three had their buttons built in the constructor, wired up in
+		// button_pressed, and then never positioned or activated - so the
+		// dialogue drew with nothing on it but Close.
+		//
+		// It made every quest that asks you to accept it impossible to accept:
+		// the Cygnus Knight start quest from Kimu offered End Chat and nothing
+		// else, which ends the character before it begins. Multi-page NPC text
+		// was stuck on its first page for the same reason.
+		//
+		// The two layouts here are the ones already measured for the types
+		// that worked - a single button on the right where OK sits, and a pair
+		// starting where YES sits - rather than new coordinates guessed at.
 		case TalkType::SENDACCEPTDECLINE:
+		{
+			Point<int16_t> pair = Point<int16_t>(389, y_cord);
+
+			buttons[Buttons::QYES]->set_position(pair);
+			buttons[Buttons::QYES]->set_active(true);
+
+			buttons[Buttons::QNO]->set_position(pair + Point<int16_t>(65, 0));
+			buttons[Buttons::QNO]->set_active(true);
+			break;
+		}
+		case TalkType::SENDNEXT:
+			buttons[Buttons::NEXT]->set_position(Point<int16_t>(471, y_cord));
+			buttons[Buttons::NEXT]->set_active(true);
+			break;
+		case TalkType::SENDNEXTPREV:
+		{
+			Point<int16_t> pair = Point<int16_t>(389, y_cord);
+
+			buttons[Buttons::PREV]->set_position(pair);
+			buttons[Buttons::PREV]->set_active(true);
+
+			buttons[Buttons::NEXT]->set_position(pair + Point<int16_t>(65, 0));
+			buttons[Buttons::NEXT]->set_active(true);
+			break;
+		}
+		// Left alone deliberately. SIMPLE is a list of clickable text lines
+		// rather than buttons, and the two GET types need a text field this
+		// dialogue does not have yet.
 		case TalkType::SENDGETTEXT:
 		case TalkType::SENDGETNUMBER:
 		case TalkType::SENDSIMPLE:

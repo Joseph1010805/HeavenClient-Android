@@ -594,11 +594,24 @@ namespace ms
 		case Buttons::BT_CHARC_HAIRC5:
 		case Buttons::BT_CHARC_HAIRC6:
 		case Buttons::BT_CHARC_HAIRC7:
-			// TODO: These need to be changed so when you click the color it only assigns the color, not the next in the series
-			haircolor = (haircolor > 0) ? haircolor - 1 : haircolors[female].size() - 1;
+		{
+			// A swatch, not a step.
+			//
+			// These eight are colour samples - clicking the third one should
+			// give you the third colour. Every one of them used to walk
+			// BACKWARDS through the list by one instead, so the colour you got
+			// depended on how many times you had clicked rather than on which
+			// you picked, and reaching a particular one meant counting.
+			size_t wanted = static_cast<size_t>(buttonid - Buttons::BT_CHARC_HAIRC0);
+
+			if (wanted >= haircolors[female].size())
+				return Button::State::NORMAL;
+
+			haircolor = static_cast<int32_t>(wanted);
 			newchar.set_hair(hairs[female][hair] + haircolors[female][haircolor]);
 
 			return Button::State::NORMAL;
+		}
 		case Buttons::BT_CHARC_SKINL:
 			skin = (skin > 0) ? skin - 1 : skins[female].size() - 1;
 			newchar.set_body(skins[female][skin]);

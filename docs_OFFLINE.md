@@ -70,6 +70,28 @@ device, and may need redoing after a system update.** Check with:
 
     adb shell settings get global settings_enable_monitor_phantom_procs
 
+### And that is only half of it - battery optimisation kills it too
+
+The phantom process killer being off is **not** enough, and the failure looks
+identical: the game plays for a minute or two and the connection drops, with
+nothing in the server log but `Killed` at the end of it.
+
+`run.sh` takes a wake lock, and the wake lock genuinely works - it can be seen
+held in `dumpsys power`. But a partial wake lock only keeps the CPU from
+sleeping. It does nothing about **app standby and Doze**, which are free to
+kill Termux itself, and Cosmic dies with its parent.
+
+    adb shell dumpsys deviceidle whitelist +com.termux
+
+Check it stuck:
+
+    adb shell dumpsys deviceidle whitelist | grep termux
+
+Done on the Thor on 27 August, after two dropped sessions that looked like a
+Wi-Fi Direct fault and were not - the phantom killer was already off and there
+was 6.6 GB of memory free, so both of the obvious explanations were wrong.
+**Per device, like the setting above.**
+
 ## Doing it
 
     tools/stage_server.sh <device-serial>     # on the PC
