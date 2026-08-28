@@ -92,6 +92,27 @@ namespace ms
 	void UI::change_state(State id)
 	{
 		printf("====> UI::change_state\n");
+
+		// Let go of the text field FIRST.
+		//
+		// focusedtextfield points at a Textfield owned by one of the elements
+		// in the state we are about to replace - the character creation
+		// screen's name box, most of the time. Swapping the state destroys
+		// that element, and the pointer was left aimed at the wreckage.
+		//
+		// send_key hands every key to the focused field when there is one, so
+		// the game got none of them: create a character, arrive in the world,
+		// and nothing moved. Deleting a character alone never did it, because
+		// the name box is only ever focused when creating one.
+		//
+		// It is also a use-after-free that happened not to crash, which is the
+		// worse half of the bug and the reason this belongs here rather than
+		// in the creation screen - every state change is entitled to assume
+		// the last one let go of its own things.
+		//
+		// Done before the swap while the field is still alive to be told.
+		remove_textfield();
+
 		switch (id)
 		{
 		case State::LOGIN:
