@@ -100,15 +100,14 @@ namespace ms
 	{
 		recv.skip(1);
 
-		bool anything = false;
+		bool bound[90] = { false };
 
 		for (uint8_t i = 0; i < 90; i++)
 		{
 			uint8_t type = recv.read_byte();
 			int32_t action = recv.read_int();
 
-			if (type != 0)
-				anything = true;
+			bound[i] = type != 0;
 
 			UI::get().add_keymapping(i, type, action);
 		}
@@ -125,7 +124,6 @@ namespace ms
 		// server because it also repairs every character already created
 		// empty, and because these are what the key bindings window will show
 		// - the player sees them, and can change them, from the first minute.
-		if (!anything)
 		{
 			struct Bind { uint8_t key; uint8_t type; int32_t action; };
 
@@ -149,10 +147,30 @@ namespace ms
 				{ 33, 4, KeyAction::Id::EQUIPMENT },
 			};
 
-			for (const Bind& b : defaults)
-				UI::get().add_keymapping(b.key, b.type, b.action);
+			// Per KEY, not all-or-nothing.
+			//
+			// The first version only filled these in when the entire keymap
+			// was empty, which sounds right and is not: a character that has
+			// been played at all has SOMETHING bound - the client writes the
+			// keymap back whenever a binding changes - and one stray entry was
+			// enough to skip the lot. Josephgrey arrived with a partial keymap
+			// and no attack key, and the defaults never ran.
+			//
+			// Filling each unbound key leaves anything the player has chosen
+			// exactly as it is, and only supplies what is genuinely missing.
+			int filled = 0;
 
-			Console::get().print("keymap was empty - applied defaults");
+			for (const Bind& b : defaults)
+			{
+				if (b.key < 90 && !bound[b.key])
+				{
+					UI::get().add_keymapping(b.key, b.type, b.action);
+					filled++;
+				}
+			}
+
+			if (filled > 0)
+				printf("[*] keymap: filled in %d unbound key(s)\n", filled);
 		}
 	}
 

@@ -22,7 +22,67 @@ single-screen game.
 label, and it is not the same as the application label, which is
 `HeavenClient`. Renaming the app means changing both.
 
-## ⚠ A 2D app on this headset gets the POINTER AND NOTHING ELSE
+## THE THUMBSTICK IS READABLE - IT ARRIVES AS SCROLL
+
+**This appears to be undocumented anywhere.** Meta's own forums carry threads
+titled "Sideloaded 2D apps don't register input from Q3 controllers" and "How
+to take controller input in a 2d android app?", and every guide points at
+Unity or Unreal reading the sticks through OpenXR - which requires being a VR
+app in the first place. Nobody mentions this.
+
+A 2D app is never offered the controllers as a joystick. Checked at every
+level, and all three say no:
+
+  * SDL enumerates one controller marked `Enabled: false` and the accelerometer
+  * `InputDevice.getDeviceIds()` shows the same single gamepad
+  * the Activity sees the controllers as two independent TOUCHSCREEN pointers,
+    one device id per hand
+
+But Meta had to pick some flat-screen behaviour for the stick, and what they
+chose is **scroll**. That is an ordinary Android motion axis and it reaches
+`dispatchGenericMotionEvent` perfectly well:
+
+    MOTION src=0x2 dev=-1 vscroll=0.173 hscroll=0.139
+
+Roughly -0.27 to +0.27 on both axes. So:
+
+    float h = event.getAxisValue(MotionEvent.AXIS_HSCROLL);
+    float v = event.getAxisValue(MotionEvent.AXIS_VSCROLL);
+
+turned into `KEYCODE_DPAD_*` and handed to `SDLActivity.onNativeKeyDown`.
+That route was proven separately first - `adb shell input keyevent 21` walks
+the character - so only the reading was new.
+
+### Releasing the stick sends NOTHING
+
+Scroll is a stream of deltas, not a position. A joystick axis reports its way
+back to zero, so letting go is just another event; scroll simply STOPS, and
+nothing ever says "no longer scrolling". The character kept walking with no
+event left to lift the key.
+
+A 120ms idle timeout stands in for the release - comfortably longer than the
+~11ms between events while the stick is held, so it cannot fire mid-movement.
+
+### What is still not available
+
+Buttons. A and B arrive as pointer CLICKS, not as distinct keys, so they
+cannot yet be told apart or remapped. Only `KEYCODE_BACK` was ever seen.
+
+## ⚠ Keys reach the app fine - it was never a focus problem
+
+`mCurrentFocus=null` and `mFocusedApp=null` on this headset, because
+`com.oculus.vrshell/FocusPlaceholderActivity` holds window focus. That looks
+damning and is a red herring: `adb shell input keyevent 21` walks the
+character regardless. The app receives keys perfectly well.
+
+Three theories were spent before this was measured - a permission problem, a
+missing SDL mapping, and the client opening the sleeping duplicate of two
+controller entries. Each was measured with the headset idle on a desk, where
+focus is null anyway, so every reading agreed with every theory. **Measure in
+the state that matters, and test the last mile first** - injecting a keypress
+took thirty seconds and would have ruled out three days of theory.
+
+## The old conclusion, kept because it was WRONG
 
 Measured while wearing it, in the game, pressing buttons:
 
