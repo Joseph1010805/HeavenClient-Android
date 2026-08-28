@@ -101,6 +101,34 @@ warns about. The script warned about the thing it was doing.
 The shell can create the directory even where adb cannot, so `deploy_data.sh`
 now does that first and pushes the files rather than the folder.
 
+### "Missing nx file" for 4.5 GB of files that were all present
+
+The last and worst of them. adb writes the data as the **shell** user, into a
+folder adb itself created with `drwxrws---` - no world permissions at all. The
+game runs as a different user, so it could not traverse into the folder, could
+not open a single file, and reported every one of them missing.
+
+    chmod -R a+rX /sdcard/Android/data/org.heavenclient.android/files
+
+`deploy_data.sh` now does this over the whole tree rather than the fonts
+alone, and the client says *"present but CANNOT BE READ"* instead of
+*"Missing nx file"*, with the command in the message.
+
+### Four failures, four wrong causes
+
+Worth stating plainly, because it is the argument for the installer work:
+
+| What it said | What was true |
+|---|---|
+| "Cannot reach &lt;serial&gt;. Is USB debugging authorised?" | adb was not on PATH |
+| *nothing* | `$USER` unset under `set -u` |
+| *nothing* | adb cannot create directories there; fonts never copied |
+| "Missing nx file" | 4.5 GB present, owned by shell, unreadable |
+
+Not one of them was the device. Two said nothing; two pointed confidently at
+the wrong thing. A stranger would have hit all four with no logcat and no
+reason to suspect permissions.
+
 ## Still unknown
 
 - Whether it is **playable** rather than merely running. A platformer through a
@@ -108,3 +136,7 @@ now does that first and pushes the files rather than the folder.
 - **Wi-Fi Direct.** The Quest's support is untested; joining over ordinary wifi
   is the safe path.
 - **Storage.** 4.5 GB of data on a drive that was already 88% full.
+- **The panel is 16:10 and the game renders 16:9.** The blit log reads
+  `scene 1280x720 -> screen 1280x800`, so the picture is stretched about 11%
+  vertically. Letterboxing would fix it; nobody has judged whether it is
+  noticeable.

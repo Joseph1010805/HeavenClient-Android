@@ -162,6 +162,16 @@ echo "Fonts:"
 # The shell CAN make it, so make it, then push the files rather than the
 # directory. The error was hidden behind >/dev/null, so on the Quest this
 # produced a complete-looking install whose text would simply never appear.
+# Everything adb has just written is owned by SHELL, and the folder adb
+# created has no world permissions at all - drwxrws---. The game runs as a
+# different user, so it cannot even traverse in, and reports "Missing nx file"
+# for files that are plainly there.
+#
+# This is the chmod the README calls not optional, applied to the whole tree
+# rather than to the fonts alone. Without it a 4.5 GB install sits there
+# perfectly and the game shows a black screen.
+sh "chmod -R a+rX '$DIR'" >/dev/null 2>&1
+
 sh "mkdir -p '$DIR/fonts/Roboto'" >/dev/null 2>&1
 
 for font in "$REPO"/fonts/Roboto/*; do
@@ -171,7 +181,7 @@ done
 if [ "$(sh "ls '$DIR/fonts' 2>/dev/null | wc -l" | tr -d '\r')" -gt 0 ]; then
 	# a+rX, not 644 - a flat 644 on the directory itself makes it
 	# untraversable and the fonts inside unreachable.
-	sh "chmod -R a+rX '$DIR/fonts'" >/dev/null 2>&1
+	sh "chmod -R a+rX '$DIR'" >/dev/null 2>&1
 	echo "  ok"
 else
 	echo "  FAILED"

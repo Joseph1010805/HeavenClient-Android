@@ -21,6 +21,10 @@
 
 #include <fstream>
 
+// For telling "the file is not there" apart from "the file cannot be opened",
+// which are the same thing to ifstream and very different things to fix.
+#include <sys/stat.h>
+
 #include <nlnx/nx.hpp>
 #include <nlnx/node.hpp>
 
@@ -31,7 +35,26 @@ namespace ms
 		for (auto filename : NxFiles::filenames) {
 		    std::string path = "HeavenClient/" + std::string(filename);
             if (!std::ifstream{path}.good()) {
-                printf("[!] Missing nx file\n");
+                // Name it, and say which of the two things went wrong.
+                //
+                // "Missing nx file" was printed for a file that was present
+                // and merely unreadable. adb writes these as the SHELL user
+                // into a folder it creates with no world permissions at all -
+                // drwxrws--- - so the game, running as somebody else, cannot
+                // even traverse in. A complete 4.5 GB install reported every
+                // file missing, and the search went looking for an absent
+                // file that was sitting right there.
+                //
+                // A path that exists but will not open is a PERMISSION
+                // problem, and saying so is the entire diagnosis.
+                struct stat st;
+                bool there = stat(path.c_str(), &st) == 0;
+
+                printf("[!] %s: %s\n", filename,
+                    there ? "present but CANNOT BE READ - try"
+                            " chmod -R a+rX on the HeavenClient folder"
+                          : "not found");
+
                 return Error(Error::Code::MISSING_FILE, filename);
             }
         }

@@ -9,6 +9,10 @@ error hidden behind `>/dev/null`.
 
 ## 28 August 2026
 
+- **"Missing nx file" for a complete 4.5 GB install.** adb writes the data as
+  the shell user into a folder it creates with `drwxrws---`; the game runs as
+  someone else and could not traverse in. Present, unreadable, reported
+  missing. `tools/deploy_data.sh`, `Util/NxFiles.cpp`
 - **Fonts never reached the Quest, silently.** adb cannot create a directory
   under `/sdcard/Android/data` on Android 11+; the `.nx` files went into a
   folder that existed, the fonts needed one that did not, and the push was
@@ -109,3 +113,8 @@ session. *Check the code before planning around a doc.*
 
 **An error behind `>/dev/null`.** The fonts. The wake lock. Silence is not
 success.
+
+**A message naming the wrong cause.** "Missing nx file" for files that were
+present; "Cannot reach the device" for adb not being installed. Worse than
+silence, because it sends the search somewhere real and wrong. When a message
+names a cause, check that the cause is even possible.
