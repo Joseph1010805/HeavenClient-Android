@@ -4,6 +4,7 @@ import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Display;
+import android.view.WindowManager;
 
 import org.libsdl.app.SDLActivity;
 
@@ -38,6 +39,20 @@ public class HeavenClientActivity extends SDLActivity
     protected void onCreate(Bundle state)
     {
         super.onCreate(state);
+
+        // Do not let the screen sleep while the game is up.
+        //
+        // Standing still in town is a normal way to spend time, and it used to
+        // end the session: the screen times out, SDL halts the main loop with
+        // the surface, the client stops answering the server's pings, and
+        // Cosmic hangs up on its own after fifteen seconds of no pong. Nothing
+        // in the game reported anything - the player came back to a dead
+        // connection and no reason for it.
+        //
+        // A handheld running a game is expected to stay lit; this is the same
+        // flag every other game on the device uses, and it is dropped
+        // automatically when the activity goes away.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         Display display = findSecondDisplay();
 

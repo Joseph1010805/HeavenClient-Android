@@ -231,7 +231,26 @@ namespace ms
 		// its absence means nobody is there. If we are talking and hearing
 		// nothing back, that is an ordinary quiet map, and a dead socket will
 		// surface as a failed write instead.
-		constexpr int64_t SILENCE_LIMIT = 45'000;
+		// Four missed pings, not one and a half.
+		//
+		// AFK is the case this has to survive, and it is the case with the
+		// least margin: standing still, the client sends nothing, so the only
+		// thing keeping either clock alive is the server's idle ping. Cosmic's
+		// IdleStateHandler is set to 30 seconds, and the client pongs the
+		// moment one arrives, so both clocks refresh every 30s - but a 45s
+		// limit left only fifteen seconds of slack, and this handheld server
+		// was measured going 79 SECONDS between packets while busy. An
+		// afternoon of standing in town would have been cut off repeatedly.
+		//
+		// Being slow to notice a host that has genuinely gone is nearly free:
+		// it costs a couple of minutes of a screen that is not responding
+		// before the game says so. Cutting off a healthy session costs the
+		// session. So this is deliberately generous.
+		//
+		// Nothing is lost by waiting, either - the SERVER hangs up on its own
+		// if a client fails to pong within 15 seconds of a ping, so a client
+		// that has really stopped answering is dealt with from that end.
+		constexpr int64_t SILENCE_LIMIT = 120'000;
 
 		if (connected && last_heard > 0 && last_sent > 0)
 		{
