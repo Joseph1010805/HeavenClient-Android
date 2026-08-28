@@ -97,6 +97,19 @@ namespace ms
 		}
 	}
 
+	void UpdatePartyMemberHpHandler::handle(InPacket& recv) const
+	{
+		// int cid, int hp, int maxhp - PacketCreator.updatePartyMemberHP.
+		if (recv.length() < 12)
+			return;
+
+		int32_t cid = recv.read_int();
+		int32_t hp = recv.read_int();
+		int32_t maxhp = recv.read_int();
+
+		Stage::get().get_player().get_party().update_member_hp(cid, hp, maxhp);
+	}
+
 	void PartyOperationHandler::handle(InPacket& recv) const
 	{
 		if (!recv.available())

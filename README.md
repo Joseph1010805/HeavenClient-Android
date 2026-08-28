@@ -84,10 +84,12 @@ from the login screen, and the AYN Thor's second screen.
 
 **Doesn't, yet:**
 
-- **Parties.** The client can send an invite but has no handler for the reply,
-  so it never learns a party formed. No member list, no shared HP bars, no
-  party chat. Two people can play in the same map and see each other; they just
-  can't group.
+- **Parties are unproven, not unbuilt.** Every message Cosmic sends about a
+  party is handled - invitation, creation, joining, leaving, being expelled,
+  disbanding, the leader changing, and the status messages. The member HP bars
+  were the one real gap and are now wired up. What has never happened is two
+  people actually forming a party at a table, so treat it as untested rather
+  than working.
 - **Quest completion.** Quests can be started and turned in, but the client
   ignores the packet that says one finished, so nothing tells you it did.
 - Pets, summons, mage doors and mist skills.

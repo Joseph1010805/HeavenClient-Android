@@ -100,6 +100,7 @@ namespace ms
 
 		UPDATE_GENDER = 58,
 		PARTY_OPERATION = 62,
+		UPDATE_PARTYMEMBER_HP = 201,
 		BUDDY_LIST = 63,
 		GUILD_OPERATION = 65,
 
@@ -255,6 +256,7 @@ namespace ms
 
 		// Social handlers
 		emplace<PARTY_OPERATION, PartyOperationHandler>();
+		emplace<UPDATE_PARTYMEMBER_HP, UpdatePartyMemberHpHandler>();
 
 		// Messaging handlers
 		emplace<SHOW_STATUS_INFO, ShowStatusInfoHandler>();

@@ -29,4 +29,21 @@ namespace ms
 	public:
 		void handle(InPacket& recv) const override;
 	};
+
+	// A party member's health changed.
+	//
+	// Sent whenever somebody in the party takes damage or heals, and while
+	// they are on the same map as you - which is the only time it is of any
+	// use, since it feeds the small health bars drawn over their heads.
+	//
+	// Party::update_member_hp and PartyHpBar were both already written and
+	// waiting; nothing ever called them, because this message had no handler
+	// at all. The bars existed and stayed empty.
+	//
+	// Opcode: UPDATE_PARTYMEMBER_HP(201)
+	class UpdatePartyMemberHpHandler : public PacketHandler
+	{
+	public:
+		void handle(InPacket& recv) const override;
+	};
 }
