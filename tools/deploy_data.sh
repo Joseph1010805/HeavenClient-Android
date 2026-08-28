@@ -20,6 +20,30 @@ set -u
 # it breaks the Gradle wrapper. This script never calls Gradle.
 export MSYS_NO_PATHCONV=1
 
+# adb is not on PATH in a plain shell here, and without this the very first
+# check fails and blames the DEVICE - "Cannot reach <serial>. Is USB debugging
+# authorised?" - when the truth is that the command does not exist. That is a
+# wrong answer pointing at the wrong thing, which is worse than no answer.
+if ! command -v adb >/dev/null 2>&1; then
+	# Braced with defaults: this script runs under `set -u`, and USER is not
+	# set in every shell here - an unset one aborts the whole run with
+	# "unbound variable" before it has done anything.
+	for guess in 		"${LOCALAPPDATA:-}/Android/Sdk/platform-tools" 		"${HOME:-}/AppData/Local/Android/Sdk/platform-tools" 		"/c/Users/${USERNAME:-${USER:-}}/AppData/Local/Android/Sdk/platform-tools"
+	do
+		if [ -x "$guess/adb.exe" ] || [ -x "$guess/adb" ]; then
+			PATH="$PATH:$guess"
+			export PATH
+			break
+		fi
+	done
+fi
+
+if ! command -v adb >/dev/null 2>&1; then
+	echo "adb is not on PATH and was not found in the usual SDK location."
+	echo "Add platform-tools to PATH and run this again."
+	exit 1
+fi
+
 DEV="${1:-}"
 SERVER_IP="${2:-192.168.1.71}"
 
@@ -99,7 +123,12 @@ echo "Deploying to $DEV"
 echo
 
 if ! sh "echo ok" >/dev/null 2>&1; then
-	echo "Cannot reach $DEV. Is USB debugging authorised on the device?"
+	echo "adb is present but $DEV does not answer."
+	echo
+	echo "Devices adb can see:"
+	adb devices | tail -n +2
+	echo
+	echo "If it is listed as 'unauthorized', accept the prompt on the headset."
 	exit 1
 fi
 
@@ -124,7 +153,21 @@ send "$CUSTOM/Map001.nx" "Map001.nx" || FAILED=$((FAILED + 1))
 # Without the fonts, text simply does not appear - no error, no warning.
 echo
 echo "Fonts:"
-adb -s "$DEV" push "$REPO/fonts" "$DIR/" >/dev/null 2>&1
+# adb cannot CREATE a directory under /sdcard/Android/data on Android 11 and
+# up - "remote secure_mkdirs failed: Operation not permitted" - though it can
+# write files into one that already exists. That is why the .nx files landed
+# and the fonts silently did not: they go one level deeper, into a folder that
+# had to be made first.
+#
+# The shell CAN make it, so make it, then push the files rather than the
+# directory. The error was hidden behind >/dev/null, so on the Quest this
+# produced a complete-looking install whose text would simply never appear.
+sh "mkdir -p '$DIR/fonts/Roboto'" >/dev/null 2>&1
+
+for font in "$REPO"/fonts/Roboto/*; do
+	[ -f "$font" ] || continue
+	adb -s "$DEV" push "$font" "$DIR/fonts/Roboto/" >/dev/null 2>&1
+done
 if [ "$(sh "ls '$DIR/fonts' 2>/dev/null | wc -l" | tr -d '\r')" -gt 0 ]; then
 	# a+rX, not 644 - a flat 644 on the directory itself makes it
 	# untraversable and the fonts inside unreachable.
