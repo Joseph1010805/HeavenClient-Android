@@ -720,6 +720,55 @@ namespace ms
 				{
 					int16_t key = padmap[button];
 
+					// WHILE A WINDOW IS OPEN, THE FACE BUTTONS ANSWER IT.
+					//
+					// A headset has no keyboard and no free hand, so the four
+					// face buttons have to be able to work a dialogue. While
+					// one is open they mean confirm / back / deny / close; the
+					// moment the last window shuts they go back to whatever
+					// the player mapped them to, untouched.
+					//
+					// Sent as ACTIONS rather than as keys, because these are
+					// four different answers and a keyboard can only give two.
+					// Escape has always meant "no" on the wire - byte 0 - so
+					// closing a window has been declining it rather than
+					// ending it, which looked identical because either way the
+					// box goes away. See UIElement::Action.
+					bool face = button == SDL_CONTROLLER_BUTTON_A
+						|| button == SDL_CONTROLLER_BUTTON_B
+						|| button == SDL_CONTROLLER_BUTTON_X
+						|| button == SDL_CONTROLLER_BUTTON_Y;
+
+					if (face && UI::get().window_has_focus())
+					{
+						if (ev.type == SDL_CONTROLLERBUTTONDOWN)
+						{
+							switch (button)
+							{
+							case SDL_CONTROLLER_BUTTON_A:
+								UI::get().send_window_action(UIElement::Action::CONFIRM);
+								break;
+							case SDL_CONTROLLER_BUTTON_B:
+								UI::get().send_window_action(UIElement::Action::BACK);
+								break;
+							case SDL_CONTROLLER_BUTTON_X:
+								UI::get().send_window_action(UIElement::Action::DENY);
+								break;
+							case SDL_CONTROLLER_BUTTON_Y:
+								UI::get().send_window_action(UIElement::Action::CLOSE);
+								break;
+							}
+						}
+
+						// The RELEASE has to be swallowed as well, not only the
+						// press. Letting it through sends the game a key going
+						// up that it never saw go down - and since a window
+						// closing is exactly when the button is released, the
+						// stray release would land on the game the instant it
+						// got control back.
+						break;
+					}
+
 					if (key != GLFW_KEY_UNKNOWN)
 						UI::get().send_key(key, ev.type == SDL_CONTROLLERBUTTONDOWN);
 				}

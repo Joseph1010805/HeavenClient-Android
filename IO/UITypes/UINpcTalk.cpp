@@ -345,13 +345,116 @@ namespace ms
 		return estate;
 	}
 
+	void UINpcTalk::send_action(Action action)
+	{
+		// Each of these is a different byte on the wire, not a different way
+		// of saying the same thing:
+		//
+		//   CONFIRM -> 1   yes, next, ok, accept
+		//   DENY    -> 0   no, decline
+		//   BACK    -> 0   but the PREVIOUS page, which is a different button
+		//   CLOSE   -> -1  end the conversation
+		//
+		// button_pressed already maps each button to the right byte, so this
+		// only has to choose the button the message actually offers. Asking
+		// for one it does not have would answer a question nobody asked.
+		switch (action)
+		{
+		case Action::CLOSE:
+			button_pressed(Buttons::CLOSE);
+			break;
+
+		case Action::BACK:
+			// Only a two-page message has a previous page. Anywhere else,
+			// "back" is the same request as ending the conversation, which is
+			// what a person pressing it while a single box is open means.
+			if (type == TalkType::SENDNEXTPREV || type == TalkType::SENDPREV)
+				button_pressed(Buttons::PREV);
+			else
+				button_pressed(Buttons::CLOSE);
+			break;
+
+		case Action::DENY:
+			// Only the two question forms have a "no" to give. On a message
+			// that is merely telling you something there is nothing to
+			// decline, so this ends it instead of sending an answer the
+			// server is not waiting for.
+			if (type == TalkType::SENDYESNO)
+				button_pressed(Buttons::NO);
+			else if (type == TalkType::SENDACCEPTDECLINE)
+				button_pressed(Buttons::QNO);
+			else
+				button_pressed(Buttons::CLOSE);
+			break;
+
+		case Action::CONFIRM:
+			switch (type)
+			{
+			case TalkType::SENDOK:
+				button_pressed(Buttons::OK);
+				break;
+			case TalkType::SENDNEXT:
+			case TalkType::SENDNEXTPREV:
+				button_pressed(Buttons::NEXT);
+				break;
+			case TalkType::SENDYESNO:
+				button_pressed(Buttons::YES);
+				break;
+			case TalkType::SENDACCEPTDECLINE:
+				button_pressed(Buttons::QYES);
+				break;
+			default:
+				break;
+			}
+			break;
+		}
+	}
+
 	void UINpcTalk::send_key(int32_t keycode, bool pressed, bool escape)
 	{
-		if (pressed && escape)
+		if (!pressed)
+			return;
+
+		if (escape)
 		{
 			deactivate();
 
 			NpcTalkMorePacket(wire_type, 0).dispatch();
+
+			return;
+		}
+
+		// Enter presses whatever this dialogue's affirmative button is.
+		//
+		// Only escape was handled, so a conversation could be abandoned from
+		// the keyboard but never advanced - every "next" and every "yes" had
+		// to be clicked. That is merely awkward with a mouse and impossible on
+		// a headset held in two hands, which is what made it worth fixing now.
+		//
+		// Which button that is depends on the message: OK ends a plain one,
+		// NEXT turns a page, YES and QYES answer the two kinds of question.
+		// button_pressed already knows what each of them means, so this only
+		// has to name the right one.
+		if (keycode == KeyAction::Id::RETURN)
+		{
+			switch (type)
+			{
+			case TalkType::SENDOK:
+				button_pressed(Buttons::OK);
+				break;
+			case TalkType::SENDNEXT:
+			case TalkType::SENDNEXTPREV:
+				button_pressed(Buttons::NEXT);
+				break;
+			case TalkType::SENDYESNO:
+				button_pressed(Buttons::YES);
+				break;
+			case TalkType::SENDACCEPTDECLINE:
+				button_pressed(Buttons::QYES);
+				break;
+			default:
+				break;
+			}
 		}
 	}
 

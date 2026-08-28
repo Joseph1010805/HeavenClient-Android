@@ -79,6 +79,10 @@ namespace ms
 
 		void change_text(int32_t npcid, int8_t msgtype, int16_t style, int8_t speaker, const std::string& text);
 
+		// The one window where confirm, back, deny and close are four separate
+		// answers rather than two. See UIElement::Action.
+		void send_action(Action action) override;
+
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
 

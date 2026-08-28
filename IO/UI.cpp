@@ -489,6 +489,81 @@ namespace ms
 		focusedtextfield = tofocus;
 	}
 
+	void UI::send_window_action(UIElement::Action action)
+	{
+		// Innermost first: a notice opened on top of a dialogue is the thing
+		// being answered, and the dialogue underneath must not hear it.
+		if (auto y = get_main_element<UIYesNo>(); y && y->is_active())
+			return y->send_action(action);
+
+		if (auto k = get_main_element<UIOk>(); k && k->is_active())
+			return k->send_action(action);
+
+		if (auto n = get_main_element<UINpcTalk>(); n && n->is_active())
+			return n->send_action(action);
+
+		if (auto s = get_main_element<UIShop>(); s && s->is_active())
+			return s->send_action(action);
+
+		if (auto q = get_main_element<UIQuit>(); q && q->is_active())
+			return q->send_action(action);
+
+		if (auto o = get_main_element<UIOptionMenu>(); o && o->is_active())
+			return o->send_action(action);
+
+		if (auto ch = get_main_element<UIChannel>(); ch && ch->is_active())
+			return ch->send_action(action);
+
+		if (auto w = get_main_element<UIWorldMap>(); w && w->is_active())
+			return w->send_action(action);
+
+		if (auto r = get_main_element<UIRank>(); r && r->is_active())
+			return r->send_action(action);
+
+		if (auto sb = get_main_element<UIStatusbar>(); sb && sb->is_menu_active())
+			return sb->send_action(action);
+	}
+
+	bool UI::window_has_focus()
+	{
+		if (focusedtextfield)
+			return true;
+
+		if (auto n = get_main_element<UINpcTalk>(); n && n->is_active())
+			return true;
+
+		if (auto w = get_main_element<UIWorldMap>(); w && w->is_active())
+			return true;
+
+		if (auto s = get_main_element<UIStatusbar>(); s && s->is_menu_active())
+			return true;
+
+		if (auto c = get_main_element<UIChannel>(); c && c->is_active())
+			return true;
+
+		if (auto o = get_main_element<UIOptionMenu>(); o && o->is_active())
+			return true;
+
+		if (auto sh = get_main_element<UIShop>(); sh && sh->is_active())
+			return true;
+
+		if (auto q = get_main_element<UIQuit>(); q && q->is_active())
+			return true;
+
+		if (auto r = get_main_element<UIRank>(); r && r->is_active())
+			return true;
+
+		// The plain notices - "are you sure", "you have died" - are modal and
+		// are what the confirm button most often has to answer.
+		if (auto y = get_main_element<UIYesNo>(); y && y->is_active())
+			return true;
+
+		if (auto k = get_main_element<UIOk>(); k && k->is_active())
+			return true;
+
+		return false;
+	}
+
 	void UI::remove_textfield()
 	{
 		if (focusedtextfield)

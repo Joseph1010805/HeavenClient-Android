@@ -17,6 +17,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#include "KeyAction.h"
 #include "Components/Button.h"
 #include "Components/Icon.h"
 
@@ -95,6 +96,41 @@ namespace ms
 		virtual Cursor::State send_cursor(bool clicked, Point<int16_t> cursorpos);
 		virtual void send_scroll(double yoffset) {}
 		virtual void send_key(int32_t keycode, bool pressed, bool escape) {}
+
+		// What a gamepad's face buttons mean to an open window.
+		//
+		// A keyboard has only two answers to give a dialogue - Enter and
+		// Escape - and that is all this client ever asked for. The protocol
+		// has THREE, and they are genuinely different things:
+		//
+		//   CONFIRM   yes, next, ok, accept          NpcTalkMore  1
+		//   DENY      no, decline                    NpcTalkMore  0
+		//   BACK      the previous page              NpcTalkMore  0
+		//   CLOSE     end the conversation entirely  NpcTalkMore -1
+		//
+		// Escape has always sent 0, which is DENY - so closing a window with
+		// the keyboard has been answering "no" to it rather than ending it,
+		// and the difference was invisible because both make the box go away.
+		//
+		// The default keeps that behaviour for every window that has not been
+		// taught the difference; UINpcTalk overrides it, because it is the one
+		// where all four mean something distinct.
+		enum class Action
+		{
+			CONFIRM,
+			BACK,
+			DENY,
+			CLOSE
+		};
+
+		virtual void send_action(Action action)
+		{
+			// Enter for yes, Escape for everything else - what a keyboard can
+			// say, which is what these windows already understand.
+			bool yes = action == Action::CONFIRM;
+
+			send_key(yes ? KeyAction::Id::RETURN : KeyAction::Id::ESCAPE, true, !yes);
+		}
 
 		virtual UIElement::Type get_type() const = 0;
 

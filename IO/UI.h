@@ -94,6 +94,17 @@ namespace ms
 		void set_scrollnotice(const std::string& notice);
 		void focus_textfield(Textfield* textfield);
 		void remove_textfield();
+
+		// Whether a window is currently taking the keys.
+		//
+		// The same question send_key asks before deciding where a key goes, so
+		// the two cannot disagree: if this says yes, the next key WILL go to a
+		// window rather than to the game.
+		bool window_has_focus();
+
+		// Hand confirm / back / deny / close to the window that has focus.
+		// Does nothing if none has - the caller checks window_has_focus first.
+		void send_window_action(UIElement::Action action);
 		void drag_icon(Icon* icon);
 
 		// Stop holding this icon if it is the one being dragged. Called by the
