@@ -50,6 +50,13 @@
 #include "../Graphics/GraphicsGL.h"
 
 #include <android/log.h>
+
+#include <sys/stat.h>
+#include <cstdio>
+#include <vector>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
 #include <unistd.h>
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "HeavenClient", __VA_ARGS__)
@@ -169,6 +176,66 @@ namespace ms
 
 			glBindFramebuffer(GL_FRAMEBUFFER, scene_fbo);
 			glViewport(0, 0, scene_w, scene_h);
+		}
+
+		// TAKE A PICTURE OF OUR OWN FRAMEBUFFER.
+		//
+		// Meta sets FLAG_SECURE on the Quest's display, so `adb screencap`
+		// returns a zero-byte file every time and there is no way to see what
+		// the game looks like on it. Anything visual has to be described down
+		// a phone line, which is no way to fix a layout.
+		//
+		// FLAG_SECURE stops the SYSTEM capturing the display. It does not stop
+		// this process reading back the pixels it just drew itself, which is
+		// all this does - our own rendering, out of our own context, into our
+		// own data folder.
+		//
+		// Triggered by a FILE rather than a key, so a shot can be asked for
+		// over adb without anybody having to be wearing the headset:
+		//
+		//     adb shell touch .../files/HeavenClient/shoot
+		//
+		// Checked a few times a second rather than every frame - it is a stat
+		// call, but there is no reason to make it 60 times a second.
+		void maybe_screenshot()
+		{
+			static int countdown = 0;
+			static int taken = 0;
+
+			if (--countdown > 0)
+				return;
+
+			countdown = 20;
+
+			const char* ask = "HeavenClient/shoot";
+
+			struct stat st;
+
+			if (stat(ask, &st) != 0)
+				return;
+
+			std::remove(ask);
+
+			if (panel_w <= 0 || panel_h <= 0)
+				return;
+
+			std::vector<unsigned char> pixels(
+				static_cast<size_t>(panel_w) * panel_h * 4);
+
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glReadPixels(0, 0, panel_w, panel_h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+
+			// GL hands back the bottom row first; every image format expects
+			// the top row first.
+			stbi_flip_vertically_on_write(1);
+
+			char name[128];
+			snprintf(name, sizeof(name), "HeavenClient/shot-%02d.png", taken++ % 20);
+
+			if (stbi_write_png(name, panel_w, panel_h, 4, pixels.data(), panel_w * 4))
+				LOGI("screenshot: %s (%dx%d)", name, panel_w, panel_h);
+			else
+				LOGE("screenshot: could not write %s", name);
 		}
 
 		void present_offscreen()
@@ -889,6 +956,10 @@ namespace ms
 	{
 		GraphicsGL::get().flush(opacity);
 		present_offscreen();
+
+		// Before the swap: the default framebuffer still holds this frame.
+		maybe_screenshot();
+
 		SDL_GL_SwapWindow(glwnd);
 	}
 
