@@ -142,7 +142,17 @@ namespace ms
 		shoename = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::BLACK);
 		wepname = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::BLACK);
 
-		nl::node mkinfo = nl::nx::etc["MakeCharInfo.img"]["Info"];
+		// Cygnus Knights have their own set - PremiumChar* - which is NOT
+		// under Info, where the explorer lists live. Reading Info meant a
+		// Noblesse was built entirely out of explorer parts.
+		//
+		// In v83 data this changes nothing visible: PremiumCharMale holds the
+		// same hair (30030/30020/30000) and the same clothes (1040002/6/10)
+		// as the explorer list, because character creation for this class had
+		// not been drawn yet even though Ereve exists. Corrected anyway - it
+		// is the right node, and data that does carry the white-and-blue
+		// Noblesse outfit will then simply work.
+		nl::node mkinfo = nl::nx::etc["MakeCharInfo.img"];
 
 		for (size_t i = 0; i < 2; i++)
 		{
@@ -152,12 +162,12 @@ namespace ms
 			if (i == 0)
 			{
 				f = true;
-				CharGender = mkinfo["CharFemale"];
+				CharGender = mkinfo["PremiumCharFemale"];
 			}
 			else
 			{
 				f = false;
-				CharGender = mkinfo["CharMale"];
+				CharGender = mkinfo["PremiumCharMale"];
 			}
 
 			for (auto node : CharGender)

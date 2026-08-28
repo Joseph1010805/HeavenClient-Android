@@ -120,7 +120,9 @@ namespace ms
 		shoename = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::BLACK);
 		wepname = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::BLACK);
 
-		nl::node mkinfo = nl::nx::etc["MakeCharInfo.img"]["Info"];
+		// Aran reads OrientChar*, its own set, for the same reason Cygnus
+		// reads PremiumChar* - see UICygnusCreation.
+		nl::node mkinfo = nl::nx::etc["MakeCharInfo.img"];
 
 		for (size_t i = 0; i < 2; i++)
 		{
@@ -130,12 +132,12 @@ namespace ms
 			if (i == 0)
 			{
 				f = true;
-				CharGender = mkinfo["CharFemale"];
+				CharGender = mkinfo["OrientCharFemale"];
 			}
 			else
 			{
 				f = false;
-				CharGender = mkinfo["CharMale"];
+				CharGender = mkinfo["OrientCharMale"];
 			}
 
 			for (auto node : CharGender)

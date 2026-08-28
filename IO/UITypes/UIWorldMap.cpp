@@ -321,8 +321,7 @@ namespace ms
 		if (mid != mapid)
 		{
 			mapid = mid;
-			auto prefix = mapid / 10000000;
-			auto parent_map = "WorldMap0" + std::to_string(prefix);
+			auto parent_map = world_containing(mapid);
 			user_map = parent_map;
 
 			// On the panel the map is a thing being READ, and walking through a
@@ -506,6 +505,52 @@ namespace ms
 			search_text.set_state(Textfield::State::DISABLED);
 			dimension = bg_dimensions;
 		}
+	}
+
+	// Which world map picture actually shows this place.
+	//
+	// This used to be arithmetic - "WorldMap0" + mapid / 10000000 - which is
+	// not how the files are numbered. They are a hierarchy of REGIONS: for
+	// example WorldMap013 is Kerning Square and says so by carrying
+	// parentMap = WorldMap010, Victoria Island. The number has nothing to do
+	// with the map ids inside it.
+	//
+	// The arithmetic gave 130030001 / 10000000 = 13, so standing in Ereve
+	// displayed Kerning Square - a coincidence of division, and the page never
+	// corrected itself because it only loads once. Ereve is in WorldMap090.
+	//
+	// So it is asked rather than computed: every region lists the maps it
+	// covers, and that list is what is searched. Built once and kept, since
+	// the data cannot change while the game runs.
+	const std::string& UIWorldMap::world_containing(int32_t id)
+	{
+		static std::unordered_map<int32_t, std::string> lookup;
+		static std::string fallback = "WorldMap";
+
+		if (lookup.empty())
+		{
+			for (auto region : nl::nx::map["WorldMap"])
+			{
+				std::string name = region.name();
+
+				// The root picture lists everything as an overview, so it
+				// would match first and win every time. It is the fallback,
+				// not an answer.
+				if (name == "WorldMap.img")
+					continue;
+
+				if (name.size() > 4 && name.compare(name.size() - 4, 4, ".img") == 0)
+					name = name.substr(0, name.size() - 4);
+
+				for (auto entry : region["MapList"])
+					for (auto no : entry["mapNo"])
+						lookup.emplace(static_cast<int32_t>(no), name);
+			}
+		}
+
+		auto iter = lookup.find(id);
+
+		return iter != lookup.end() ? iter->second : fallback;
 	}
 
 	void UIWorldMap::update_world(std::string map)

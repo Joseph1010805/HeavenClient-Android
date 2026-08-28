@@ -98,6 +98,9 @@ namespace ms
 
 		void update_world(std::string parent_map);
 
+		// The region picture that actually contains a given map id.
+		static const std::string& world_containing(int32_t mapid);
+
 		enum Buttons
 		{
 			BT_CLOSE,
