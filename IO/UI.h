@@ -119,6 +119,17 @@ namespace ms
 		Optional<T> emplace(Args&& ...args);
 		template <class T>
 		Optional<T> get_element();
+
+		// The same lookup, but WITHOUT falling through to the lower panel.
+		//
+		// For keyboard routing. A window on the panel is a thing being read -
+		// it is operated by touch, on a screen the player is not typing at -
+		// so it must never claim keys from the game. The panel's world map is
+		// on screen permanently, so when it did claim them, every arrow key in
+		// the game went to it and the character could not move at all.
+		template <class T>
+		Optional<T> get_main_element();
+
 		void remove(UIElement::Type type);
 
 	private:
@@ -163,5 +174,11 @@ namespace ms
 			element = SecondScreen::hosted(type);
 
 		return static_cast<T*>(element);
+	}
+
+	template <class T>
+	Optional<T> UI::get_main_element()
+	{
+		return static_cast<T*>(state->get(T::TYPE));
 	}
 }

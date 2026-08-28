@@ -257,11 +257,11 @@ namespace ms
 
 			if (focusedtextfield)
 				who = "TEXTFIELD";
-			else if (auto n = get_element<UINpcTalk>(); n && n->is_active())
+			else if (auto n = get_main_element<UINpcTalk>(); n && n->is_active())
 				who = "npc dialogue";
-			else if (auto w = get_element<UIWorldMap>(); w && w->is_active())
+			else if (auto w = get_main_element<UIWorldMap>(); w && w->is_active())
 				who = "world map";
-			else if (auto s = get_element<UIStatusbar>(); s && s->is_menu_active())
+			else if (auto s = get_main_element<UIStatusbar>(); s && s->is_menu_active())
 				who = "statusbar menu";
 
 			Keyboard::Mapping m = keyboard.get_mapping(keycode);
@@ -314,17 +314,17 @@ namespace ms
 			bool left_right = keycode == GLFW_KEY_LEFT || keycode == GLFW_KEY_RIGHT;
 			bool arrows = up_down || left_right;
 
-			auto statusbar = UI::get().get_element<UIStatusbar>();
-			auto channel = UI::get().get_element<UIChannel>();
-			auto worldmap = UI::get().get_element<UIWorldMap>();
-			auto optionmenu = UI::get().get_element<UIOptionMenu>();
-			auto shop = UI::get().get_element<UIShop>();
-			auto joypad = UI::get().get_element<UIJoypad>();
-			auto rank = UI::get().get_element<UIRank>();
-			auto quit = UI::get().get_element<UIQuit>();
-			auto npctalk = UI::get().get_element<UINpcTalk>();
-			//auto report = UI::get().get_element<UIReport>();
-			//auto whisper = UI::get().get_element<UIWhisper>();
+			auto statusbar = UI::get().get_main_element<UIStatusbar>();
+			auto channel = UI::get().get_main_element<UIChannel>();
+			auto worldmap = UI::get().get_main_element<UIWorldMap>();
+			auto optionmenu = UI::get().get_main_element<UIOptionMenu>();
+			auto shop = UI::get().get_main_element<UIShop>();
+			auto joypad = UI::get().get_main_element<UIJoypad>();
+			auto rank = UI::get().get_main_element<UIRank>();
+			auto quit = UI::get().get_main_element<UIQuit>();
+			auto npctalk = UI::get().get_main_element<UINpcTalk>();
+			//auto report = UI::get().get_main_element<UIReport>();
+			//auto whisper = UI::get().get_main_element<UIWhisper>();
 
 			if (npctalk && npctalk->is_active())
 			{
