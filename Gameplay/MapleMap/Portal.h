@@ -60,9 +60,24 @@ namespace ms
 			bool intramap;
 			bool valid;
 
-			WarpInfo(int32_t m, bool i, std::string tn, std::string n) : mapid(m), intramap(i), toname(tn), name(n)
+			// Whether the SERVER decides where this one goes.
+			//
+			// A scripted portal always carries 999999999 as its target,
+			// because it has no fixed destination - a script on the server
+			// looks at who you are and what you have done and warps you
+			// accordingly. The client's job is only to say which portal was
+			// entered.
+			//
+			// Judging these by the target alone made every one of them
+			// invalid, so the client ignored them in silence. That is why the
+			// Cygnus tutorial room appeared to have no way out: its exit is a
+			// script portal, and so is the exit of every room after it.
+			bool scripted;
+
+			WarpInfo(int32_t m, bool i, std::string tn, std::string n, bool s = false)
+				: mapid(m), intramap(i), toname(tn), name(n), scripted(s)
 			{
-				valid = mapid < 999999999;
+				valid = scripted || mapid < 999999999;
 			}
 
 			WarpInfo() : WarpInfo(999999999, false, {}, {}) {}

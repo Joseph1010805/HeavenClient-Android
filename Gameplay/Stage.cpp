@@ -205,6 +205,18 @@ namespace ms
 
 			player.respawn(startpos, mapinfo.is_underwater());
 		}
+		else if (warpinfo.scripted)
+		{
+			// Say which portal was entered and let the server answer.
+			//
+			// Where a scripted portal leads is not written in the map - the
+			// server works it out from the character's quests and sends a warp
+			// back, or refuses with a message ("Please click on the NPC first
+			// to receive a quest"). So the map id must NOT be set here: there
+			// isn't one yet, and claiming 999999999 would leave the client
+			// believing it had moved somewhere that does not exist.
+			ChangeMapPacket(false, -1, warpinfo.name, false).dispatch();
+		}
 		else if (warpinfo.valid)
 		{
 			ChangeMapPacket(false, -1, warpinfo.name, false).dispatch();

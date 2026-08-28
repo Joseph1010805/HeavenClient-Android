@@ -19,7 +19,17 @@
 
 namespace ms
 {
-	Portal::Portal(const Animation* a, Type t, std::string nm, bool intramap, Point<int16_t> p, int32_t tid, std::string tnm) : animation(a), type(t), name(nm), position(p), warpinfo(tid, intramap, tnm, nm)
+	// The four types whose destination lives in a server script rather than in
+	// the map file.
+	static bool is_scripted(Portal::Type t)
+	{
+		return t == Portal::SCRIPTED
+			|| t == Portal::SCRIPTED_INVISIBLE
+			|| t == Portal::SCRIPTED_TOUCH
+			|| t == Portal::SCRIPTED_HIDDEN;
+	}
+
+	Portal::Portal(const Animation* a, Type t, std::string nm, bool intramap, Point<int16_t> p, int32_t tid, std::string tnm) : animation(a), type(t), name(nm), position(p), warpinfo(tid, intramap, tnm, nm, is_scripted(t))
 	{
 		touched = false;
 	}
