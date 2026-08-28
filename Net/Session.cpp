@@ -80,6 +80,7 @@ namespace ms
 			return Error::CONNECTION;
 
 		last_heard = now_ms();
+		last_sent = now_ms();
 
 		return Error::NONE;
 	}
@@ -170,7 +171,13 @@ namespace ms
 		// the world still drawing, is far more confusing than saying so.
 		if (!socket.dispatch(header, HEADER_LENGTH) ||
 			!socket.dispatch(packet_bytes, packet_length))
+		{
 			disconnected();
+
+			return;
+		}
+
+		last_sent = now_ms();
 	}
 
 	void Session::disconnected()
@@ -203,19 +210,34 @@ namespace ms
 	{
 		bool was_connected = connected;
 
-		// Silence is the only reliable sign that a host has gone.
+		// Silence means the host is gone ONLY IF WE HAVE BEEN QUIET TOO.
 		//
 		// Killing an app does not always close its sockets cleanly, so the
 		// read below can succeed forever against a peer that no longer
-		// exists. Cosmic pings every few seconds; nothing at all for this
-		// long means it is not there.
+		// exists, and something has to notice.
+		//
+		// But the server does not send a heartbeat. Cosmic pings from
+		// Client.checkIfIdle, which Netty calls on an IdleStateEvent - only
+		// when the connection has gone QUIET. While somebody is playing, the
+		// connection is never idle, so the server sends nothing unsolicited
+		// and has nothing it owes us. Treating that as death disconnected
+		// healthy sessions about two minutes into play, every time, and it
+		// looked exactly like the handheld server being killed - which it was
+		// not; the server was still listening and Termux had not been touched
+		// for a day.
+		//
+		// So the test is both directions. If we have not spoken either, the
+		// connection IS idle, the server's idle handler owes us a ping, and
+		// its absence means nobody is there. If we are talking and hearing
+		// nothing back, that is an ordinary quiet map, and a dead socket will
+		// surface as a failed write instead.
 		constexpr int64_t SILENCE_LIMIT = 45'000;
 
-		if (connected && last_heard > 0)
+		if (connected && last_heard > 0 && last_sent > 0)
 		{
 			int64_t now = now_ms();
 
-			if (now - last_heard > SILENCE_LIMIT)
+			if (now - last_heard > SILENCE_LIMIT && now - last_sent > SILENCE_LIMIT)
 			{
 				disconnected();
 

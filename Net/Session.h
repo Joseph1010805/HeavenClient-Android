@@ -86,6 +86,13 @@ namespace ms
 		// Cosmic pings every few seconds, so silence is a reliable signal.
 		int64_t last_heard = 0;
 
+		// When WE last said anything.
+		//
+		// The server only pings an IDLE connection, so its silence proves
+		// nothing while we are busy talking. Both have to have gone quiet
+		// before silence means anybody has gone.
+		int64_t last_sent = 0;
+
 #ifdef USE_ASIO
 		SocketAsio socket;
 #elif USE_WINSOCK
