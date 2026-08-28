@@ -258,6 +258,20 @@ namespace ms
 				return false;
 			}
 
+			// The panel repoints the shared renderer at its own screen. If the
+			// main screen comes out crooked, this is the most likely thing to
+			// have left it that way - so it says what it set.
+			{
+				static int last_w = -1, last_h = -1;
+
+				if (width != last_w || height != last_h)
+				{
+					LOGI("panel viewport: %dx%d", width, height);
+
+					last_w = width; last_h = height;
+				}
+			}
+
 			glViewport(0, 0, width, height);
 
 			return true;

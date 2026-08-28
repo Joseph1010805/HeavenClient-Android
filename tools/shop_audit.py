@@ -33,6 +33,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nxdump import Nx  # noqa: E402
 
 # Exactly the names Clothing.cpp iterates (Stance::names, minus the empty one).
+# What a face accessory is drawn against. The client picks one of these by
+# the character's current expression; there is no stand1 on a mask.
+EXPRESSIONS = {
+    "default", "blink", "smile", "angry", "sad", "cry", "hum", "despair",
+    "oops", "stunned", "vomit", "troubled", "cheers", "chu", "wink",
+    "pain", "glitter", "love", "shine", "blaze", "bewildered", "hot",
+    "dam", "qBlue",
+}
+
 STANCES = {
     "alert", "dead", "fly", "heal", "jump", "ladder", "prone", "proneStab",
     "rope", "shot", "shoot1", "shoot2", "shootF", "sit", "stabO1", "stabO2",
@@ -132,11 +141,26 @@ def audit(wz, verbose):
             if node is not None and group in DRAWN:
                 names = child_names(character, node)
 
-                if not (names & STANCES):
+                # Face accessories are keyed by EXPRESSION, not by stance.
+                #
+                # This tool found 84 "broken" items on its first run and it was
+                # right - 79 of them were one bug, face accessories being drawn
+                # against stand1/walk1 which they do not have. That bug was
+                # fixed in the client; this check was not updated with it, so
+                # it went on reporting the same 79 items as broken while they
+                # rendered perfectly. A tool that cries wolf is worse than no
+                # tool, because the real fault hides in the noise.
+                #
+                # The giveaway was in its own output: "has angry, bewildered,
+                # blaze" is a complete set of expressions, not missing art.
+                wanted = EXPRESSIONS if group == 101 else STANCES
+
+                if not (names & wanted):
                     # Say what it DOES have - that is the whole diagnosis.
                     other = sorted(names - {"info"})[:3]
-                    faults.append("no stance art (has %s)"
-                                  % (", ".join(other) or "nothing"))
+                    faults.append("no %s art (has %s)"
+                                  % ("expression" if group == 101 else "stance",
+                                     ", ".join(other) or "nothing"))
 
             if listed and string.resolve(
                     "Eqp.img/Eqp/%s/%d/name" % (category, itemid)) is None:

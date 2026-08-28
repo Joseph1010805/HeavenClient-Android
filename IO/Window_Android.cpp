@@ -199,6 +199,26 @@ namespace ms
 				panel_h = drawable_h;
 			}
 
+			// SAY WHEN THE RECTANGLE CHANGES.
+			//
+			// The cut-off screen has now survived two fixes aimed at causes
+			// that turned out not to be it - a stale drawable size, then a
+			// missed rotation - and the second was disproved by its own
+			// logging: the window never resized, yet the picture went crooked
+			// mid-session. So rather than guess a third time, this reports the
+			// actual rectangle being drawn into whenever it is not what it was
+			// a frame ago. Whatever moves it will have to say so.
+			static int last_sw = -1, last_sh = -1, last_pw = -1, last_ph = -1;
+
+			if (scene_w != last_sw || scene_h != last_sh
+				|| panel_w != last_pw || panel_h != last_ph)
+			{
+				LOGI("blit: scene %dx%d -> screen %dx%d", scene_w, scene_h, panel_w, panel_h);
+
+				last_sw = scene_w; last_sh = scene_h;
+				last_pw = panel_w; last_ph = panel_h;
+			}
+
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, scene_fbo);
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 			glViewport(0, 0, panel_w, panel_h);
