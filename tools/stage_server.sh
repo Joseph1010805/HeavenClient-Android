@@ -4,11 +4,21 @@
 #
 #   tools/stage_server.sh <device-serial> [cosmic-dir]
 #
-# The client already needs nothing for this: `ServerIP` lives in the settings
-# file on the device and defaults to 127.0.0.1. And Cosmic needs no second
-# config either - `Server.getInetSocket` hands a loopback client LOCALHOST and
-# a LAN client LANHOST by itself, so ONE server serves both the handheld it
-# runs on and anybody else on a phone hotspot.
+# The client needs nothing for this: `ServerIP` lives in the settings file on
+# the device and defaults to 127.0.0.1.
+#
+# ⚠ THE SERVER DOES. This used to claim that Cosmic needed no second config,
+# because `Server.getInetSocket` hands a loopback client LOCALHOST and a LAN
+# client LANHOST by itself. It does choose between them - but LANHOST is a
+# FIXED STRING in config.yaml, and nothing ever works out what address this
+# machine actually has.
+#
+# So a config copied from the PC tells every device on the network to reconnect
+# to the PC. Joining works, the character list arrives, a character is chosen,
+# and then the client reconnects to a machine with no server on it and sits
+# there. The Start button looks broken and nothing says why.
+#
+# tools/set_host_ip.sh sets it, and is run at the end of this script.
 #
 # What goes over:
 #
