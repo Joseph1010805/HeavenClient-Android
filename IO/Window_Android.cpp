@@ -181,25 +181,29 @@ namespace ms
 		// TAKE A PICTURE OF OUR OWN FRAMEBUFFER.
 		//
 		// Meta sets FLAG_SECURE on the Quest's display, so `adb screencap`
-		// returns a zero-byte file every time and there is no way to see what
-		// the game looks like on it. Anything visual has to be described down
-		// a phone line, which is no way to fix a layout.
-		//
-		// FLAG_SECURE stops the SYSTEM capturing the display. It does not stop
-		// this process reading back the pixels it just drew itself, which is
-		// all this does - our own rendering, out of our own context, into our
-		// own data folder.
-		//
-		// Triggered by a FILE rather than a key, so a shot can be asked for
-		// over adb without anybody having to be wearing the headset:
+		// returns a zero-byte file every time. FLAG_SECURE stops the SYSTEM
+		// capturing the display; it does not stop this process reading back
+		// the pixels it drew itself, which is all this does.
 		//
 		//     adb shell touch .../files/HeavenClient/shoot
+		//     adb shell chmod a+r .../files/HeavenClient/shoot
 		//
-		// Checked a few times a second rather than every frame - it is a stat
-		// call, but there is no reason to make it 60 times a second.
+		// TWO THINGS THE FIRST VERSION GOT WRONG, both of which cost frames:
+		//
+		// It wrote into HeavenClient/, which adb owns and the app cannot write
+		// to - so every attempt failed. And it removed the trigger to stop
+		// repeating, which failed for the same reason - so it fired every 20
+		// frames forever, doing a 4 MB readback and a PNG encode each time,
+		// and the game crawled. A feature meant to help debugging became the
+		// bug being debugged.
+		//
+		// Now: written to the working directory, which belongs to the app, and
+		// the trigger is recognised by its TIMESTAMP rather than deleted. A
+		// file we cannot remove is one we must be able to ignore.
 		void maybe_screenshot()
 		{
 			static int countdown = 0;
+			static time_t last_seen = 0;
 			static int taken = 0;
 
 			if (--countdown > 0)
@@ -207,14 +211,16 @@ namespace ms
 
 			countdown = 20;
 
-			const char* ask = "HeavenClient/shoot";
-
 			struct stat st;
 
-			if (stat(ask, &st) != 0)
+			if (stat("HeavenClient/shoot", &st) != 0)
 				return;
 
-			std::remove(ask);
+			// Same trigger as last time - already answered.
+			if (st.st_mtime == last_seen)
+				return;
+
+			last_seen = st.st_mtime;
 
 			if (panel_w <= 0 || panel_h <= 0)
 				return;
@@ -230,12 +236,12 @@ namespace ms
 			stbi_flip_vertically_on_write(1);
 
 			char name[128];
-			snprintf(name, sizeof(name), "HeavenClient/shot-%02d.png", taken++ % 20);
+			snprintf(name, sizeof(name), "shot-%02d.png", taken++ % 10);
 
 			if (stbi_write_png(name, panel_w, panel_h, 4, pixels.data(), panel_w * 4))
 				LOGI("screenshot: %s (%dx%d)", name, panel_w, panel_h);
 			else
-				LOGE("screenshot: could not write %s", name);
+				LOGE("screenshot: could not write %s - is the working directory writable?", name);
 		}
 
 		void present_offscreen()
