@@ -22,6 +22,35 @@ single-screen game.
 label, and it is not the same as the application label, which is
 `HeavenClient`. Renaming the app means changing both.
 
+## ⚠ A 2D app on this headset gets the POINTER AND NOTHING ELSE
+
+Measured while wearing it, in the game, pressing buttons:
+
+    dumpsys window   mCurrentFocus=null   mFocusedApp=null
+    dumpsys input    FocusedWindows: (empty)
+
+Android delivers **key and gamepad** events only to the focused window. Touch
+goes to whatever sits under the pointer regardless of focus - which is exactly
+the split seen here: the laser works and nothing else does.
+
+Horizon OS runs 2D apps in a volumetric window and keeps its own idea of focus
+(`VolumetricContentMonitor` reports the activity as focused). The classic
+WindowManager focus stays null, so the input dispatcher has nowhere to send a
+keypress and drops it.
+
+**The hardware is not the problem.** `getevent` on the bluetooth pad shows
+`ABS_X` sweeping its whole range and buttons reporting cleanly. The events
+reach the kernel and stop there.
+
+Three wrong theories were spent on this before it was measured properly - a
+permission problem, a missing SDL mapping, and the client opening the wrong
+pad of the two. Each was measured with the headset sitting idle on a desk,
+where focus is null anyway, so every measurement agreed with every theory.
+**Take the measurement in the state that matters.**
+
+So the Quest needs either on-screen controls the pointer can press, or a
+native VR build. It is not something client input code can fix.
+
 ## Controls
 
 The headset has no keyboard and no free hand, so the controls are not the
