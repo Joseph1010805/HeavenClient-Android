@@ -339,6 +339,59 @@ namespace ms
 		// released far enough counts as a release. The two thresholds are
 		// deliberately apart: with a single one, a trigger resting on the line
 		// chatters between down and up and fires the bound skill repeatedly.
+		// The left stick walks, in four directions.
+		//
+		// Only the triggers were read; both sticks were thrown away, so a
+		// controller could press buttons and not move. That is survivable on a
+		// handheld with a d-pad and fatal on a Quest, where the d-pad does not
+		// exist and the stick is the only way to walk.
+		//
+		// Reported as arrow keys rather than as anything new: Keyboard's
+		// constructor already binds the arrows to LEFT/RIGHT/UP/DOWN, so the
+		// stick arrives as exactly what the game already understands, through
+		// the same path as a keyboard and the same path as the d-pad.
+		//
+		// Two thresholds, like the triggers. A single one chatters when the
+		// stick is held near it - releasing and re-pressing many times a second
+		// - which reads as the character stuttering on the spot.
+		//
+		// Up and down matter as much as left and right here: up is how a portal
+		// is entered and a rope is climbed, down is how you drop through a
+		// platform.
+		int stick_key[4] = { GLFW_KEY_LEFT, GLFW_KEY_RIGHT, GLFW_KEY_UP, GLFW_KEY_DOWN };
+		bool stick_down[4] = { false, false, false, false };
+
+		void handle_stick(int which, Sint16 value)
+		{
+			constexpr Sint16 PRESS = 16000;
+			constexpr Sint16 RELEASE = 9000;
+
+			// which: 0 = X axis, 1 = Y axis. Each drives an opposing pair.
+			int negative = (which == 0) ? 0 : 2;   // left  / up
+			int positive = (which == 0) ? 1 : 3;   // right / down
+
+			struct { int slot; Sint16 magnitude; } side[2] = {
+				{ negative, static_cast<Sint16>(value < 0 ? -value : 0) },
+				{ positive, static_cast<Sint16>(value > 0 ?  value : 0) },
+			};
+
+			for (auto& s : side)
+			{
+				bool down = stick_down[s.slot];
+
+				if (!down && s.magnitude >= PRESS)
+					down = true;
+				else if (down && s.magnitude < RELEASE)
+					down = false;
+				else
+					continue;
+
+				stick_down[s.slot] = down;
+
+				UI::get().send_key(stick_key[s.slot], down);
+			}
+		}
+
 		void handle_trigger(int side, Sint16 value)
 		{
 			constexpr Sint16 PRESS = 20000;
@@ -680,6 +733,10 @@ namespace ms
 					handle_trigger(0, ev.caxis.value);
 				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
 					handle_trigger(1, ev.caxis.value);
+				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_LEFTX)
+					handle_stick(0, ev.caxis.value);
+				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY)
+					handle_stick(1, ev.caxis.value);
 
 				break;
 			}
