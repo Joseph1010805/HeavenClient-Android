@@ -243,6 +243,35 @@ namespace ms
 		if (is_key_down[keyboard.capslockcode()])
 			caps_lock_enabled = !caps_lock_enabled;
 
+		// WHERE DID THAT KEY GO?
+		//
+		// "I cannot move" has three unrelated causes that look identical from
+		// the outside - a text box holding focus, a UI window claiming the
+		// keys, or nothing being bound to the key at all - and guessing
+		// between them has already cost two wrong fixes. So the client says
+		// which one it was, once per press, rather than leaving it to be
+		// inferred.
+		if (pressed)
+		{
+			const char* who = "game";
+
+			if (focusedtextfield)
+				who = "TEXTFIELD";
+			else if (auto n = get_element<UINpcTalk>(); n && n->is_active())
+				who = "npc dialogue";
+			else if (auto w = get_element<UIWorldMap>(); w && w->is_active())
+				who = "world map";
+			else if (auto s = get_element<UIStatusbar>(); s && s->is_menu_active())
+				who = "statusbar menu";
+
+			Keyboard::Mapping m = keyboard.get_mapping(keycode);
+
+			Console::get().print("key " + std::to_string(keycode)
+				+ " -> " + who
+				+ " (type " + std::to_string(m.type)
+				+ ", action " + std::to_string(m.action) + ")");
+		}
+
 		if (focusedtextfield)
 		{
 			bool ctrl = is_key_down[keyboard.leftctrlcode()] || is_key_down[keyboard.rightctrlcode()];
