@@ -136,6 +136,24 @@ namespace ms
 
 		animations[Portal::HIDDEN] = src["ph"]["default"]["portalContinue"];
 		animations[Portal::REGULAR] = src["pv"];
+
+		// A scripted portal is a portal you can SEE.
+		//
+		// Only REGULAR and HIDDEN were given artwork, so every type-7 portal
+		// in the game was drawn as nothing whatsoever - and since portals are
+		// entered by pressing UP while standing on one, an invisible portal is
+		// an exit that cannot be found except by pressing UP along the entire
+		// length of a map.
+		//
+		// The Cygnus tutorial's way out is one of these. It sits at x -1158 in
+		// a map whose wall is at -1260, so walking west simply ran out of
+		// ground about a hundred pixels past it, with nothing on screen to say
+		// anything had been passed. It read as a room with no exit.
+		//
+		// SCRIPTED_INVISIBLE is deliberately not given one - being unseen is
+		// the point of that type - and the two touch types trigger by being
+		// walked into, so they do not need to be found by eye either.
+		animations[Portal::SCRIPTED] = src["pv"];
 	}
 
 	std::unordered_map<Portal::Type, Animation> MapPortals::animations;
