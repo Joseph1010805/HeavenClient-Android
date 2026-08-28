@@ -205,6 +205,43 @@ else
 	echo "           and kill the server mid-game. Open Termux once by hand."
 fi
 
+# WRITE THIS DEVICE'S OWN ADDRESS INTO THE CONFIG, EVERY TIME.
+#
+# When a client picks a character, Cosmic replies with the address of the
+# channel server to reconnect to, and it reads that out of LANHOST in
+# config.yaml. LANHOST is a fixed string. Server.getInetSocket chooses BETWEEN
+# LOCALHOST and LANHOST by where the client came from, but nothing in Cosmic
+# ever asks what address this machine actually has.
+#
+# So a config copied from another machine sends every joiner to that machine
+# instead. Everything works right up to the last step - discovery, login, the
+# character list, creating a character - and then the client reconnects to
+# somewhere with no server and sits there. The Start button appears dead and
+# nothing anywhere says why. That is precisely what happened when config.yaml
+# was pushed to the Thor unchanged.
+#
+# Done at every start rather than once at setup, because the address is not a
+# property of the install - it is a property of THIS BOOT, on THIS network. A
+# handheld gets a new one from the router often enough that a value written
+# once is a value that will be wrong later, and it would fail the same silent
+# way when it did.
+#
+# Left alone if there is no address: better to keep yesterday's than to write
+# a blank one.
+MY_IP=$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*//p' | head -1)
+
+if [ -n "$MY_IP" ]; then
+	if ! grep -q "LANHOST: $MY_IP" config.yaml 2>/dev/null; then
+		echo "address is $MY_IP - updating config.yaml"
+
+		sed -i "s/^\( *HOST:\)[^#]*/ $MY_IP /; s/^\( *LANHOST:\)[^#]*/ $MY_IP /" config.yaml
+	else
+		echo "address is $MY_IP - config already agrees"
+	fi
+else
+	echo "no network address found - leaving config.yaml alone"
+fi
+
 echo "starting Cosmic - first run builds the schema and takes a few minutes"
 java -Xmx1536m -Dwz-path=wz -jar Cosmic.jar
 RUN
