@@ -126,6 +126,26 @@ cat > "$HOME_DIR/run.sh" <<'RUN'
 #!/data/data/com.termux/files/usr/bin/bash
 cd "$(dirname "$0")" || exit 1
 
+# EVERYTHING FROM HERE GOES IN THE LOG.
+#
+# The game starts this through Termux's RunCommandService, whose output goes
+# nowhere anybody can read - so the sessions that actually drop were the only
+# ones leaving no trace, and the log on the device was always from whatever
+# the PC last started. Redirecting here means it does not matter who ran it.
+#
+# Trimmed rather than rotated: the interesting part is always the end.
+LOG="$PWD/cosmic.log"
+
+if [ -f "$LOG" ] && [ "$(wc -l < "$LOG" 2>/dev/null || echo 0)" -gt 4000 ]; then
+	tail -n 2000 "$LOG" > "$LOG.trim" 2>/dev/null && mv "$LOG.trim" "$LOG"
+fi
+
+exec >> "$LOG" 2>&1
+
+echo
+echo "=================================================================="
+echo "run.sh at $(date)"
+
 # One server, not seven.
 #
 # The game asks for the server every time HOST is pressed, and it has no way
@@ -164,8 +184,26 @@ if ! pgrep -f mariadbd >/dev/null 2>&1; then
 	done
 fi
 
-# Stops the phone sleeping the server out from under the game.
-termux-wake-lock 2>/dev/null
+# Stops the phone sleeping the server out from under the game - and, more
+# importantly, is what keeps Termux OUT OF THE "empty process" STATE.
+#
+# Android's exit records for every kill so far read
+#
+#     reason=13 (OTHER KILLS BY SYSTEM) subreason=3 (TOO MANY EMPTY PROCS)
+#     importance=400 state=empty
+#
+# which is the system trimming cached processes, NOT Doze - so the battery
+# optimisation exemption does not cover it. What does cover it is Termux
+# holding a foreground service, which the wake lock is what creates.
+#
+# It used to be called with its errors thrown away, so a failure here looked
+# exactly like a network fault twenty minutes later. Now it says so.
+if termux-wake-lock 2>&1; then
+	echo "wake lock: held"
+else
+	echo "wake lock: FAILED - Android will treat Termux as an empty process"
+	echo "           and kill the server mid-game. Open Termux once by hand."
+fi
 
 echo "starting Cosmic - first run builds the schema and takes a few minutes"
 java -Xmx1536m -Dwz-path=wz -jar Cosmic.jar
