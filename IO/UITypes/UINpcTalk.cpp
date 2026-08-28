@@ -194,26 +194,27 @@ namespace ms
 			switch (buttonid)
 			{
 			case Buttons::CLOSE:
-				NpcTalkMorePacket(type, -1).dispatch();
+				NpcTalkMorePacket(wire_type, -1).dispatch();
 				break;
 			case Buttons::NEXT:
 			case Buttons::OK:
-				NpcTalkMorePacket(type, 1).dispatch();
+				NpcTalkMorePacket(wire_type, 1).dispatch();
 				break;
 			}
 			break;
 		case TalkType::SENDNEXTPREV:
+		case TalkType::SENDPREV:
 			// Type = 0
 			switch (buttonid)
 			{
 			case Buttons::CLOSE:
-				NpcTalkMorePacket(type, -1).dispatch();
+				NpcTalkMorePacket(wire_type, -1).dispatch();
 				break;
 			case Buttons::NEXT:
-				NpcTalkMorePacket(type, 1).dispatch();
+				NpcTalkMorePacket(wire_type, 1).dispatch();
 				break;
 			case Buttons::PREV:
-				NpcTalkMorePacket(type, 0).dispatch();
+				NpcTalkMorePacket(wire_type, 0).dispatch();
 				break;
 			}
 			break;
@@ -222,13 +223,13 @@ namespace ms
 			switch (buttonid)
 			{
 			case Buttons::CLOSE:
-				NpcTalkMorePacket(type, -1).dispatch();
+				NpcTalkMorePacket(wire_type, -1).dispatch();
 				break;
 			case Buttons::NO:
-				NpcTalkMorePacket(type, 0).dispatch();
+				NpcTalkMorePacket(wire_type, 0).dispatch();
 				break;
 			case Buttons::YES:
-				NpcTalkMorePacket(type, 1).dispatch();
+				NpcTalkMorePacket(wire_type, 1).dispatch();
 				break;
 			}
 			break;
@@ -237,13 +238,13 @@ namespace ms
 			switch (buttonid)
 			{
 			case Buttons::CLOSE:
-				NpcTalkMorePacket(type, -1).dispatch();
+				NpcTalkMorePacket(wire_type, -1).dispatch();
 				break;
 			case Buttons::QNO:
-				NpcTalkMorePacket(type, 0).dispatch();
+				NpcTalkMorePacket(wire_type, 0).dispatch();
 				break;
 			case Buttons::QYES:
-				NpcTalkMorePacket(type, 1).dispatch();
+				NpcTalkMorePacket(wire_type, 1).dispatch();
 				break;
 			}
 			break;
@@ -255,10 +256,10 @@ namespace ms
 			switch (buttonid)
 			{
 			case Buttons::CLOSE:
-				NpcTalkMorePacket(type, 0).dispatch();
+				NpcTalkMorePacket(wire_type, 0).dispatch();
 				break;
 			case Buttons::OK:
-				NpcTalkMorePacket(type, 1).dispatch();
+				NpcTalkMorePacket(wire_type, 1).dispatch();
 				break;
 			}
 			break;
@@ -267,7 +268,7 @@ namespace ms
 			switch (buttonid)
 			{
 			case Buttons::CLOSE:
-				NpcTalkMorePacket(type, 0).dispatch();
+				NpcTalkMorePacket(wire_type, 0).dispatch();
 				break;
 			default:
 				NpcTalkMorePacket(0).dispatch(); // TODO: Selection
@@ -275,6 +276,19 @@ namespace ms
 			}
 			break;
 		default:
+			// An unrecognised type still has to be ENDED.
+			//
+			// This is what stopped you talking to an NPC a second time.
+			// Closing an unknown dialogue matched no case above and so sent
+			// nothing at all, while the server went on believing the
+			// conversation was open - and it will not begin a new one until
+			// the old one is finished. The window shut, and the NPC was mute
+			// from then on.
+			//
+			// Whatever the message was, End Chat means end it.
+			if (buttonid == Buttons::CLOSE)
+				NpcTalkMorePacket(wire_type, -1).dispatch();
+
 			break;
 		}
 
@@ -337,7 +351,7 @@ namespace ms
 		{
 			deactivate();
 
-			NpcTalkMorePacket(type, 0).dispatch();
+			NpcTalkMorePacket(wire_type, 0).dispatch();
 		}
 	}
 
@@ -346,12 +360,39 @@ namespace ms
 		return TYPE;
 	}
 
-	UINpcTalk::TalkType UINpcTalk::get_by_value(int8_t value)
+	UINpcTalk::TalkType UINpcTalk::layout_for(int8_t msgtype, int16_t style)
 	{
-		if (value > TalkType::NONE && value < TalkType::LENGTH)
-			return static_cast<TalkType>(value);
+		switch (msgtype)
+		{
+		case 0:
+		{
+			// The two bytes after the text are [has-prev][has-next], read as
+			// a little-endian short - so the low byte is prev and the high
+			// byte is next. Without them every one of these looked like a
+			// plain OK, which is why multi-page dialogue never advanced.
+			bool prev = (style & 0xFF) != 0;
+			bool next = ((style >> 8) & 0xFF) != 0;
 
-		return TalkType::NONE;
+			if (prev && next)
+				return TalkType::SENDNEXTPREV;
+
+			if (next)
+				return TalkType::SENDNEXT;
+
+			if (prev)
+				return TalkType::SENDPREV;
+
+			return TalkType::SENDOK;
+		}
+		case 1:
+			return TalkType::SENDYESNO;
+		case 4:
+			return TalkType::SENDSIMPLE;
+		case 12:
+			return TalkType::SENDACCEPTDECLINE;
+		default:
+			return TalkType::NONE;
+		}
 	}
 
 	// Turns a raw NPC message into what should actually be shown, and pulls
@@ -529,9 +570,10 @@ namespace ms
 		return out;
 	}
 
-	void UINpcTalk::change_text(int32_t npcid, int8_t msgtype, int16_t, int8_t speakerbyte, const std::string& tx)
+	void UINpcTalk::change_text(int32_t npcid, int8_t msgtype, int16_t style, int8_t speakerbyte, const std::string& tx)
 	{
-		type = get_by_value(msgtype);
+		wire_type = msgtype;
+		type = layout_for(msgtype, style);
 
 		timestep = 0;
 		draw_text = true;
@@ -636,6 +678,10 @@ namespace ms
 		case TalkType::SENDNEXT:
 			buttons[Buttons::NEXT]->set_position(Point<int16_t>(471, y_cord));
 			buttons[Buttons::NEXT]->set_active(true);
+			break;
+		case TalkType::SENDPREV:
+			buttons[Buttons::PREV]->set_position(Point<int16_t>(471, y_cord));
+			buttons[Buttons::PREV]->set_active(true);
 			break;
 		case TalkType::SENDNEXTPREV:
 		{

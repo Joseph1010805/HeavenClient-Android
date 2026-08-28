@@ -27,14 +27,34 @@ namespace ms
 	class UINpcTalk : public UIElement
 	{
 	public:
+		// WHICH BUTTONS TO DRAW - not what the server sent.
+		//
+		// These used to be wire values, and they were wrong. The server
+		// (NPCConversationManager) actually sends:
+		//
+		//     0   say      - and TWO TRAILING BYTES say whether prev and next
+		//                    are offered, which is how ok / next / prev /
+		//                    nextprev are told apart. They are not separate
+		//                    message types at all.
+		//     1   yes-no
+		//     4   simple   - a menu of choices
+		//     12  accept-decline
+		//
+		// The old enum had 4 as accept-decline and no 12 whatsoever, so a
+		// quest that asked you to accept it fell past the end of the enum,
+		// became NONE, and drew with nothing on it but End Chat. That is a
+		// character that cannot start its own first quest.
+		//
+		// The raw value still has to go back to the server untouched when the
+		// player answers, so it is kept separately in `wire_type` - renumber
+		// these freely, they are ours.
 		enum TalkType : int8_t
 		{
 			NONE = -1,
 			SENDOK,
 			SENDYESNO,
-
-			// TODO: Unconfirmed
 			SENDNEXT,
+			SENDPREV,
 			SENDNEXTPREV,
 			SENDACCEPTDECLINE,
 			SENDGETTEXT,
@@ -63,7 +83,8 @@ namespace ms
 		Button::State button_pressed(uint16_t buttonid) override;
 
 	private:
-		TalkType get_by_value(int8_t value);
+		// msgtype plus the trailing style bytes -> which buttons to draw.
+		TalkType layout_for(int8_t msgtype, int16_t style);
 		std::string format_text(const std::string& tx, const int32_t& npcid);
 
 		// One choice offered by a SENDSIMPLE dialog. The server writes these
@@ -124,6 +145,11 @@ namespace ms
 		bool draw_text;
 		Slider slider;
 		TalkType type;
+
+		// Exactly what the server sent, to be handed back to it verbatim when
+		// the player answers. NpcTalkMorePacket writes this straight onto the
+		// wire, so it must never be an internal enum value.
+		int8_t wire_type = 0;
 		std::string formatted_text;
 		size_t formatted_text_pos;
 		uint16_t timestep;
