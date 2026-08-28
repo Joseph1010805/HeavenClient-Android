@@ -112,6 +112,12 @@ namespace ms
 		void load_map(int32_t mapid);
 		void respawn(int8_t portalid);
 		void check_portals();
+
+		// Portals that fire by being walked into, checked every frame rather
+		// than on a keypress. Types 3 and 9 are contact portals - the hint and
+		// cutscene triggers the tutorials are built out of - and requiring UP
+		// for them meant they only ever went off by accident.
+		void check_touch_portals();
 		void check_seats();
 		void check_ladders(bool up);
 		void check_drops();

@@ -42,6 +42,20 @@ namespace ms
 
 		Portal::WarpInfo find_warp_at(Point<int16_t> playerpos);
 
+		// A portal that fires by being WALKED INTO rather than by pressing up.
+		//
+		// Types 3 and 9 are "collision" and "collisionScript" - contact, not a
+		// keypress. The scripts behind them say the same thing: tutorMinimap
+		// shows a hint and blocks itself, aranTutorLost plays an intro cutscene
+		// and blocks itself. Nobody presses up to trigger a cutscene, and
+		// blockPortal() only makes sense for something that would otherwise fire
+		// again on its own.
+		//
+		// Returns the portal once per entry: standing on it does not re-fire, or
+		// the client would send a packet several times a second for as long as
+		// somebody stood still.
+		Portal::WarpInfo find_touch_at(Point<int16_t> playerpos);
+
 		Point<int16_t> get_portal_by_id(uint8_t id) const;
 		Point<int16_t> get_portal_by_name(const std::string& name) const;
 
@@ -53,5 +67,9 @@ namespace ms
 
 		static const int16_t WARPCD = 48;
 		int16_t cooldown;
+
+		// Which touch portal the player is standing in, so it fires on entry
+		// and not on every frame afterwards. Empty when standing in none.
+		std::string touching;
 	};
 }

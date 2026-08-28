@@ -130,6 +130,34 @@ namespace ms
 		return {};
 	}
 
+	Portal::WarpInfo MapPortals::find_touch_at(Point<int16_t> playerpos)
+	{
+		for (auto& iter : portals_by_id)
+		{
+			const Portal& portal = iter.second;
+			Portal::Type type = portal.get_type();
+
+			if (type != Portal::TOUCH && type != Portal::SCRIPTED_TOUCH)
+				continue;
+
+			if (!portal.bounds().contains(playerpos))
+				continue;
+
+			// Already inside this one - it fired on the way in.
+			if (touching == portal.get_name())
+				return {};
+
+			touching = portal.get_name();
+
+			return portal.getwarpinfo();
+		}
+
+		// Standing in none of them, so the next one entered may fire.
+		touching.clear();
+
+		return {};
+	}
+
 	void MapPortals::init()
 	{
 		nl::node src = nl::nx::map["MapHelper.img"]["portal"]["game"];

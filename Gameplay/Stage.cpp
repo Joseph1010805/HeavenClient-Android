@@ -169,6 +169,7 @@ namespace ms
 			check_ladders(true);
 
 		portals.update(player.get_position());
+		check_touch_portals();
 		camera.update(player.get_position());
 
 		if (player.is_invincible())
@@ -188,6 +189,23 @@ namespace ms
 	{
 		if (auto character = get_character(cid))
 			character->show_effect_id(effect);
+	}
+
+	void Stage::check_touch_portals()
+	{
+		if (state != State::ACTIVE || player.is_attacking())
+			return;
+
+		Portal::WarpInfo touched = portals.find_touch_at(player.get_position());
+
+		if (!touched.valid && !touched.scripted)
+			return;
+
+		// The server decides what a contact portal DOES - show a hint, play an
+		// intro, warp, or refuse - so the client only reports having walked
+		// into it. Same as a scripted portal entered with UP; the difference
+		// is what set it off, not what happens next.
+		ChangeMapPacket(false, -1, touched.name, false).dispatch();
 	}
 
 	void Stage::check_portals()
