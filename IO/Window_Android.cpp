@@ -536,6 +536,50 @@ namespace ms
 				running = false;
 				break;
 
+			case SDL_WINDOWEVENT:
+				// THE SURFACE CHANGES SHAPE AFTER WE FIRST MEASURE IT.
+				//
+				// The activity is sensorLandscape and declares orientation and
+				// screenSize in configChanges, so Android never recreates it -
+				// it resizes the surface underneath and expects the app to
+				// cope. Nothing here ever listened, so a launch that began
+				// while the device was portrait left the surface 1080x1920 for
+				// the entire run. SurfaceFlinger showed exactly that:
+				//
+				//     activeBuffer=[1080x1920]  pos=(0,55)
+				//
+				// against a 1920x1080 display. That is the game drawn to the
+				// wrong rectangle - black down one side, the minimap and the
+				// health bar over the far edge - and it came and went between
+				// launches because it depends on how the device was being
+				// held. Re-reading the drawable size every frame could not fix
+				// it, because the surface itself was the wrong shape.
+				if (ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED
+					|| ev.window.event == SDL_WINDOWEVENT_RESIZED)
+				{
+					int now_w = 0;
+					int now_h = 0;
+
+					SDL_GL_GetDrawableSize(glwnd, &now_w, &now_h);
+
+					if (now_w > 0 && now_h > 0 && (now_w != panel_w || now_h != panel_h))
+					{
+						LOGI("surface resized: %dx%d -> %dx%d",
+							panel_w, panel_h, now_w, now_h);
+
+						panel_w = now_w;
+						panel_h = now_h;
+
+						// The offscreen buffer is sized from the LOGICAL view,
+						// not from this - begin() reconciles it against
+						// Constants every frame - so only the destination
+						// needs correcting here.
+						glViewport(0, 0, panel_w, panel_h);
+					}
+				}
+
+				break;
+
 			case SDL_TEXTINPUT:
 				// Printable characters come through here with their case
 				// intact. Editing keys (backspace, enter) still arrive as
