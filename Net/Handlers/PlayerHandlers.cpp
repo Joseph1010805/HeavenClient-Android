@@ -16,6 +16,8 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "PlayerHandlers.h"
+#include "../../Console.h"
+#include "../../IO/KeyAction.h"
 
 #include "../Audio/Audio.h"
 #include "../Character/Buff.h"
@@ -98,12 +100,59 @@ namespace ms
 	{
 		recv.skip(1);
 
+		bool anything = false;
+
 		for (uint8_t i = 0; i < 90; i++)
 		{
 			uint8_t type = recv.read_byte();
 			int32_t action = recv.read_int();
 
+			if (type != 0)
+				anything = true;
+
 			UI::get().add_keymapping(i, type, action);
+		}
+
+		// A NEW CHARACTER ARRIVES WITH NOTHING BOUND.
+		//
+		// Cosmic writes no keymap when a character is created - the table is
+		// simply empty - so all 90 entries come back as type 0 and the game
+		// has no attack, no jump, no pickup and no menus. The arrows still
+		// walk, because those are set in Keyboard's constructor, which is why
+		// it looks like *some* input works and the rest is broken.
+		//
+		// So the client supplies the defaults. Done here rather than on the
+		// server because it also repairs every character already created
+		// empty, and because these are what the key bindings window will show
+		// - the player sees them, and can change them, from the first minute.
+		if (!anything)
+		{
+			struct Bind { uint8_t key; uint8_t type; int32_t action; };
+
+			// Keys are MapleStory's own indices. 30/31/32 are A/S/D, which is
+			// where a hand already rests, and 34 is G for sitting. The four
+			// face buttons on a pad map to A, S, D and G through
+			// Setting<Joystick_*>, so a controller gets attack, pickup, jump
+			// and sit without anybody configuring anything.
+			static const Bind defaults[] = {
+				{ 30, 5, KeyAction::Id::ATTACK },   // A
+				{ 31, 5, KeyAction::Id::PICKUP },   // S
+				{ 32, 5, KeyAction::Id::JUMP },     // D
+				{ 34, 5, KeyAction::Id::SIT },      // G
+
+				// The menus, on the letters MapleStory has always used.
+				{ 23, 4, KeyAction::Id::ITEMS },
+				{ 25, 4, KeyAction::Id::STATS },
+				{ 37, 4, KeyAction::Id::SKILLS },
+				{ 38, 4, KeyAction::Id::QUESTLOG },
+				{ 50, 4, KeyAction::Id::MINIMAP },
+				{ 33, 4, KeyAction::Id::EQUIPMENT },
+			};
+
+			for (const Bind& b : defaults)
+				UI::get().add_keymapping(b.key, b.type, b.action);
+
+			Console::get().print("keymap was empty - applied defaults");
 		}
 	}
 

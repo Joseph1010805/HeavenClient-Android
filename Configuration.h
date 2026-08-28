@@ -526,7 +526,11 @@ namespace ms
 
     struct Joystick_Y : public Configuration::KeyEntry
     {
-        Joystick_Y() : KeyEntry("Joystick_Y", "I") {}
+        // G, which the default keymap binds to SIT - see KeymapHandler.
+        // It used to be I, the inventory, so the four face buttons were
+        // attack / jump / pickup / open-a-menu rather than four things you
+        // do to the world.
+        Joystick_Y() : KeyEntry("Joystick_Y", "G") {}
     };
 
     struct Joystick_X : public Configuration::KeyEntry

@@ -69,6 +69,12 @@ namespace ms
 		bool running = true;
 		SDL_GameController* gamepad = nullptr;
 
+		// Everything that was opened. `gamepad` is simply the first of `pads`,
+		// kept because the rest of this file already reads it as "is any
+		// controller in use".
+		std::vector<SDL_GameController*> pads;
+		std::vector<SDL_Joystick*> sticks;
+
 		// The panel is 1920x1080 while the client draws in a 1280x720
 		// coordinate space. Rendering straight to the panel means every sprite
 		// is scaled by 1.5 in the vertex shader and sampled with GL_NEAREST,
@@ -487,21 +493,55 @@ namespace ms
 
 		void open_gamepad()
 		{
+			// OPEN EVERY PAD, NOT JUST THE FIRST.
+			//
+			// The Quest lists two. One is a bluetooth pad that is usually
+			// ASLEEP - dumpsys shows Enabled: false and it sends nothing until
+			// somebody wiggles it. The other is the Touch controllers, which
+			// present as INPUT_DEVICE_CLASS_VR_PERIPHERAL and are always live.
+			//
+			// Taking the first and returning meant opening the sleeping one
+			// and never touching the one in the player's hands. SDL reported
+			// "gamepad connected", the log looked perfectly healthy, and no
+			// stick movement ever arrived - which reads exactly like a pad
+			// that is not supported at all.
+			//
+			// Opening all of them costs nothing: events say which device they
+			// came from and nothing here cares, so two pads simply both work.
+			// Which is also what a second player sharing a handheld wants.
 			for (int i = 0; i < SDL_NumJoysticks(); ++i)
 			{
-				if (!SDL_IsGameController(i))
-					continue;
-
-				gamepad = SDL_GameControllerOpen(i);
-
-				if (gamepad)
+				if (SDL_IsGameController(i))
 				{
-					LOGI("gamepad connected: %s", SDL_GameControllerName(gamepad));
-					return;
+					if (SDL_GameController* pad = SDL_GameControllerOpen(i))
+					{
+						pads.push_back(pad);
+
+						if (!gamepad)
+							gamepad = pad;
+
+						LOGI("gamepad %d: %s", i, SDL_GameControllerName(pad));
+					}
+				}
+				else if (SDL_Joystick* stick = SDL_JoystickOpen(i))
+				{
+					// SDL only calls a device a "game controller" when it
+					// holds a mapping for it, keyed by GUID. A generic pad is
+					// not in that database - but axis 0 and axis 1 are the
+					// left stick on essentially every pad ever made, which is
+					// all that walking needs.
+					sticks.push_back(stick);
+
+					LOGI("joystick %d: %s (%d axes, %d buttons) - no SDL"
+						" mapping, using its axes directly", i,
+						SDL_JoystickName(stick),
+						SDL_JoystickNumAxes(stick),
+						SDL_JoystickNumButtons(stick));
 				}
 			}
 
-			LOGI("no gamepad detected at startup");
+			if (pads.empty() && sticks.empty())
+				LOGI("no gamepad detected");
 		}
 	}
 
