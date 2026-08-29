@@ -25,6 +25,12 @@
 
 #include "../Character/Inventory/Inventory.h"
 
+// UseItemPacket plays a sound in its constructor. This header never said so,
+// and got away with it because every file that included it happened to include
+// Audio.h first - until one did not, and the error named a line nobody had
+// touched. Said out loud here so the next new file does not have to find out.
+#include "../../Audio/Audio.h"
+
 namespace ms
 {
 	// Packet which requests that the inventory is sorted.
@@ -127,6 +133,43 @@ namespace ms
 		{
 			write_short(slot);
 			write_int(itemid);
+		}
+	};
+
+	// The megaphone BUTTON.
+	// Opcode: USE_CASH_ITEM(79)
+	//
+	// The same opcode and the same leading fields as UseCashItemPacket, because
+	// it is the same request. UseCashItemHandler reads the slot and the item
+	// id, works out the kind from (id / 1000) % 10, and then reads whatever
+	// that kind needs:
+	//
+	//   5070000  channel   message
+	//   5071000  world     message, then a byte for the "ear"
+	//
+	// Slot 0 because nothing is being taken out of the inventory. The server
+	// looks that slot up, finds nothing, and carries on anyway when
+	// USE_FREE_MEGAPHONES is set - which is the whole trick. Everything the
+	// player sees is then produced by the megaphone code that has always been
+	// there, so a button and an item cannot look different.
+	//
+	// Deliberately NOT a new opcode. Cosmic decides what some packets mean
+	// partly by their LENGTH, and a wrong guess there fails silently - it
+	// disconnects, or does nothing, and says neither.
+	class MegaphonePacket : public OutPacket
+	{
+	public:
+		MegaphonePacket(int32_t itemid, const std::string& message, bool ear)
+			: OutPacket(OutPacket::Opcode::USE_CASH_ITEM)
+		{
+			write_short(0);
+			write_int(itemid);
+			write_string(message);
+
+			// Only the super megaphone carries it, and reading a byte that was
+			// never written is how a handler runs off the end of a packet.
+			if (((itemid / 1000) % 10) == 2)
+				write_byte(ear ? 1 : 0);
 		}
 	};
 

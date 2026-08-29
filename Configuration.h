@@ -473,6 +473,13 @@ namespace ms
 		PosPARTYHUD() : PointEntry("PosPARTYHUD", "(10, 80)") {}
 	};
 
+	// The default position of the megaphone window. Above the chat bar, which
+	// is where the button that opens it lives.
+	struct PosMEGAPHONE : public Configuration::PointEntry
+	{
+		PosMEGAPHONE() : PointEntry("PosMEGAPHONE", "(270, 400)") {}
+	};
+
 	// The default position of the maple chat.
 	struct PosMAPLECHAT : public Configuration::PointEntry
 	{

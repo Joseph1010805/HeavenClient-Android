@@ -71,6 +71,7 @@ namespace ms
 			EVENT,
 			KEYCONFIG,
 			OPTIONMENU,
+			MEGAPHONE,
 			QUIT,
 			NUM_TYPES
 		};
