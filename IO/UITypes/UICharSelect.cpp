@@ -22,6 +22,8 @@
 #include "UILoginNotice.h"
 
 #include "../UI.h"
+
+#include "../../Constants.h"
 #include "../Configuration.h"
 
 #include "../Components/MapleButton.h"
@@ -63,7 +65,7 @@ namespace ms
 		constexpr int16_t CHARACTER_NAMETAG_Y = -96;
 	}
 
-	UICharSelect::UICharSelect(std::vector<CharEntry> c, int8_t char_count, int32_t s, int8_t rp) : UIElement(Point<int16_t>(0, 0), Point<int16_t>(800, 600)),
+	UICharSelect::UICharSelect(std::vector<CharEntry> c, int8_t char_count, int32_t s, int8_t rp) : UIElement(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight())),
 		characters(c), characters_count(char_count), slots(s), require_pic(rp)
 	{
 		burning_character = true;
@@ -141,7 +143,7 @@ namespace ms
 
 		if (custom["CharBg"])
 		{
-			sprites.emplace_back(custom["CharBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
+			sprites.emplace_back(custom["CharBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight())));
 		}
 		else
 		{

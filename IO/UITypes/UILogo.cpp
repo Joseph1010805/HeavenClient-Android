@@ -16,17 +16,19 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UILogo.h"
+#include "../../Constants.h"
 #include "UILogin.h"
 
 #include "../Configuration.h"
 
 #include "../Audio/Audio.h"
+#include "../Graphics/GraphicsGL.h"
 
 #include <nlnx/nx.hpp>
 
 namespace ms
 {
-	UILogo::UILogo() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(800, 600))
+	UILogo::UILogo() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight()))
 	{
 		Music("BgmUI.img/NxLogo").play_once();
 
@@ -82,6 +84,19 @@ namespace ms
 			else
 			{
 				Configuration::get().set_start_shown(true);
+
+				// THE MOST EXPENSIVE THING IN THE GAME, AND IT IS OVER.
+				//
+				// Logo.img/Nexon in the v178 UI.nx is 136 frames of 720x480 -
+				// 47M pixels against an atlas that holds 67M. Playing it once
+				// therefore costs 70% of the texture budget for the rest of the
+				// session, because the atlas evicts nothing on its own.
+				//
+				// Handing that room back here rather than leaving it to the
+				// next screen change, because the login screen is already up by
+				// then and would spend its whole life competing with an
+				// animation that has finished.
+				GraphicsGL::get().request_reset();
 
 				UI::get().remove(UIElement::Type::START);
 				UI::get().emplace<UILogin>();

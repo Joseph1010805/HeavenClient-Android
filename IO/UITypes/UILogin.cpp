@@ -27,6 +27,8 @@
 
 #include "../UI.h"
 
+#include "../../Constants.h"
+
 #include "../Components/MapleButton.h"
 #include "../Audio/Audio.h"
 
@@ -59,7 +61,7 @@ namespace ms
 		constexpr Point<int16_t> LOGO_POS = Point<int16_t>(530, 16);
 	}
 
-	UILogin::UILogin() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(800, 600))
+	UILogin::UILogin() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight()))
 	{
 		Music("BgmUI.img/Title").play();
 
@@ -94,7 +96,7 @@ namespace ms
 
 		if (custom["LoginBg"])
 		{
-			sprites.emplace_back(custom["LoginBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
+			sprites.emplace_back(custom["LoginBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight())));
 
 			// The logo is deliberately NOT drawn. The HOST / JOIN section
 			// lives here now, and it needs the room more: it is the first
@@ -308,7 +310,9 @@ namespace ms
 		// Dim everything behind it, so the popup is plainly the thing being
 		// answered rather than more decoration on an already busy screen.
 		GraphicsGL::get().drawrectangle(
-			position.x(), position.y(), 800, 600, 0.0f, 0.0f, 0.0f, 0.55f);
+			position.x(), position.y(),
+			Constants::Constants::get().get_viewwidth(),
+			Constants::Constants::get().get_viewheight(), 0.0f, 0.0f, 0.0f, 0.55f);
 
 		GraphicsGL::get().drawrectangle(
 			position.x() + POP_X, position.y() + POP_Y, POP_W, POP_H,

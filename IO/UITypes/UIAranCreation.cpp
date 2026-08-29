@@ -23,6 +23,8 @@
 #include "UICharSelect.h"
 
 #include "../UI.h"
+
+#include "../../Constants.h"
 #include "../Configuration.h"
 
 #include "../Components/MapleButton.h"
@@ -35,7 +37,7 @@
 
 namespace ms
 {
-	UIAranCreation::UIAranCreation() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(800, 600))
+	UIAranCreation::UIAranCreation() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight()))
 	{
 		gender = false;
 		charSet = false;
@@ -57,7 +59,7 @@ namespace ms
 
 		if (custom["CharBg"])
 		{
-			sprites.emplace_back(custom["CharBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
+			sprites.emplace_back(custom["CharBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight())));
 		}
 		else
 		{

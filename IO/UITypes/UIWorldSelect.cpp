@@ -22,6 +22,8 @@
 
 #include "../UI.h"
 
+#include "../../Constants.h"
+
 #include "../Audio/Audio.h"
 #include "../Components/MapleButton.h"
 #include "../Components/TwoSpriteButton.h"
@@ -34,7 +36,7 @@
 
 namespace ms
 {
-	UIWorldSelect::UIWorldSelect() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(800, 600))
+	UIWorldSelect::UIWorldSelect() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight()))
 	{
 		worldcount = 0;
 		recommended_worldcount = 0;
@@ -72,7 +74,7 @@ namespace ms
 
 		if (custom["WorldBg"])
 		{
-			sprites.emplace_back(custom["WorldBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(800, 600)));
+			sprites.emplace_back(custom["WorldBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight())));
 		}
 		else
 		{

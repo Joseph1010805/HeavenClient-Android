@@ -23,6 +23,8 @@
 #include "UIAranCreation.h"
 
 #include "../UI.h"
+
+#include "../../Constants.h"
 #include "../Configuration.h"
 
 #include "../Components/MapleButton.h"
@@ -35,7 +37,7 @@
 
 namespace ms
 {
-	UIRaceSelect::UIRaceSelect() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(800, 600))
+	UIRaceSelect::UIRaceSelect() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight()))
 	{
 		std::string version_text = Configuration::get().get_version();
 		version = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LEMONGRASS, "Ver. " + version_text);
