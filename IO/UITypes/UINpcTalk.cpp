@@ -28,7 +28,7 @@
 
 namespace ms
 {
-	UINpcTalk::UINpcTalk() : offset(0), unitrows(0), rowmax(0), show_slider(false), draw_text(false), formatted_text(""), formatted_text_pos(0), timestep(0), hovered_selection(-1)
+	UINpcTalk::UINpcTalk() : offset(0), scroll(0), content_height(0), unitrows(0), rowmax(0), show_slider(false), draw_text(false), formatted_text(""), formatted_text_pos(0), timestep(0), hovered_selection(-1)
 	{
 		nl::node UIWindow2 = nl::nx::ui["UIWindow2.img"];
 		nl::node UtilDlgEx = UIWindow2["UtilDlgEx"];
@@ -71,7 +71,14 @@ namespace ms
 			bool below = offset + shift <= rowmax - unitrows;
 
 			if (above && below)
+			{
 				offset += shift;
+
+				// The slider moves a row; the body moves pixels. Kept in step
+				// here rather than recomputed at draw time, so there is one
+				// place that decides where the content sits.
+				scroll = static_cast<int16_t>(offset * SCROLL_STEP);
+			}
 		};
 
 		UI::get().remove_textfield();
@@ -97,10 +104,19 @@ namespace ms
 		nametag.draw(speaker_pos);
 		name.draw(center_pos + Point<int16_t>(0, -4));
 
+		// The inside of the frame, in screen coordinates. Everything the body
+		// draws is clipped to this - without it a long menu simply carries on
+		// past the bottom edge and is drawn over the map.
+		int16_t clip_top = position.y() + top.height() - 1;
+		Range<int16_t> clip(clip_top, clip_top + height - 18);
+
 		if (show_slider)
 		{
-			int16_t text_min_height = position.y() + top.height() - 1;
-			text.draw(position + Point<int16_t>(162, 19 - offset * 400), Range<int16_t>(text_min_height, text_min_height + height - 18));
+			Point<int16_t> body = position + Point<int16_t>(162, 19 - scroll);
+
+			text.draw(body, clip);
+			draw_selections(body + Point<int16_t>(4, text.height()), clip);
+
 			slider.draw(position);
 		}
 		else
@@ -109,13 +125,28 @@ namespace ms
 			Point<int16_t> body = position + Point<int16_t>(166, 48 - y_adj);
 
 			text.draw(body);
-			draw_selections(body + Point<int16_t>(0, text.height()));
+			draw_selections(body + Point<int16_t>(0, text.height()), clip);
 		}
 	}
 
 	// Lays the choices out one per row beneath the message, remembering where
 	// each landed so send_cursor can test the pointer against it.
-	int16_t UINpcTalk::draw_selections(Point<int16_t> at) const
+	int16_t UINpcTalk::selections_height() const
+	{
+		if (selections.empty())
+			return 0;
+
+		constexpr int16_t ROW_GAP = 2;
+
+		int16_t total = 0;
+
+		for (const Selection& sel : selections)
+			total = static_cast<int16_t>(total + sel.label.height() + ROW_GAP);
+
+		return static_cast<int16_t>(total + ROW_GAP);
+	}
+
+	int16_t UINpcTalk::draw_selections(Point<int16_t> at, Range<int16_t> clip) const
 	{
 		if (selections.empty())
 			return at.y();
@@ -129,6 +160,16 @@ namespace ms
 		{
 			const Selection& sel = selections[i];
 			int16_t row_h = sel.label.height();
+
+			// Off the top or the bottom of the frame: not drawn, and NOT
+			// given a hitbox. An empty rectangle can contain nothing, so a row
+			// scrolled out of sight cannot be clicked through the chrome.
+			if (y + row_h < clip.first() || y > clip.second())
+			{
+				sel.bounds = Rectangle<int16_t>();
+				y = static_cast<int16_t>(y + row_h + ROW_GAP);
+				continue;
+			}
 
 			sel.bounds = Rectangle<int16_t>(
 				Point<int16_t>(at.x(), y),
@@ -293,6 +334,12 @@ namespace ms
 		}
 
 		return Button::State::NORMAL;
+	}
+
+	void UINpcTalk::send_scroll(double yoffset)
+	{
+		if (slider.isenabled())
+			slider.send_scroll(yoffset);
 	}
 
 	Cursor::State UINpcTalk::send_cursor(bool clicked, Point<int16_t> cursorpos)
@@ -706,24 +753,42 @@ namespace ms
 			name.change_text("");
 		}
 
+		// THE BOX HAS TO FIT THE CHOICES, NOT JUST THE MESSAGE.
+		//
+		// This measured the TEXT only, and draw() then put the choices
+		// underneath it - outside the frame, unclipped. An NPC offering
+		// eighteen questions drew them from inside the box straight down over
+		// the minimap, the HP bar and off the bottom of the screen. Nothing
+		// looked broken from the code's point of view: every row was laid out
+		// exactly where it was asked to go.
+		content_height = static_cast<int16_t>(text_height + selections_height());
+
 		height = min_height;
 		show_slider = false;
+		scroll = 0;
+		offset = 0;
 
-		if (text_height > height)
+		if (content_height > height)
 		{
-			if (text_height > MAX_HEIGHT)
+			if (content_height > MAX_HEIGHT)
 			{
 				height = MAX_HEIGHT;
 				show_slider = true;
-				rowmax = text_height / 400 + 1;
+
+				// In pixels now rather than 400 at a time. That step was fine
+				// for a wall of text, where a screenful is the useful unit, and
+				// useless for a list where one notch has to land between rows.
+				int16_t overflow = static_cast<int16_t>(content_height - height + 20);
+
 				unitrows = 1;
+				rowmax = static_cast<int16_t>(overflow / SCROLL_STEP + 1);
 
 				int16_t slider_y = top.height() - 7;
 				slider = Slider(Slider::Type::DEFAULT, Range<int16_t>(slider_y, slider_y + height - 20), top.width() - 26, unitrows, rowmax, onmoved);
 			}
 			else
 			{
-				height = text_height;
+				height = content_height;
 			}
 		}
 

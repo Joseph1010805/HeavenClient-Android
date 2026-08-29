@@ -73,6 +73,12 @@ namespace ms
 		void update() override;
 
 		Cursor::State send_cursor(bool clicked, Point<int16_t> cursorpos) override;
+
+		// Scroll wheel, and the thumbstick that now behaves like one.
+		//
+		// Slider::send_scroll has always existed; this window simply never
+		// offered it anything, so the bar could only be dragged.
+		void send_scroll(double yoffset) override;
 		void send_key(int32_t keycode, bool pressed, bool escape) override;
 
 		UIElement::Type get_type() const override;
@@ -104,7 +110,27 @@ namespace ms
 		};
 
 		// Lays the choices out under the body text and returns where they end.
-		int16_t draw_selections(Point<int16_t> at) const;
+		// `clip` is the vertical span of the box interior - rows outside it are
+		// not drawn and are not made clickable, which is what keeps a long menu
+		// inside its own frame.
+		int16_t draw_selections(Point<int16_t> at, Range<int16_t> clip) const;
+
+		// How tall the choices are altogether. Measured rather than guessed,
+		// because it has to agree exactly with what draw_selections lays out -
+		// if the two disagree the box is the wrong size, which is the bug this
+		// was written for.
+		int16_t selections_height() const;
+
+		// Text plus choices. The box used to be sized from the TEXT alone and
+		// the choices simply drawn underneath it, so a menu of eighteen
+		// questions ran off the bottom of the frame, over the minimap, the HP
+		// bar and the edge of the screen.
+		int16_t content_height;
+
+		// Pixels the body is scrolled up by, and how far one notch of the
+		// slider moves it.
+		int16_t scroll;
+		static constexpr int16_t SCROLL_STEP = 16;
 
 		mutable std::vector<Selection> selections;
 		int32_t hovered_selection;
