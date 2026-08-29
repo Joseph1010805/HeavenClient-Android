@@ -41,6 +41,7 @@
 
 #include "Window.h"
 #include "UI.h"
+#include "SecondScreen.h"
 
 #include "../Console.h"
 #include "../Constants.h"
@@ -101,6 +102,54 @@ namespace ms
 		// blit has to re-ask for its size and Window::glwnd is a member this
 		// namespace cannot see.
 		SDL_Window* present_wnd = nullptr;
+
+		// WHERE THE PICTURE ACTUALLY LANDED ON THE PANEL.
+		//
+		// Once the scene is letterboxed rather than stretched, the game no
+		// longer covers the whole screen - so a touch can no longer be treated
+		// as a straight fraction of it. These are written by the blit and read
+		// by the touch handler, which is the only way the two can agree about
+		// where a pixel is.
+		//
+		// Getting this wrong is not subtle: every tap lands a couple of
+		// hundred pixels from where it was aimed.
+		int fit_x = 0;
+		int fit_y = 0;
+		int fit_w = 0;
+		int fit_h = 0;
+
+		// A touch, as a fraction of the panel, turned into a point in the
+		// scene. The inverse of what the blit does.
+		Point<int16_t> scene_point(float fx, float fy)
+		{
+			int16_t vw = Constants::Constants::get().get_viewwidth();
+			int16_t vh = Constants::Constants::get().get_viewheight();
+
+			// Before the first blit there is no rectangle yet, so fall back to
+			// the old straight mapping rather than dividing by zero.
+			if (fit_w <= 0 || fit_h <= 0 || panel_w <= 0 || panel_h <= 0)
+				return Point<int16_t>(
+					static_cast<int16_t>(fx * vw),
+					static_cast<int16_t>(fy * vh));
+
+			double px = static_cast<double>(fx) * panel_w - fit_x;
+			double py = static_cast<double>(fy) * panel_h - fit_y;
+
+			double sx = px * vw / fit_w;
+			double sy = py * vh / fit_h;
+
+			// A tap on a black bar is outside the game. Clamped rather than
+			// dropped, so a finger a few pixels off the edge still presses the
+			// button it was clearly going for.
+			if (sx < 0) sx = 0;
+			if (sy < 0) sy = 0;
+			if (sx > vw) sx = vw;
+			if (sy > vh) sy = vh;
+
+			return Point<int16_t>(
+				static_cast<int16_t>(sx),
+				static_cast<int16_t>(sy));
+		}
 
 		void init_offscreen(int w, int h)
 		{
@@ -292,19 +341,90 @@ namespace ms
 			if (scene_w != last_sw || scene_h != last_sh
 				|| panel_w != last_pw || panel_h != last_ph)
 			{
-				LOGI("blit: scene %dx%d -> screen %dx%d", scene_w, scene_h, panel_w, panel_h);
+				// EVERY SIZE SDL WILL ADMIT TO, SIDE BY SIDE.
+				//
+				// The drawable size alone has now been trusted twice and been
+				// wrong twice. The picture in the last report was NOT
+				// distorted - a 4:3 scene stretched onto a 16:9 rectangle
+				// would look visibly fat and it did not - so whatever is being
+				// drawn into is not the rectangle this function believes in.
+				//
+				// The window size, the drawable size and the viewport GL
+				// actually holds should all agree. Printing all three says
+				// which one is lying instead of leaving it to be guessed at.
+				int win_w = 0, win_h = 0;
+
+				if (present_wnd)
+					SDL_GetWindowSize(present_wnd, &win_w, &win_h);
+
+				GLint vp[4] = { 0, 0, 0, 0 };
+				glGetIntegerv(GL_VIEWPORT, vp);
+
+				LOGI("blit: scene %dx%d -> screen %dx%d | window %dx%d | viewport %d,%d %dx%d",
+					scene_w, scene_h, panel_w, panel_h,
+					win_w, win_h, vp[0], vp[1], vp[2], vp[3]);
 
 				last_sw = scene_w; last_sh = scene_h;
 				last_pw = panel_w; last_ph = panel_h;
 			}
 
+			// KEEP THE SHAPE. LETTERBOX THE REST.
+			//
+			// This blitted 800x600 onto the whole 1920x1080 panel, which is
+			// 2.4x across and 1.8x down - the game permanently a third too
+			// wide, every character squat and every circle an oval. It was not
+			// intermittent; it was always there, and what came and went was how
+			// much ELSE went wrong on top of it.
+			//
+			// The scene is a fixed 800x600 on purpose - the login and character
+			// screens are drawn for it and do not adapt - so the panel can only
+			// be filled by distorting or by cropping. Neither is worth having.
+			// Scale by whichever axis runs out first and centre what is left.
+			// FILL THE PANEL. THE SHAPE IS THE PRICE.
+			//
+			// Letterboxing was tried and rejected at the table, for a reason
+			// that beats being geometrically correct: a 4:3 scene fitted into a
+			// 16:9 screen wastes 240 pixels down each side, and on a handheld
+			// those pixels are what make a button big enough to hit with a
+			// thumb. Stretching scales the picture 2.4x across instead of 1.8x,
+			// so every control is WIDER as well as taller - which is the whole
+			// point of running a 800x600 scene on a 1920x1080 panel.
+			//
+			// The distortion is real - a third too wide - and nobody has ever
+			// noticed it in play, while the bars were noticed immediately.
+			//
+			// The undistorted way to fill the screen is to render at 16:9 in
+			// the first place: the client already supports 1280x720 and
+			// 1366x768. It is not free - UILogin draws its background at a
+			// hardcoded 800x600 and the character screens are laid out for that
+			// size - and it would make every control SMALLER than it is now,
+			// which is the opposite of what this is for.
+			fit_w = panel_w;
+			fit_h = panel_h;
+			fit_x = 0;
+			fit_y = 0;
+
+			int off_x = fit_x;
+			int off_y = fit_y;
+
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, scene_fbo);
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 			glViewport(0, 0, panel_w, panel_h);
 
+			// The bars have to be PAINTED. The default framebuffer holds the
+			// last frame, so without this the edges keep whatever was there
+			// before - which on a screen that has just been resized is a
+			// smeared copy of the old picture.
+			if (off_x > 0 || off_y > 0)
+			{
+				glDisable(GL_SCISSOR_TEST);
+				glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
+
 			glBlitFramebuffer(
 				0, 0, scene_w, scene_h,
-				0, 0, panel_w, panel_h,
+				off_x, off_y, off_x + fit_w, off_y + fit_h,
 				GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -439,6 +559,76 @@ namespace ms
 		// platform.
 		int stick_key[4] = { GLFW_KEY_LEFT, GLFW_KEY_RIGHT, GLFW_KEY_UP, GLFW_KEY_DOWN };
 		bool stick_down[4] = { false, false, false, false };
+
+		// How far each stick is pushed, on its vertical axis only.
+		//
+		//   0 = left stick  -> top screen
+		//   1 = right stick -> main screen
+		Sint16 stick_scroll[1] = { 0 };
+
+		// A held stick has to keep scrolling, and a scroll is a discrete notch
+		// rather than a distance - so it is repeated on a timer here rather
+		// than emitted from the axis event, which only fires when the stick
+		// MOVES. Holding it still would otherwise scroll once and stop.
+		void pump_stick_scroll()
+		{
+			constexpr Sint16 DEADZONE = 9000;
+
+			// Milliseconds between notches at the edge of the stick, and at
+			// the point it starts moving. Pushing further scrolls faster,
+			// which is what makes a long list bearable.
+			constexpr int64_t FAST_MS = 40;
+			constexpr int64_t SLOW_MS = 220;
+
+			static int64_t due[1] = { 0 };
+
+			int64_t now = static_cast<int64_t>(SDL_GetTicks());
+
+			for (int i = 0; i < 1; i++)
+			{
+				Sint16 value = stick_scroll[i];
+				Sint16 magnitude = static_cast<Sint16>(value < 0 ? -value : value);
+
+				if (magnitude < DEADZONE)
+				{
+					// Reset, so the next push scrolls at once instead of
+					// waiting out an interval it never asked for.
+					due[i] = 0;
+					continue;
+				}
+
+				if (now < due[i])
+					continue;
+
+				// Full deflection is 32767. Anything past the deadzone maps
+				// onto the interval, so a nudge creeps and a shove flies.
+				double reach = static_cast<double>(magnitude - DEADZONE)
+					/ static_cast<double>(32767 - DEADZONE);
+
+				int64_t interval = SLOW_MS
+					- static_cast<int64_t>((SLOW_MS - FAST_MS) * reach);
+
+				due[i] = now + interval;
+
+				// Down on the stick means down the list, which is how a wheel
+				// behaves and the opposite of the axis sign.
+				double notch = (value < 0) ? 1.0 : -1.0;
+
+				// ONE STICK SCROLLS BOTH SCREENS.
+				//
+				// This was split - left for the top screen, right for the main
+				// one - and at the table the right stick moved both, which is
+				// not what the code says and is what actually happens. Rather
+				// than keep chasing a split nobody needs, the right stick is
+				// simply given everything: it is the one your thumb is already
+				// on, and there is never more than one scrollable thing in
+				// front of you.
+				//
+				// The left stick is left free. Walking is on the d-pad.
+				SecondScreen::scroll(notch);
+				UI::get().send_scroll(notch);
+			}
+		}
 
 		void handle_stick(int which, Sint16 value)
 		{
@@ -711,6 +901,9 @@ namespace ms
 		else if (!wants_text && SDL_IsTextInputActive())
 			SDL_StopTextInput();
 
+		// Once a frame, before the new events land.
+		pump_stick_scroll();
+
 		SDL_Event ev;
 
 		while (SDL_PollEvent(&ev))
@@ -895,10 +1088,21 @@ namespace ms
 					handle_trigger(0, ev.caxis.value);
 				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
 					handle_trigger(1, ev.caxis.value);
-				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_LEFTX)
-					handle_stick(0, ev.caxis.value);
+				// THE STICKS SCROLL; THE D-PAD WALKS.
+				//
+				// The left stick used to walk the character, which is the
+				// obvious binding on a one-screen handheld and the wrong one
+				// here: the Thor has two screens and no other way to reach a
+				// long window. The d-pad already sends the arrow keys (see
+				// padmap), so walking lost nothing by moving there.
+				//
+				//   LEFT stick  -> the TOP screen's page
+				//   RIGHT stick -> whatever is open on the main screen
+				//
+				// Which hand reaches which screen is the whole point of the
+				// split, so it is worth keeping that way round.
 				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY)
-					handle_stick(1, ev.caxis.value);
+					stick_scroll[0] = ev.caxis.value;
 
 				break;
 			}
@@ -934,12 +1138,17 @@ namespace ms
 				// miss the button being aimed at. Same shape of bug as the
 				// renderer being left on the old size - a cached copy of
 				// something that can change.
-				UI::get().send_cursor(
-					Point<int16_t>(
-						static_cast<int16_t>(ev.tfinger.x * Constants::Constants::get().get_viewwidth()),
-						static_cast<int16_t>(ev.tfinger.y * Constants::Constants::get().get_viewheight())
-					)
-				);
+				// AND THROUGH THE LETTERBOX.
+				//
+				// The fraction is of the whole PANEL, but the scene no longer
+				// covers the whole panel - it is centred inside it with bars
+				// down the sides. Mapping the fraction straight onto the scene
+				// would put every tap a couple of hundred pixels from where it
+				// was aimed, worst at the edges.
+				//
+				// fit_x/fit_w are written by the blit, which is the only place
+				// that knows where the picture landed.
+				UI::get().send_cursor(scene_point(ev.tfinger.x, ev.tfinger.y));
 
 				if (ev.type == SDL_FINGERDOWN)
 					UI::get().send_cursor(true);
