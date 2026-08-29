@@ -84,3 +84,22 @@ android {
         abortOnError false
     }
 }
+
+// SPEECH TO TEXT, ON THE DEVICE.
+//
+// Vosk rather than Android's SpeechRecognizer, because the Thor answers
+//
+//     cmd package query-services android.speech.RecognitionService
+//     No services found
+//
+// - there is no engine installed to talk to, and Google's wants the network
+// anyway. Vosk runs a small model locally, which is the same promise the rest
+// of this build makes: it works with the router unplugged.
+//
+// The MODEL is not here. It is ~40MB and not ours to ship on a release page;
+// tools/deploy_data.sh puts it beside the .nx files. Without it SpeechInput
+// reports itself unavailable and the microphone buttons stay quiet.
+dependencies {
+    implementation 'com.alphacephei:vosk-android:0.3.47@aar'
+    implementation 'net.java.dev.jna:jna:5.13.0@aar'
+}

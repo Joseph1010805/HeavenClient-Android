@@ -6,6 +6,10 @@
          app-private storage. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Speech to text. Recognition is entirely on-device (Vosk); nothing
+         recorded ever leaves the machine. Asked for when the microphone
+         button is first pressed, not at launch. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Lets the game start the server that lives on this device, for playing

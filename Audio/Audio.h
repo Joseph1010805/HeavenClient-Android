@@ -126,6 +126,17 @@ namespace ms
 
         static Error init();
         static bool set_bgmvolume(uint8_t volume);
+
+        // QUIETEN THE MUSIC WHILE THE MICROPHONE IS OPEN.
+        //
+        // These are handhelds with the speaker an inch from the microphone, so
+        // the recogniser hears the game's own soundtrack as well as the player
+        // and does markedly worse for it. Muting the source is the whole fix,
+        // and a better answer than asking somebody to put headphones on to
+        // talk to their brother.
+        //
+        // Restored to whatever volume the player had, not to full.
+        static void duck(bool quiet);
         static void update_context();
 
     private:

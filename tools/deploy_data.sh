@@ -188,14 +188,65 @@ else
 	FAILED=$((FAILED + 1))
 fi
 
-# Four lines is all the client needs. 800x600 because the login and character
-# screens were drawn for it and do not adapt; the picture is scaled up to fill
-# the display anyway.
+# THE SPEECH MODEL.
+#
+# None of these machines has a keyboard, so saying a sentence beats spelling it
+# out with a thumbstick. Recognition is Vosk, entirely on the device - nothing
+# recorded ever leaves the house, and it works with the router unplugged.
+#
+# Here rather than in the apk: it is ~68MB unpacked, it is not ours to put on a
+# release page, and this is already the pipeline for large data. When it is
+# absent SpeechInput reports itself unavailable and the microphone buttons stay
+# quiet, which is why this is a warning and not a failure.
+#
+#   curl -LO https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+#   unzip it next to the wz folder and rename it to  vosk-model
+echo
+echo "Speech model:"
+MODEL="$(dirname "$V83")/vosk-model"
+
+if [ -d "$MODEL" ]; then
+	# Via staging, like the .nx files, and for a sharper reason than they
+	# have: pushing a DIRECTORY straight into Android/data fails per-file with
+	# "remote fchown failed: Operation not permitted" and then dies with
+	# "failed to read copy response: EOF" - having already created the folders,
+	# so it looks like it half worked. Landing it somewhere permissive and
+	# moving it sidesteps the ownership rules entirely.
+	sh "rm -rf '$STAGE/vosk-model'" >/dev/null 2>&1
+	adb -s "$DEV" push "$MODEL" "$STAGE/" >/dev/null 2>&1
+	sh "rm -rf '$DIR/vosk-model' && mv '$STAGE/vosk-model' '$DIR/vosk-model'" >/dev/null 2>&1
+	sh "chmod -R a+rX '$DIR'" >/dev/null 2>&1
+
+	if [ "$(sh "ls '$DIR/vosk-model' 2>/dev/null | wc -l" | tr -d '')" -gt 0 ]; then
+		echo "  ok"
+	else
+		echo "  FAILED"
+		FAILED=$((FAILED + 1))
+	fi
+else
+	echo "  none at $MODEL - speech input will be unavailable (not an error)"
+fi
+
+# Four lines is all the client needs.
+#
+# 1280x720 now, not 800x600. It was 800x600 because "the login and character
+# screens were drawn for it and do not adapt" - which was true: each of them
+# hardcoded 800x600 twice over, for its own size and for the rectangle it
+# stretched its background into, so at any other resolution the artwork covered
+# the top-left corner and the rest was empty. Those are the view size now.
+#
+# 720p is also what the client itself defaults to, and what Window_Android's
+# offscreen buffer was written around - it scales 1280x720 to a 1920x1080 panel
+# by exactly 1.5, where 800x600 had to be stretched unevenly (2.4x across, 1.8x
+# down) and the game was a third too wide for as long as anyone can remember.
+#
+# The catch: at 1.5x everything is SMALLER than it was at 2.4x. The font scale
+# in GraphicsGL is the counterweight for text; artwork still wants its own.
 echo
 echo "Settings (server $SERVER_IP):"
 # Staged in the repo rather than /tmp: adb is being given raw paths here, and
 # a Unix /tmp/... is exactly the thing it cannot resolve.
-printf 'ServerIP = %s\nServerPort = 8484\nWidth = 800\nHeight = 600\n' "$SERVER_IP" > "$REPO_UNIX/.Settings.tmp"
+printf 'ServerIP = %s\nServerPort = 8484\nWidth = 1280\nHeight = 720\n' "$SERVER_IP" > "$REPO_UNIX/.Settings.tmp"
 adb -s "$DEV" push "$REPO/.Settings.tmp" "$DIR/Settings" >/dev/null 2>&1
 rm -f "$REPO_UNIX/.Settings.tmp"
 

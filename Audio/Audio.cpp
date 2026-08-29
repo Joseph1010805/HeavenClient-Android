@@ -307,6 +307,30 @@ namespace ms
 		return true; //BASS_SetConfig(BASS_CONFIG_GVOL_STREAM, vol * 100) == TRUE;
 	}
 
+	void Music::duck(bool quiet)
+	{
+		// THE LISTENER, not the music source.
+		//
+		// Muting the music alone left the sound EFFECTS playing into the
+		// microphone - attacks, level-ups, portals, the lot - and those are
+		// sharper and closer to the speaker than the soundtrack, so they cost
+		// the recogniser more. Sound and Music share one alure context, and
+		// the listener's gain is the master for both, so this silences
+		// everything the game is producing with one switch.
+		//
+		// Not routed through set_bgmvolume, which is a stub: its BASS call was
+		// commented out when the audio moved to alure and nothing replaced it,
+		// so the music volume setting has quietly done nothing for some time.
+		try
+		{
+			ctx.getListener().setGain(quiet ? 0.0f : 1.0f);
+		}
+		catch (const std::exception&)
+		{
+			// No context yet - nothing is playing, so there is nothing to duck.
+		}
+	}
+
 	void Music::update_context()
 	{
 		if (ctx)

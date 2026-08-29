@@ -357,6 +357,8 @@ set(HEAVEN_SOURCES
         IO/UITypes/UINotice.cpp
         IO/UITypes/UINotice.h
         IO/UITypes/UIPartyHUD.cpp
+
+        IO/UITypes/UIMegaphone.cpp
         IO/UITypes/UIPartyHUD.h
         IO/UITypes/UINpcTalk.cpp
         IO/UITypes/UINpcTalk.h
@@ -510,6 +512,8 @@ set(HEAVEN_SOURCES
         Util/Silent.h
         Util/TimedBool.h
         Configuration.cpp
+
+        Speech.cpp
         Configuration.h
         Console.h
         Constants.h
