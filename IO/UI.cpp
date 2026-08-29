@@ -16,6 +16,9 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UI.h"
+
+#include "../Graphics/GraphicsGL.h"
+
 #include "UIStateLogin.h"
 #include "UIStateGame.h"
 #include "UIStateCashShop.h"
@@ -112,6 +115,30 @@ namespace ms
 		//
 		// Done before the swap while the field is still alive to be told.
 		remove_textfield();
+
+		// EMPTY THE TEXTURE ATLAS ON THE WAY OUT.
+		//
+		// The atlas is 8192x8192 and append-only - nothing is ever evicted from
+		// it, so every sprite drawn since the last reset is still occupying
+		// space whether or not it will ever be wanted again. A screen change is
+		// the one moment when it is genuinely known that a whole screen's worth
+		// of artwork is finished with, and it is also when the largest amounts
+		// arrive at once.
+		//
+		// Without this the cash shop was unusable: its own frames are ~14M
+		// pixels on top of the ~47M the Nexon intro animation
+		// (Logo.img/Nexon, 136 frames at 720x480 in the v178 UI.nx) had already
+		// taken and never given back. Between them that is 90% of the atlas, so
+		// coming back out of the shop there was no room for the map - sprites
+		// were skipped one by one, and the world drew as flat grey with only
+		// the chat text on it. The text survived because fonts live below
+		// fontymax and a reset does not touch them, which is exactly what made
+		// it look like a rendering bug rather than a space problem.
+		//
+		// A skipped sprite is also a second, quieter way for an item to be
+		// invisible while worn, unrelated to whether the renderer knows how to
+		// place it.
+		GraphicsGL::get().request_reset();
 
 		switch (id)
 		{

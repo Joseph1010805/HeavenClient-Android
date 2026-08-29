@@ -44,8 +44,10 @@ namespace ms
 	{
 		if (active)
 		{
-			textures[state].draw(position + parentpos);
-			animations[state].draw(position + parentpos, 1.0f);
+			// Scaled about the draw position, so a button grows from where it
+			// already sits rather than sliding across the bar.
+			textures[state].draw(DrawArgument(position + parentpos, scale, scale));
+			animations[state].draw(DrawArgument(position + parentpos, scale, scale), 1.0f);
 		}
 	}
 
@@ -60,15 +62,25 @@ namespace ms
 		Point<int16_t> lt;
 		Point<int16_t> rb;
 
+		// The same arithmetic the draw does. Scaling about `position` puts the
+		// top-left at position - origin*scale and multiplies the size, so the
+		// box has to follow both or the picture and the press part company.
+		auto scaled = [this](Point<int16_t> p)
+			{
+				return Point<int16_t>(
+					static_cast<int16_t>(p.x() * scale),
+					static_cast<int16_t>(p.y() * scale));
+			};
+
 		if (textures[state].is_valid())
 		{
-			lt = parentpos + position - textures[state].get_origin();
-			rb = lt + textures[state].get_dimensions();
+			lt = parentpos + position - scaled(textures[state].get_origin());
+			rb = lt + scaled(textures[state].get_dimensions());
 		}
 		else
 		{
-			lt = parentpos + position - animations[state].get_origin();
-			rb = lt + animations[state].get_dimensions();
+			lt = parentpos + position - scaled(animations[state].get_origin());
+			rb = lt + scaled(animations[state].get_dimensions());
 		}
 
 		return Rectangle<int16_t>(lt, rb);

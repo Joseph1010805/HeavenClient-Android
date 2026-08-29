@@ -19,6 +19,12 @@
 
 #include "../Components/MapleButton.h"
 
+#include "../UI.h"
+#include "UIMegaphone.h"
+
+#include "../../Speech.h"
+#include "../../Audio/Audio.h"
+
 #include "../Net/Packets/MessagingPackets.h"
 #include "../Net/Packets/GameplayPackets.h"
 
@@ -178,6 +184,8 @@ namespace ms
 		chatopen = Setting<Chatopen>::get().load();
 		chatopen_persist = chatopen;
 		chatfieldopen = false;
+		listening = false;
+		dictation_quiet = 0;
 		chatrows = 5;
 		lastpos = 0;
 		rowpos = 0;
@@ -226,6 +234,22 @@ namespace ms
 
 		buttons[Buttons::BT_CHAT_TARGET] = std::make_unique<MapleButton>(chatTarget["all"], Point<int16_t>(5, -8));
 		buttons[Buttons::BT_CHAT_TARGET]->set_active(chatopen ? true : false);
+
+		// The megaphone, left of the three that were already here. BtChat's
+		// artwork because there is no megaphone button in the stock UI - the
+		// original client never needed one, since a megaphone was an item you
+		// double-clicked in your inventory.
+		buttons[Buttons::BT_MEGA] = std::make_unique<MapleButton>(
+			chat["common"]["BtChat"], Point<int16_t>(323, -8));
+		buttons[Buttons::BT_MEGA]->set_active(chatopen ? true : false);
+
+		// The microphone, only offered when there is actually a recogniser
+		// behind it - a model deployed and permission granted. A button that
+		// cannot work is worse than no button, because the player spends their
+		// time wondering what they did wrong.
+		buttons[Buttons::BT_MIC] = std::make_unique<MapleButton>(
+			chat["common"]["BtChat"], Point<int16_t>(302, -8));
+		buttons[Buttons::BT_MIC]->set_active(chatopen && Speech::get().available());
 
 		chatenter = input["layer:chatEnter"];
 		chatcover = input["layer:backgrnd"];
@@ -385,6 +409,74 @@ namespace ms
 	void UIChatbar::update()
 	{
 		UIElement::update();
+
+		// TALKING, WITH A BUBBLE OVER YOUR HEAD.
+		//
+		// Not "dictate into the chat box and press enter" - that is two more
+		// steps on a machine with no keyboard. The player presses once, an
+		// empty balloon appears above their character, it fills in as they
+		// speak, and a pause sends it. The same balloon everyone else's chat
+		// uses, so it looks like talking rather than like a text field.
+		//
+		// The pause is OURS, not the recogniser's. Vosk ends an utterance on
+		// its own schedule, which is neither predictable nor tunable; watching
+		// the partial text stop CHANGING is, and it is what a person actually
+		// means by "finished speaking".
+		if (listening)
+		{
+			// A final result wins outright - the recogniser has decided.
+			std::string heard = Speech::get().take_phrase();
+			std::string live = heard.empty() ? Speech::get().peek_partial() : heard;
+
+			if (live != dictated)
+			{
+				dictated = live;
+				dictation_quiet = 0;
+			}
+			else
+			{
+				dictation_quiet += Constants::TIMESTEP;
+			}
+
+			// Redrawn every tick because the balloon expires on its own after
+			// four seconds, and somebody thinking mid-sentence should not have
+			// it vanish on them.
+			Stage::get().get_player().speak(dictated.empty() ? " " : dictated);
+
+			bool done = !heard.empty()
+				|| (!dictated.empty() && dictation_quiet >= DICTATION_PAUSE);
+
+			// The recogniser stopping on its own with nothing to show for it -
+			// no microphone, or nothing said at all.
+			bool gave_up = heard.empty() && !Speech::get().is_listening();
+
+			if (done || gave_up)
+			{
+				if (done && !dictated.empty())
+				{
+					// A small model returns bare lower case with no
+					// punctuation - "where are you" - which reads as a
+					// transcript rather than as somebody talking. Capitalising
+					// the first letter costs nothing and is most of the
+					// difference.
+					std::string said = dictated;
+
+					if (said[0] >= 'a' && said[0] <= 'z')
+						said[0] = static_cast<char>(said[0] - 'a' + 'A');
+
+					GeneralChatPacket(said, true).dispatch();
+				}
+
+				Speech::get().stop();
+				Speech::get().clear_partial();
+
+				Music::duck(false);
+
+				listening = false;
+				dictated.clear();
+				dictation_quiet = 0;
+			}
+		}
 
 		auto pos_adj = chatopen && !chatfieldopen ? Point<int16_t>(0, 28) : Point<int16_t>(0, 0);
 
@@ -652,6 +744,8 @@ namespace ms
 		{
 			buttons[Buttons::BT_CHAT]->set_active(true);
 			buttons[Buttons::BT_HELP]->set_active(true);
+			buttons[Buttons::BT_MEGA]->set_active(true);
+			buttons[Buttons::BT_MIC]->set_active(true && Speech::get().available());
 			buttons[Buttons::BT_LINK]->set_active(true);
 			buttons[Buttons::BT_CHAT_TARGET]->set_active(true);
 
@@ -663,6 +757,8 @@ namespace ms
 		{
 			buttons[Buttons::BT_CHAT]->set_active(false);
 			buttons[Buttons::BT_HELP]->set_active(false);
+			buttons[Buttons::BT_MEGA]->set_active(false);
+			buttons[Buttons::BT_MIC]->set_active(false && Speech::get().available());
 			buttons[Buttons::BT_LINK]->set_active(false);
 			buttons[Buttons::BT_CHAT_TARGET]->set_active(false);
 
@@ -671,6 +767,24 @@ namespace ms
 
 			//dimension.set_y(DIMENSION_Y);
 		}
+	}
+
+	void UIChatbar::start_dictation()
+	{
+		if (listening)
+		{
+			Speech::get().stop();
+			Music::duck(false);
+			listening = false;
+			return;
+		}
+
+		listening = Speech::get().start();
+
+		// The speaker is an inch from the microphone on these machines, so the
+		// recogniser hears the soundtrack too and does noticeably worse for it.
+		if (listening)
+			Music::duck(true);
 	}
 
 	bool UIChatbar::is_chatopen()
@@ -687,6 +801,25 @@ namespace ms
 	{
 		switch (buttonid)
 		{
+		case Buttons::BT_MIC:
+			// Straight into the chat box, which is already the thing that
+			// talks to everyone standing on this map.
+			if (listening)
+			{
+				Speech::get().stop();
+				listening = false;
+			}
+			else
+			{
+				listening = Speech::get().start();
+			}
+			return Button::State::NORMAL;
+		case Buttons::BT_MEGA:
+			// Toggled rather than always opened, so the same button puts it
+			// away again - there is no room on a handheld for a window you
+			// can only close from inside itself.
+			UI::get().emplace<UIMegaphone>();
+			return Button::State::NORMAL;
 		case Buttons::BT_OPENCHAT:
 		case Buttons::BT_CLOSECHAT:
 			toggle_chat();

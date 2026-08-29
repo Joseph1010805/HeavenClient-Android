@@ -324,14 +324,37 @@ namespace ms
 		const char* FONT_NORMAL_STR = FONT_NORMAL.c_str();
 		const char* FONT_BOLD_STR = FONT_BOLD.c_str();
 
-		addfont(FONT_NORMAL_STR, Text::Font::A11M, 0, 11);
-		addfont(FONT_BOLD_STR, Text::Font::A11B, 0, 11);
-		addfont(FONT_NORMAL_STR, Text::Font::A12M, 0, 12);
-		addfont(FONT_BOLD_STR, Text::Font::A12B, 0, 12);
-		addfont(FONT_NORMAL_STR, Text::Font::A13M, 0, 13);
-		addfont(FONT_BOLD_STR, Text::Font::A13B, 0, 13);
-		addfont(FONT_BOLD_STR, Text::Font::A15B, 0, 15);
-		addfont(FONT_NORMAL_STR, Text::Font::A18M, 0, 18);
+		// ONE NUMBER FOR THE SIZE OF EVERY WORD IN THE GAME.
+		//
+		// These are point sizes chosen for a 1024x768 monitor in 2005 and read
+		// on a handheld at arm's length, where they are simply too small. The
+		// text is drawn by FreeType at whatever size it is asked for, so this
+		// costs nothing at all - unlike the artwork, which can only be
+		// stretched.
+		//
+		// It is a SCALE rather than eight new numbers so the sizes keep their
+		// relationship to each other: A11M stays smaller than A13B, and a
+		// window that fits two fonts side by side still does.
+		//
+		// What it cannot do is widen the boxes text sits in. A label with room
+		// for exactly its own words at 11px may wrap or clip at 14px - the NPC
+		// dialogue wraps at a hardcoded 320 pixels, for one. Worth turning down
+		// rather than fighting if something looks cramped.
+		constexpr double FONT_SCALE = 1.0;
+
+		auto sized = [](int base)
+			{
+				return static_cast<FT_UInt>(base * FONT_SCALE + 0.5);
+			};
+
+		addfont(FONT_NORMAL_STR, Text::Font::A11M, 0, sized(11));
+		addfont(FONT_BOLD_STR, Text::Font::A11B, 0, sized(11));
+		addfont(FONT_NORMAL_STR, Text::Font::A12M, 0, sized(12));
+		addfont(FONT_BOLD_STR, Text::Font::A12B, 0, sized(12));
+		addfont(FONT_NORMAL_STR, Text::Font::A13M, 0, sized(13));
+		addfont(FONT_BOLD_STR, Text::Font::A13B, 0, sized(13));
+		addfont(FONT_BOLD_STR, Text::Font::A15B, 0, sized(15));
+		addfont(FONT_NORMAL_STR, Text::Font::A18M, 0, sized(18));
 
 		fontymax += fontborder.y();
 
@@ -526,6 +549,11 @@ namespace ms
 		size_t used = ATLASW * border.y() + border.x() * yrange.second();
 
 		return static_cast<double>(used) / (ATLASW * ATLASH);
+	}
+
+	void GraphicsGL::request_reset()
+	{
+		reset_pending = true;
 	}
 
 	void GraphicsGL::clear()

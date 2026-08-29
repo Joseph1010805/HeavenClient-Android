@@ -49,6 +49,21 @@ namespace ms
 		// Clear all bitmaps if most of the space is used up.
 		void clear();
 
+		// Ask for the atlas to be emptied at the start of the next frame.
+		//
+		// The atlas is append-only with no eviction, so art that will never be
+		// wanted again sits in it for the rest of the session and crowds out
+		// what is actually on screen. Screen changes are where that happens in
+		// bulk, and they are the only moments when it is genuinely known that
+		// the previous screen's artwork is finished with.
+		//
+		// Deliberately a REQUEST rather than a reset: emptying the atlas part
+		// way through a frame invalidates offsets that already-queued quads are
+		// pointing at, which is what drew sprites as blank rectangles before.
+		// clearscene() honours this at the top of the next frame, where nothing
+		// is queued.
+		void request_reset();
+
 		// Add a bitmap to the available resources.
 		void addbitmap(const nl::bitmap& bmp);
 		// Draw the bitmap with the given parameters.

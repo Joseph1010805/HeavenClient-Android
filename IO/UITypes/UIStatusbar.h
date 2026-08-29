@@ -163,8 +163,76 @@ namespace ms
 			BT_CHARACTER_EQUIP,
 			BT_CHARACTER_ITEM,
 			BT_EVENT_SCHEDULE,
-			BT_EVENT_DAILY
+			BT_EVENT_DAILY,
+
+			// SHOUT and SPEAK live on the main screen, always visible.
+			//
+			// They were on the chat bar first, which was wrong: those buttons
+			// only exist while the chat is OPEN, so on a handheld where the
+			// chat spends its life folded away they were invisible. A thing
+			// you use to start talking cannot be hidden behind having already
+			// started talking.
+			//
+			// Kept at the END of this enum deliberately - draw() runs a loop up
+			// to BT_EVENT and the setting menu runs loops up to
+			// BT_SETTING_QUIT, and both would swallow anything inserted higher.
+			BT_SHOUT,
+			BT_SPEAK
 		};
+
+		// Where SHOUT and SPEAK sit, worked out from the menu row itself so
+		// they stay with it at every screen width.
+		Point<int16_t> shout_pos;
+		Point<int16_t> speak_pos;
+
+		// One size for both, matching a menu button (34x37 artwork).
+		//
+		// NOT called ICON_SIZE: draw_padslots has a function-local constant of
+		// that name for the quickslot icons, and a member with the same name
+		// would sit there shadowed and waiting to change their size the day
+		// somebody deleted the local one.
+		static constexpr int16_t EXTRA_ICON_SIZE = 42;
+
+		// How far above the bottom edge the status bar starts. The same at
+		// every resolution the client has ever shipped - see the constructor.
+		static constexpr int16_t BAR_FROM_BOTTOM = 120;
+
+		// How much bigger the menu row is drawn, and the extra pitch that
+		// needs. The artwork is 34 wide on a 35 pitch, so at 1.4x each button
+		// grows by about 14 and the gap has to grow with it.
+		// HOW MUCH BIGGER THE MENU ROW IS DRAWN.
+		//
+		// The artwork is 34x37, sized for a mouse. These are pressed with a
+		// thumb, and a bitmap has no larger version to load, so scaling the
+		// picture is the only lever.
+		static constexpr float MENU_SCALE = 1.25f;
+
+		// Where each button's LEFT EDGE goes, and how far apart.
+		//
+		// The row cannot be laid out by scaling alone. Every one of these
+		// buttons is created at the SAME position and spread out by an origin
+		// baked into its bitmap (Menu is -174, Setting -139, Character -69) -
+		// so scaling multiplies the origin as well and they fly apart by the
+		// same factor. The fix is to place them explicitly and cancel the
+		// origin back out:
+		//
+		//     position = wanted_left + origin * MENU_SCALE
+		//
+		// Right-aligned to the screen edge and walked leftwards, so the row
+		// keeps its shape whatever the scale is set to.
+		static constexpr int16_t MENU_RIGHT = 798;
+		static constexpr int16_t MENU_PITCH = 45;
+
+		// HOW FAR LEFT THE HP/MP PANEL MOVES.
+		//
+		// It sat directly against the button row, which left 208 pixels for six
+		// controls - exactly what they need at their original size and not a
+		// pixel more. No scale fits in that, so the panel moves and the row
+		// gets the room.
+		static constexpr int16_t HPMP_SHIFT = 150;
+
+		Texture shout_icon;
+		Texture speak_icon;
 
 		const CharStats& stats;
 

@@ -34,6 +34,11 @@ namespace ms
 		position = pos;
 	}
 
+	void Button::set_scale(float sc)
+	{
+		scale = sc;
+	}
+
 	void Button::set_state(State s)
 	{
 		if (s == Button::State::IDENTITY)

@@ -47,6 +47,18 @@ namespace ms
 		virtual uint16_t get_selected() const;
 
 		void set_position(Point<int16_t> position);
+
+		// HOW BIG TO DRAW IT.
+		//
+		// The stock artwork is sized for a 2005 monitor at arm's length, not a
+		// handheld held at arm's length and pressed with a thumb. Scaling the
+		// picture is the only lever available - these are bitmaps, so there is
+		// no larger version to load.
+		//
+		// Affects the HIT BOX as well as the drawing. A button that looks
+		// bigger than it can be pressed is worse than a small one, because the
+		// misses are invisible.
+		void set_scale(float scale);
 		void set_state(State state);
 		void set_active(bool active);
 		void toggle_pressed();
@@ -58,6 +70,7 @@ namespace ms
 	protected:
 		State state;
 		Point<int16_t> position;
+		float scale = 1.0f;
 		bool active;
 		bool pressed;
 	};

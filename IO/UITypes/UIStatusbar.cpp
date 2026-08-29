@@ -17,6 +17,12 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIStatusbar.h"
 
+#include "UIMegaphone.h"
+#include "UIChatbar.h"
+
+#include "../Components/AreaButton.h"
+#include "../../Speech.h"
+
 #include "../UI.h"
 
 #include "../Components/MapleButton.h"
@@ -105,12 +111,15 @@ namespace ms
 
 		if (VWIDTH == 800)
 		{
-			hpmp_pos = Point<int16_t>(412, 40);
-			hpset_pos = Point<int16_t>(530, 70);
-			mpset_pos = Point<int16_t>(528, 86);
+			// Everything printed ON the panel moves with it. The EXP figure
+			// (statset) does not - that belongs to the EXP bar, which is
+			// staying where it is.
+			hpmp_pos = Point<int16_t>(412 - HPMP_SHIFT, 40);
+			hpset_pos = Point<int16_t>(530 - HPMP_SHIFT, 70);
+			mpset_pos = Point<int16_t>(528 - HPMP_SHIFT, 86);
 			statset_pos = Point<int16_t>(427, 111);
-			levelset_pos = Point<int16_t>(461, 48);
-			namelabel_pos = Point<int16_t>(487, 40);
+			levelset_pos = Point<int16_t>(461 - HPMP_SHIFT, 48);
+			namelabel_pos = Point<int16_t>(487 - HPMP_SHIFT, 40);
 			quickslot_pos = Point<int16_t>(579, 0);
 
 			// Menu
@@ -211,12 +220,102 @@ namespace ms
 		else if (VWIDTH == 1920)
 			buttonPos += Point<int16_t>(310, 0);
 
-		buttons[Buttons::BT_CASHSHOP] = std::make_unique<MapleButton>(menu["button:CashShop"], buttonPos);
-		buttons[Buttons::BT_MENU] = std::make_unique<MapleButton>(menu["button:Menu"], buttonPos);
-		buttons[Buttons::BT_OPTIONS] = std::make_unique<MapleButton>(menu["button:Setting"], buttonPos);
-		buttons[Buttons::BT_CHARACTER] = std::make_unique<MapleButton>(menu["button:Character"], buttonPos);
+		// THE MENU ROW, MINUS EVENT AND COMMUNITY.
+		//
+		// All six are 34x37 and every one is created at the SAME buttonPos -
+		// what spreads them out is an origin baked into each piece of artwork,
+		// one per 35 pixels:
+		//
+		//   CashShop 590   Event 625   Character 660
+		//   Community 695  Setting 730  Menu 765
+		//
+		// Event opens a schedule this server does not run and Community opens
+		// friend and guild lists nobody here uses, so they are gone. The four
+		// that remain shift right to close the gap, which frees 590 and 625 for
+		// SHOUT and SPEAK - the two things actually used every session.
+		//
+		// The shift is applied to buttonPos per button rather than by editing
+		// origins, because that artwork is shared with the submenu code, which
+		// still positions itself from them.
+		// wanted_left for each, walking leftwards from the screen edge, then
+		// the origin cancelled back out - see MENU_RIGHT in the header.
+		auto place = [&](const char* art, int16_t slot) -> Point<int16_t>
+			{
+				nl::node node = menu[art]["normal"]["0"];
+
+				int16_t wanted = static_cast<int16_t>(
+					MENU_RIGHT - MENU_PITCH * (slot + 1));
+
+				int16_t ox = node ? Texture(node).get_origin().x() : 0;
+
+				return Point<int16_t>(
+					static_cast<int16_t>(wanted + ox * MENU_SCALE),
+					buttonPos.y());
+			};
+
+		buttons[Buttons::BT_MENU] = std::make_unique<MapleButton>(menu["button:Menu"], place("button:Menu", 0));
+		buttons[Buttons::BT_OPTIONS] = std::make_unique<MapleButton>(menu["button:Setting"], place("button:Setting", 1));
+		buttons[Buttons::BT_CHARACTER] = std::make_unique<MapleButton>(menu["button:Character"], place("button:Character", 2));
+		buttons[Buttons::BT_CASHSHOP] = std::make_unique<MapleButton>(menu["button:CashShop"], place("button:CashShop", 3));
 		buttons[Buttons::BT_COMMUNITY] = std::make_unique<MapleButton>(menu["button:Community"], buttonPos);
 		buttons[Buttons::BT_EVENT] = std::make_unique<MapleButton>(menu["button:Event"], buttonPos);
+
+		// BIGGER, AND SPREAD TO MATCH.
+		//
+		// 34x37 is a 2005 mouse target. These are pressed with a thumb on a
+		// handheld, and the artwork is a bitmap so growing it is the only lever
+		// there is.
+		//
+		// The row has to be re-spaced as well: the buttons are 35 apart by the
+		// origins baked into their artwork, so scaling alone would overlap them
+		// and the leftmost would swallow its neighbour's presses. Each one is
+		// pushed out from the right-hand end by the extra width the scale adds.
+		//
+		// Two of the six were retired, which is what makes the room for this.
+		for (uint16_t id : { Buttons::BT_MENU, Buttons::BT_OPTIONS,
+			Buttons::BT_CHARACTER, Buttons::BT_CASHSHOP })
+			buttons[id]->set_scale(MENU_SCALE);
+
+		// Built, then switched off - both are still referenced by the submenu
+		// and quickslot code, and removing them outright would mean unpicking
+		// all of that for two buttons nobody presses.
+		buttons[Buttons::BT_COMMUNITY]->set_active(false);
+		buttons[Buttons::BT_EVENT]->set_active(false);
+
+		// SHOUT and SPEAK, on the main screen where they can always be reached.
+		//
+		// In-game artwork rather than anything drawn for this: the megaphone is
+		// the actual Megaphone item's inventory icon, so the button looks like the
+		// thing it replaces. There is no microphone anywhere in the data - nothing
+		// in 2005 needed one - so SPEAK borrows the chat balloon, which is at
+		// least the right idea.
+		shout_icon = nl::nx::item["Cash"]["0507.img"]["05071000"]["info"]["icon"];
+		speak_icon = nl::nx::ui["StatusBar3.img"]["chat"]["common"]["BtChat"]["normal"]["0"];
+
+		// Invisible hit areas over hand-drawn icons. MapleButton wants a node with
+		// normal/pressed/mouseOver/disabled under it, and an item icon is a single
+		// bitmap - so the button is the box and the picture is drawn separately.
+		// On the menu row, in the two slots Event and Community vacated, and
+		// the same 35 pixels apart as everything else on it.
+		// Slots 5 and 4, continuing the same walk. These are drawn by hand
+		// rather than by MapleButton, so there is no origin to cancel.
+		shout_pos = Point<int16_t>(MENU_RIGHT - MENU_PITCH * 6, buttonPos.y());
+		speak_pos = Point<int16_t>(MENU_RIGHT - MENU_PITCH * 5, buttonPos.y());
+
+		buttons[Buttons::BT_SHOUT] = std::make_unique<AreaButton>(
+			shout_pos, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE));
+		buttons[Buttons::BT_SPEAK] = std::make_unique<AreaButton>(
+			speak_pos, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE));
+
+		// Nothing to hear with, nothing to press. Asked of the recogniser rather
+		// than assumed, so a device with no model deployed simply does not show
+		// the button instead of showing one that cannot work.
+		buttons[Buttons::BT_SPEAK]->set_active(Speech::get().available());
+
+		printf("[*] statusbar extras: shout icon %s, speak icon %s, speech %s\n",
+			shout_icon.is_valid() ? "ok" : "MISSING",
+			speak_icon.is_valid() ? "ok" : "MISSING",
+			Speech::get().available() ? "available" : "unavailable");
 
 		if (quickslot_active && VWIDTH > 800)
 		{
@@ -226,6 +325,9 @@ namespace ms
 			buttons[Buttons::BT_CHARACTER]->set_active(false);
 			buttons[Buttons::BT_COMMUNITY]->set_active(false);
 			buttons[Buttons::BT_EVENT]->set_active(false);
+
+			buttons[Buttons::BT_SHOUT]->set_active(false);
+			buttons[Buttons::BT_SPEAK]->set_active(false);
 		}
 
 		std::string fold = "button:Fold";
@@ -365,37 +467,48 @@ namespace ms
 		menutitle[4] = submenu["title"]["setting"];
 #pragma endregion
 
+		// THE BAR SITS 120 FROM THE BOTTOM. IT ALWAYS DID.
+		//
+		// Every one of these branches wrote the same number a different way:
+		// 600-480, 768-648, 720-600, and the 1920 case spelling it out as
+		// 960 + (VHEIGHT - 1080). Written as heights instead of as an offset,
+		// they pinned the bar to four specific screens - so a resolution the
+		// list had not anticipated put it off the bottom edge, which is what
+		// stood between this client and any size other than the four.
+		//
+		// Only the y was ever height-dependent; the x positions and widths
+		// below are genuinely per-resolution and are left alone.
 		if (VWIDTH == 800)
 		{
-			position = Point<int16_t>(0, 480);
+			position = Point<int16_t>(0, VHEIGHT - BAR_FROM_BOTTOM);
 			position_x = 410;
 			position_y = position.y();
 			dimension = Point<int16_t>(VWIDTH - position_x, 140);
 		}
 		else if (VWIDTH == 1024)
 		{
-			position = Point<int16_t>(0, 648);
+			position = Point<int16_t>(0, VHEIGHT - BAR_FROM_BOTTOM);
 			position_x = 410;
 			position_y = position.y() + 42;
 			dimension = Point<int16_t>(VWIDTH - position_x, 75);
 		}
 		else if (VWIDTH == 1280)
 		{
-			position = Point<int16_t>(0, 600);
+			position = Point<int16_t>(0, VHEIGHT - BAR_FROM_BOTTOM);
 			position_x = 500;
 			position_y = position.y() + 42;
 			dimension = Point<int16_t>(VWIDTH - position_x, 75);
 		}
 		else if (VWIDTH == 1366)
 		{
-			position = Point<int16_t>(0, 648);
+			position = Point<int16_t>(0, VHEIGHT - BAR_FROM_BOTTOM);
 			position_x = 585;
 			position_y = position.y() + 42;
 			dimension = Point<int16_t>(VWIDTH - position_x, 75);
 		}
 		else if (VWIDTH == 1920)
 		{
-			position = Point<int16_t>(0, 960 + (VHEIGHT - 1080));
+			position = Point<int16_t>(0, VHEIGHT - BAR_FROM_BOTTOM);
 			position_x = 860;
 			position_y = position.y() + 40;
 			dimension = Point<int16_t>(VWIDTH - position_x, 80);
@@ -448,6 +561,45 @@ namespace ms
 		);
 
 		namelabel.draw(position + namelabel_pos);
+
+		// LAST of the bar's own artwork, so nothing drawn afterwards can
+		// cover them - which is exactly what the HP/MP frame was doing.
+		buttons.at(Buttons::BT_SHOUT)->draw(position);
+		buttons.at(Buttons::BT_SPEAK)->draw(position);
+
+		// PLUS THE ORIGIN, or the picture and its hit box are in different
+		// places.
+		//
+		// A Texture draws itself relative to its origin, and an item icon's is
+		// not (0,0) - the megaphone's is (-2,31). Drawn at EXTRA_POS its
+		// top-left landed 31 pixels ABOVE the AreaButton, so it looked like a
+		// button that did nothing when clicked, when really it was a picture
+		// sitting a full icon height off its own target. Adding the origin back
+		// pins the top-left where it is wanted, whatever the anchor.
+		//
+		// draw_padslot_icon in this same file already says all this. It was
+		// written after the identical mistake put the quickslot icons an icon
+		// height too high.
+		// Both stretched to a menu button's size, so the row reads as one row.
+		// The megaphone is 29x31 and the balloon only 18x18 - authored for a
+		// corner of the chat bar - and at their own sizes they looked like
+		// leftovers rather than controls.
+		Point<int16_t> shout_at = position + shout_pos + shout_icon.get_origin();
+
+		shout_icon.draw(DrawArgument(
+			shout_at, shout_at, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE), 1.0f, 1.0f, 1.0f, 0.0f));
+
+		// The BUTTON's own state, not Speech::available() - that crosses into
+		// Java, and asking it sixty times a second to draw one small picture is
+		// not what it is for. It was decided once, when the bar was built.
+		if (buttons.at(Buttons::BT_SPEAK)->is_active())
+		{
+			Point<int16_t> speak_at = position + speak_pos + speak_icon.get_origin();
+
+			speak_icon.draw(DrawArgument(
+				speak_at, speak_at, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE), 1.0f, 1.0f, 1.0f, 0.0f));
+		}
+
 
 		buttons.at(Buttons::BT_FOLD_QS)->draw(position + quickslot_adj);
 		buttons.at(Buttons::BT_EXTEND_QS)->draw(position + quickslot_adj - quickslot_qs_adj);
@@ -601,6 +753,16 @@ namespace ms
 	{
 		switch (id)
 		{
+		case Buttons::BT_SHOUT:
+			UI::get().emplace<UIMegaphone>();
+			return Button::State::NORMAL;
+		case Buttons::BT_SPEAK:
+			// Straight into the chat bar, which is already the thing that
+			// talks to everyone standing on this map. The chat bar collects
+			// the finished sentence itself - see its update().
+			if (auto chatbar = UI::get().get_element<UIChatbar>())
+				chatbar->start_dictation();
+			return Button::State::NORMAL;
 		case Buttons::BT_CASHSHOP:
 			// DISABLED until SET_CASH_SHOP parses cleanly.
 			//
@@ -956,8 +1118,22 @@ namespace ms
 			buttons[Buttons::BT_MENU]->set_active(!quickslot_active);
 			buttons[Buttons::BT_OPTIONS]->set_active(!quickslot_active);
 			buttons[Buttons::BT_CHARACTER]->set_active(!quickslot_active);
-			buttons[Buttons::BT_COMMUNITY]->set_active(!quickslot_active);
-			buttons[Buttons::BT_EVENT]->set_active(!quickslot_active);
+			// Deliberately NOT restored - see the constructor. These two are
+			// retired, and the quickslot toggle was what quietly put them back
+			// on screen.
+			buttons[Buttons::BT_COMMUNITY]->set_active(false);
+			buttons[Buttons::BT_EVENT]->set_active(false);
+
+			// SHOUT and SPEAK hide with the rest of the row.
+			//
+			// The extended quickslot bar covers the ground these two stand on,
+			// and UIStatusbar::send_cursor tests them BEFORE anything else - so
+			// left visible they swallowed taps meant for the bar underneath,
+			// the fold button among them. That is why the quickslot would come
+			// out and refuse to go back in.
+			buttons[Buttons::BT_SHOUT]->set_active(!quickslot_active);
+			buttons[Buttons::BT_SPEAK]->set_active(
+				!quickslot_active && Speech::get().available());
 		}
 	}
 
@@ -1252,6 +1428,44 @@ namespace ms
 
 			if (slot >= 0 && bind_padslot(slot, SecondScreen::selected_mapping()))
 				return Cursor::State::IDLE;
+		}
+
+		// SHOUT and SPEAK are tested before everything else.
+		//
+		// UIElement::send_cursor takes only the FIRST button whose bounds hold
+		// the cursor, walking them in id order - and these two have the highest
+		// ids in the enum, because they had to go at the end to keep the draw
+		// and setting-menu loops working. So anything overlapping them, like
+		// the quickslot's fold button, silently won every press and the
+		// megaphone did nothing at all when clicked.
+		//
+		// Asked here rather than renumbering the enum, which would have moved
+		// every other button relative to those loops.
+		{
+			Rectangle<int16_t> shout = buttons[Buttons::BT_SHOUT]->bounds(position);
+
+			printf("[*] statusbar cursor %d,%d clicked=%d - shout box %d,%d..%d,%d %s\n",
+				cursorpos.x(), cursorpos.y(), clicked ? 1 : 0,
+				shout.left(), shout.top(), shout.right(), shout.bottom(),
+				shout.contains(cursorpos) ? "HIT" : "miss");
+		}
+
+		for (uint16_t id : { Buttons::BT_SHOUT, Buttons::BT_SPEAK })
+		{
+			auto& button = buttons[id];
+
+			if (!button || !button->is_active())
+				continue;
+
+			if (!button->bounds(position).contains(cursorpos))
+				continue;
+
+			if (!clicked)
+				return Cursor::State::CANCLICK;
+
+			button_pressed(id);
+
+			return Cursor::State::IDLE;
 		}
 
 		return UIElement::send_cursor(clicked, cursorpos);
