@@ -370,6 +370,19 @@ namespace ms
 			panel_ptr->draw_top_tooltip();
 		}
 
+		void scroll(double yoffset)
+		{
+			// panel_ptr rather than get_panel(): scrolling must not be the
+			// thing that BUILDS the panel. On a one-screen device there is
+			// nothing to scroll, and creating it here would make a phone pay
+			// for a second screen it does not have.
+			//
+			if (!available() || !panel_ptr)
+				return;
+
+			panel_ptr->send_scroll(yoffset);
+		}
+
 		UIElement* hosted(UIElement::Type type)
 		{
 			// Deliberately not get_panel(): asking whether a window exists must

@@ -103,6 +103,12 @@ namespace ms
 		return slot ? slot->selected_mapping() : Keyboard::Mapping();
 	}
 
+	void SecondScreenPanel::send_scroll(double yoffset)
+	{
+		if (UIElement* element = window())
+			element->send_scroll(yoffset);
+	}
+
 	UIElement* SecondScreenPanel::window() const
 	{
 		auto& slot = const_cast<std::unique_ptr<UIElement>&>(pages[current]);

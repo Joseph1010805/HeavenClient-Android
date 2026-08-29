@@ -485,6 +485,12 @@ namespace ms
 		return true;
 	}
 
+	void UIItemInventory::send_scroll(double yoffset)
+	{
+		if (slider.isenabled())
+			slider.send_scroll(yoffset);
+	}
+
 	Cursor::State UIItemInventory::send_cursor(bool pressed, Point<int16_t> cursorpos)
 	{
 		Cursor::State dstate = UIDragElement::send_cursor(pressed, cursorpos);

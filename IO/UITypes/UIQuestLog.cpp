@@ -432,6 +432,12 @@ namespace ms
 		}
 	}
 
+	void UIQuestLog::send_scroll(double yoffset)
+	{
+		if (slider.isenabled())
+			slider.send_scroll(yoffset);
+	}
+
 	Cursor::State UIQuestLog::send_cursor(bool clicking, Point<int16_t> cursorpos)
 	{
 		if (!showing_detail() && static_cast<int16_t>(listed.size()) > rows_shown())

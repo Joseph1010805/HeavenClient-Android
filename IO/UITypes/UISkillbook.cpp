@@ -475,6 +475,12 @@ namespace ms
 		slider.remove_cursor();
 	}
 
+	void UISkillbook::send_scroll(double yoffset)
+	{
+		if (slider.isenabled())
+			slider.send_scroll(yoffset);
+	}
+
 	Cursor::State UISkillbook::send_cursor(bool clicked, Point<int16_t> cursorpos)
 	{
 		Cursor::State dstate = UIDragElement::send_cursor(clicked, cursorpos);

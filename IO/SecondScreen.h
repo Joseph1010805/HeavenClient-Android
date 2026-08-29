@@ -83,6 +83,11 @@ namespace ms
 
 		// Draw the panel's hover information on the MAIN screen. Called from
 		// the main screen's own pass, so it lands in that screen's pixels.
+		// Scroll whatever page the panel is showing. Driven by the LEFT stick -
+		// the top screen is the left one to reach for, and walking moved to
+		// the d-pad to free it.
+		void scroll(double yoffset);
+
 		void draw_top_tooltip();
 
 		// What the page on the panel currently has picked out, as something a

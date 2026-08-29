@@ -67,6 +67,14 @@ namespace ms
 		// A touch in panel pixels.
 		void send_touch(Point<int16_t> position, Point<int16_t> screen, bool down, bool up);
 
+		// Scroll the page that is showing.
+		//
+		// Handed straight to the game window behind the page, because these
+		// ARE the game's own windows - the inventory, the skill book and the
+		// quest log each already own a slider, and this is the same signal a
+		// mouse wheel would give them. Nothing new to keep in step.
+		void send_scroll(double yoffset);
+
 		Page page() const;
 
 		// The hosted window of this type, if one has been built. Null
