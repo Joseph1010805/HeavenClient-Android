@@ -55,6 +55,16 @@ namespace ms
 	void MapSummons::clear()
 	{
 		summons.clear();
+
+		// The pending queue as well as the live objects.
+		//
+		// update() drains `spawns` into `summons`, and a map change stops the
+		// update loop (the graphics are locked and the timer restarted) while
+		// the network thread keeps queueing. Anything that arrived during the
+		// changeover therefore outlived the wipe and was instantiated into the
+		// NEXT map - which is how four Tutorial Tinos from the Cygnus tutorial
+		// ended up on Maple Road after a character change.
+		std::queue<SummonSpawn>().swap(spawns);
 	}
 
 	void MapSummons::send_movement(int32_t oid, Point<int16_t> start, std::vector<Movement>&& movements)
