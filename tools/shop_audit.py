@@ -25,6 +25,7 @@ Anything it reports as BROKEN should not be on sale.
 """
 import argparse
 import os
+import re
 import struct
 import sys
 
@@ -154,13 +155,67 @@ def audit(wz, verbose):
                 # The giveaway was in its own output: "has angry, bewildered,
                 # blaze" is a complete set of expressions, not missing art.
                 wanted = EXPRESSIONS if group == 101 else STANCES
+                art = names - {"info"}
 
-                if not (names & wanted):
+                # AN EQUIP WITH NO ART AT ALL IS THE TRANSPARENT SET, AND IT
+                # IS WORKING.
+                #
+                # Transparent Hat, Earrings, Shoes, Gloves and Cape exist so a
+                # player can wear a thing for its stats and show nothing - the
+                # game's own description says "if you want to use the abilities
+                # available through hats, yet still want to show off your
+                # hairstyle". Drawing nothing IS the product.
+                #
+                # This tool called all five broken, which is the second time it
+                # has reported a whole category of working items - and the same
+                # mistake as the face accessories: asking whether the art is
+                # where THIS tool expects, rather than what the item is for.
+                #
+                # The distinction that matters is structural, not a list of
+                # ids. Nothing but `info` means somebody deliberately shipped an
+                # empty equip. SOME art, but none of it under a name the
+                # renderer looks for, means art that was meant to be seen and
+                # will not be - which is the real fault, and is exactly what a
+                # mask keyed by expression looked like.
+                if not art:
+                    pass
+                elif not (names & wanted):
                     # Say what it DOES have - that is the whole diagnosis.
-                    other = sorted(names - {"info"})[:3]
                     faults.append("no %s art (has %s)"
                                   % ("expression" if group == 101 else "stance",
-                                     ", ".join(other) or "nothing"))
+                                     ", ".join(sorted(art)[:3])))
+
+            # A hat can have every stance, every bitmap and every origin and
+            # still never be drawn, because the RENDERER never asks for it.
+            #
+            # CharEquips::getcaptype() used to compare the vslot against three
+            # literal strings and answer NONE to everything else, and CharLook's
+            # NONE branch draws the hair and never calls equips.draw(HAT, ...).
+            # 144 of 908 hats, 60 of them on sale, were loaded and equipped and
+            # invisible - and this tool passed every one of them, because it
+            # only ever asked whether the ART existed.
+            #
+            # That is the lesson worth keeping: "the data is present" and "the
+            # client will draw it" are different questions, and this file exists
+            # to ask the second one. Checked here rather than assumed fixed, so
+            # a future rewrite of getcaptype() that drops a spelling says so.
+            if group == 100 and node is not None:
+                vslot = character.resolve("%s/%s.img/info/vslot" % (category, strid))
+
+                if vslot is None:
+                    faults.append("no vslot - the renderer cannot place it")
+                else:
+                    _, _, _, ntype, payload = character.node(vslot)
+                    text = (character.value(ntype, payload).strip("'")
+                            if ntype == 3 else "")
+
+                    # Mirrors captype_from_vslot in CharEquips.cpp: a vslot is a
+                    # run of two-character tokens, and the client needs at least
+                    # the cap's own slot in there to know what it is looking at.
+                    tokens = re.findall(r"[A-Z][^A-Z]*", text)
+
+                    if "Cp" not in tokens:
+                        faults.append("vslot %r names no cap slot" % text)
 
             if listed and string.resolve(
                     "Eqp.img/Eqp/%s/%d/name" % (category, itemid)) is None:

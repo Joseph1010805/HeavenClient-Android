@@ -17,8 +17,81 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "CharEquips.h"
 
+#include <cctype>
+
 namespace ms
 {
+	namespace
+	{
+		// A vslot IS A LIST, NOT A NAME.
+		//
+		// It spells out every visual slot the equip occupies, as a run of
+		// two-character tokens - Cp for the cap itself, H1..H6/Hd/Hs/Hf/Hb/Hc/Hx
+		// for the hair layers it covers, Af/Ay/As/Ae/Fc for face and accessory
+		// slots. "CpH1H5" is a cap that hides two hair layers; "CpHdH1H2H3H4" is
+		// a welding mask that hides five.
+		//
+		// getcaptype() compared that string against three literals and returned
+		// NONE for everything else, and CharLook's NONE branch draws the hair
+		// and never calls equips.draw(HAT, ...) at all. So a hat with any other
+		// spelling was loaded, stored, equipped - and never drawn. 144 of the
+		// game's 908 hats, 60 of them on sale in the cash shop, appeared in the
+		// list, took the money, went in the locker and stayed invisible. There
+		// was nothing in the game to tell you why, because the item was working
+		// perfectly right up to the last step.
+		//
+		// This reads the list instead of matching the name. How much hair a hat
+		// covers is what the three cap types actually distinguish, so counting
+		// the hair tokens is the same question the literals were asking, asked
+		// in a way that does not depend on the order somebody wrote them in -
+		// note "CpH1H2H3H5HfHsAfAyAsAeHbH4H6", where H4 and H6 come after the
+		// accessories. No two of these strings would ever have been guessable.
+		CharEquips::CapType captype_from_vslot(const std::string& vslot)
+		{
+			size_t hair = 0;
+			bool hides_eyes = false;
+
+			// A token is an upper-case letter and whatever lower-case letters
+			// or digits follow it. Scanned rather than taken in strides of two
+			// so a malformed vslot cannot silently shift every later token.
+			for (size_t i = 0; i < vslot.size(); )
+			{
+				if (!std::isupper(static_cast<unsigned char>(vslot[i])))
+				{
+					i++;
+					continue;
+				}
+
+				size_t j = i + 1;
+
+				while (j < vslot.size() && !std::isupper(static_cast<unsigned char>(vslot[j])))
+					j++;
+
+				const std::string token = vslot.substr(i, j - i);
+
+				if (token[0] == 'H')
+					hair++;
+				else if (token == "Ay" || token == "As")
+					hides_eyes = true;
+
+				i = j;
+			}
+
+			// Matched to what the three known-good spellings already mean, so
+			// the fallback and the literals agree rather than disagreeing at
+			// the edges: CpH5 hides one hair layer and is a HEADBAND, CpH1H5
+			// hides two and is a HALFCOVER, and CpH1H5AyAs is the same two plus
+			// the eyes and is a FULLCOVER.
+			if (hair >= 3 || (hair >= 2 && hides_eyes))
+				return CharEquips::CapType::FULLCOVER;
+
+			if (hair == 2)
+				return CharEquips::CapType::HALFCOVER;
+
+			return CharEquips::CapType::HEADBAND;
+		}
+	}
+
 	CharEquips::CharEquips()
 	{
 		for (auto iter : clothes)
@@ -101,22 +174,27 @@ namespace ms
 
 	CharEquips::CapType CharEquips::getcaptype() const
 	{
-		if (const Clothing * cap = clothes[Equipslot::Id::HAT])
-		{
-			const std::string& vslot = cap->get_vslot();
-			if (vslot == "CpH1H5")
-				return CharEquips::CapType::HALFCOVER;
-			else if (vslot == "CpH1H5AyAs")
-				return CharEquips::CapType::FULLCOVER;
-			else if (vslot == "CpH5")
-				return CharEquips::CapType::HEADBAND;
-			else
-				return CharEquips::CapType::NONE;
-		}
-		else
-		{
+		const Clothing* cap = clothes[Equipslot::Id::HAT];
+
+		// NONE now means only what it says - no hat is worn. It used to double
+		// as "a hat is worn and I do not recognise it", which is the one answer
+		// that makes the hat disappear.
+		if (!cap)
 			return CharEquips::CapType::NONE;
-		}
+
+		const std::string& vslot = cap->get_vslot();
+
+		// The three spellings this has always recognised, kept exactly as they
+		// were. 764 hats draw correctly today and none of them reach the code
+		// below, so this change cannot alter any of them.
+		if (vslot == "CpH1H5")
+			return CharEquips::CapType::HALFCOVER;
+		else if (vslot == "CpH1H5AyAs")
+			return CharEquips::CapType::FULLCOVER;
+		else if (vslot == "CpH5")
+			return CharEquips::CapType::HEADBAND;
+
+		return captype_from_vslot(vslot);
 	}
 
 	Stance::Id CharEquips::adjust_stance(Stance::Id stance) const

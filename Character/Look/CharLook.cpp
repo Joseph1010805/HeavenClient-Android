@@ -82,19 +82,36 @@ namespace ms
 
 			switch (equips.getcaptype())
 			{
+			// THE CAP TYPE DECIDES THE HAIR, NEVER WHETHER THE HAT IS DRAWN.
+			//
+			// A hat's parts carry their own z - "cap" or "capOverHair" - and
+			// that is what says which layer it lives on. CAP_OVER_HAIR used to
+			// be drawn in one branch out of four, so a hat that used it was
+			// simply not drawn in the other three. The Tilted Fedora
+			// (capOverHair, HALFCOVER) was invisible, and the Red Snowboard
+			// Helmet (capOverHair, FULLCOVER) hid all the hair and then drew an
+			// empty CAP layer - which is a player standing there bald with no
+			// helmet on.
+			//
+			// Both layers are asked for in every branch now. Clothing::draw
+			// does nothing for a layer the item has no parts on, so a hat that
+			// only uses "cap" is unaffected.
 			case CharEquips::CapType::NONE:
 				hair->draw(interstance, Hair::Layer::BACK, interframe, args);
 				break;
 			case CharEquips::CapType::HEADBAND:
 				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP, interframe, args);
 				hair->draw(interstance, Hair::Layer::BACK, interframe, args);
+				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP_OVER_HAIR, interframe, args);
 				break;
 			case CharEquips::CapType::HALFCOVER:
 				hair->draw(interstance, Hair::Layer::BELOWCAP, interframe, args);
 				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP, interframe, args);
+				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP_OVER_HAIR, interframe, args);
 				break;
 			case CharEquips::CapType::FULLCOVER:
 				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP, interframe, args);
+				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP_OVER_HAIR, interframe, args);
 				break;
 			}
 
@@ -150,9 +167,11 @@ namespace ms
 			case CharEquips::CapType::HALFCOVER:
 				hair->draw(interstance, Hair::Layer::DEFAULT, interframe, args);
 				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP, interframe, args);
+				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP_OVER_HAIR, interframe, args);
 				break;
 			case CharEquips::CapType::FULLCOVER:
 				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP, interframe, args);
+				equips.draw(Equipslot::Id::HAT, interstance, Clothing::Layer::CAP_OVER_HAIR, interframe, args);
 				break;
 			}
 
