@@ -63,10 +63,122 @@ event left to lift the key.
 A 120ms idle timeout stands in for the release - comfortably longer than the
 ~11ms between events while the stick is held, so it cannot fire mid-movement.
 
-### What is still not available
+### ⏳ BUILT AND INSTALLED, NOT YET PLAYED (28 Aug)
 
-Buttons. A and B arrive as pointer CLICKS, not as distinct keys, so they
-cannot yet be told apart or remapped. Only `KEYCODE_BACK` was ever seen.
+The mapping below is implemented in `HeavenClientActivity.java` and installed on
+the Quest, but nobody has played with it yet. Three things to confirm:
+
+  * the four buttons do the right four things
+  * nothing is CROSSED - if jump attacks and sit picks up, the left/right guess
+    from the device id came out backwards. `adb shell touch
+    /sdcard/Android/data/org.heavenclient.android/files/swap_hands`, restart the
+    app. No rebuild.
+  * holding attack stays held, and the 300ms silent-controller watchdog never
+    fires in play
+
+### The buttons, and exactly how many there are
+
+"Only `KEYCODE_BACK` was ever seen" was an artefact of the probe, not a fact
+about the headset: that probe filtered out `SOURCE_MOUSE`, which is precisely
+where a controller button arrives. An unfiltered probe - every key, every
+motion, decoded button state, decoded source, device id, scan code, and all 27
+axes that carry a value - found **six** distinguishable signals.
+
+`dev=1048578` is the RIGHT controller, `dev=1048577` the LEFT.
+
+| Control            | What the app receives                    |
+|--------------------|------------------------------------------|
+| A                  | `BUTTON_PRIMARY` on right                |
+| right trigger      | `BUTTON_PRIMARY` on right - *same as A*  |
+| X                  | `BUTTON_PRIMARY` on left                 |
+| left trigger       | `BUTTON_PRIMARY` on left - *same as X*   |
+| B                  | `BUTTON_BACK` + `KEYCODE_BACK` on right  |
+| Y                  | `BUTTON_BACK` + `KEYCODE_BACK` on left   |
+| right stick click  | `BUTTON_TERTIARY` on right               |
+| left stick click   | `BUTTON_TERTIARY` on left                |
+| both grips         | nothing                                  |
+| Menu               | nothing - the system takes it            |
+
+`BUTTON_PRIMARY` is the laser's mouse click. Repurposing it costs the pointer,
+which is how every window, NPC and inventory in the game is operated - so the
+four signals genuinely free for gameplay are **B, Y, and the two stick clicks**.
+
+Both thumbsticks scroll, and both arrive on `dev=-1`, a single merged virtual
+device. **The two sticks cannot be told apart** - only their clicks can.
+
+## ⚠ WHY A AND THE TRIGGER CANNOT BE SEPARATED - AND WHY THAT IS FINAL
+
+The short version: **the events are not coming from the controllers**. They are
+manufactured for us, and the distinction is discarded before the event exists.
+
+  * The device ids - `1048577`, `1048578`, `1048580` - are `0x100001` upward,
+    Android's VIRTUAL range. Real hardware gets small ids.
+  * Horizon OS runs `oculus.internal.virtual_input.IInputDataInjection`.
+  * vrshell reads the controllers through OpenXR and injects synthetic
+    TOUCHSCREEN events, applying its own policy on the way in: trigger or
+    A -> click, B/Y -> back, stick click -> middle, grips and Menu -> discarded.
+
+Nothing is left in the event to inspect. Checked and identical for A and the
+trigger: source, tool type, pointer count, pressure, size, generic axes. Press
+durations differ only by the hand (168ms vs 255ms).
+
+### The real gamepad exists, and Android refuses to dispatch it
+
+`/dev/input/event4` is a genuine, complete gamepad, and `adb shell` (group
+`1004(input)`) can read it. Pressing buttons produces, at the kernel:
+
+    BTN_GAMEPAD          <- A
+    BTN_EAST             <- B
+    BTN_NORTH            <- X
+    BTN_WEST             <- Y
+    BTN_TR + KEY_RIGHTSHIFT   <- right grip   (produces NOTHING in the app)
+    BTN_SELECT           <- Menu              (produces NOTHING in the app)
+    ABS_RZ 0x000..0x3ff  <- right trigger, ANALOG, 1024 steps
+    ABS_X/Y, ABS_RX/RY   <- both sticks, as real axes
+
+Every distinction wanted is right there. Android sees the device, loads its key
+layout (`/odm/usr/keylayout/oculus-device.kl`), and marks it:
+
+    Classes: KEYBOARD | GAMEPAD | JOYSTICK | EXTERNAL
+    Enabled: false
+
+That flag is set through `InputManagerService.setInputDeviceEnabled()`, which
+requires `android.permission.DISABLE_INPUT_DEVICE` - signature-level. No adb
+command grants it. It needs a system app or root.
+
+### `controller_emulation_mode` - tried, and it does not do it
+
+`settings get secure controller_emulation_mode` is `0` by default and is
+plainly named for this. It was tried properly:
+
+  * Values 1, 2 and 3 with the app force-restarted: no change. The flag is read
+    at BOOT, not per app.
+  * **Rebooted at mode 1, and it genuinely changed the device topology** - two
+    new nodes appeared (`event3`, `event5`) with a class not otherwise seen,
+    `INPUT_DEVICE_CLASS_VR_PERIPHERAL`, both `Enabled: true`.
+  * But Meta wired it the unhelpful way round. The new enabled nodes are nearly
+    silent (25 and 1 events against `event4`'s 349), and **every face button
+    still comes out of `event4`, which stays `Enabled: false`.**
+  * Rebooted at mode 2: byte-for-byte the same arrangement.
+  * The app received nothing either time - no gamepad source, no small device
+    id, just the same four injected `KEYCODE_BACK`s.
+
+Restored to `0` afterwards; the phantom devices go away at the next restart.
+
+**Do not re-run this investigation.** The ceiling is the six signals in the
+table above. Tap-versus-hold is pure software and doubles them to eight if more
+are needed. If full controls ever matter more than convenience, **pair a
+Bluetooth gamepad** - Horizon OS enables those normally, and `open_gamepad()`
+in `IO/Window_Android.cpp` already opens every pad it finds.
+
+### Two smaller findings from the same session
+
+  * `adb shell monkey -p org.heavenclient.android -c LAUNCHER 1` reports success
+    but does **not** bring the app up in the headset - it still has to be opened
+    by hand from the library. Do not use it to save someone a step.
+  * The cut-off screen has a number now: the app logs
+    `blit: scene 800x600 -> screen 1280x800`. The game draws 4:3 into a 16:10
+    panel. That is a letterboxing problem, not a rotation one.
 
 ## ⚠ Keys reach the app fine - it was never a focus problem
 

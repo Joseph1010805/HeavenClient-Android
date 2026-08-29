@@ -9,6 +9,136 @@ error hidden behind `>/dev/null`.
 
 ## 28 August 2026
 
+## 28 August 2026 — the server ate its own config
+
+- **`run.sh` carried a literal 0x01 byte where a sed backreference belonged, and
+  deleted `HOST:` and `LANHOST:` out of config.yaml.** A heredoc in
+  `tools/termux_setup.sh` ate the backslash when the script was generated, so
+  `\1` was written as the control character. That made two things go wrong at
+  once:
+
+      MY_IP=$(... sed -n 's/.* src \([0-9.]*\).*/<0x01>/p' ...)
+
+  set `MY_IP` to a control character - **not empty**, so the "no address found"
+  guard passed straight through - and then
+
+      sed -i "s/^\( *HOST:\)[^#]*/<0x01> $MY_IP /" config.yaml
+
+  replaced the whole `HOST: 192.168.1.71   #WAN IPv4 address` line with
+  `<0x01> <0x01> #WAN IPv4 address`, destroying the key and the value together.
+
+  Cosmic then refused to start with **"Could not successfully parse charset from
+  config file config.yaml"** - which names the charset and points nowhere near
+  the damage. The log line that did tell the truth was `address is  - updating
+  config.yaml`, where the address prints as blank because it is a control byte.
+
+  **Same class of bug as the two C++ heredoc manglings already in this file, and
+  it bit again WHILE FIXING IT** - a heredoc silently ate the backslash out of
+  the repair script too. Do not put backslashes through a heredoc in this
+  project. Write the script to a file and run the file.
+
+  Fixed in the generator as well as on the device, so a re-run cannot rewrite a
+  broken `run.sh`.
+
+## New features, 28 August 2026
+
+- **The megaphone is a BUTTON now, not an item.** It sends the ordinary
+  `USE_CASH_ITEM` packet naming a real megaphone (5070000 channel / 5071000
+  world), and the server runs the megaphone code it always had — the only
+  change there is that `USE_FREE_MEGAPHONES` skips the two steps that are about
+  *owning* one: the inventory check and taking it away. So the artwork, the
+  `<medal> Name : ` prefix, the level-10 rule and the channel-versus-world scope
+  come from the one implementation that has ever existed and cannot drift from
+  it. **Deliberately not a new opcode** — Cosmic decides some packets by their
+  LENGTH and a wrong guess fails silently.
+  `IO/UITypes/UIMegaphone.*`, `Net/Packets/InventoryPackets.h`,
+  `UseCashItemHandler.java`
+- **Speech to text, entirely on the device.** Vosk with a small English model,
+  no network, no account — a mic button on the chat bar (talks to the map) and
+  another in the megaphone window (talks to the channel or the world).
+  Android's own `SpeechRecognizer` is not an option here: the Thor answers
+  `cmd package query-services android.speech.RecognitionService` with **"No
+  services found"**, so there is no engine installed to call. The model is
+  **not in the apk** — ~68MB, not ours to redistribute — it goes out through
+  `tools/deploy_data.sh`, and when absent the buttons are simply not drawn.
+  `Speech.*`, `SpeechInput.java`
+- **Pushing a DIRECTORY into `Android/data` fails in a new way.** Per file:
+  `remote fchown failed: Operation not permitted`, then `failed to read copy
+  response: EOF` — *after* creating the folders, so it looks half-successful.
+  Staged through `/sdcard/Download` and moved, like the `.nx` files.
+- **`InventoryPackets.h` used `Sound` without including `Audio.h`** and got away
+  with it because every file that included it happened to include Audio.h
+  first. The first one that did not got an error on a line nobody had touched.
+
+## 28 August 2026
+
+- **52 more hats: the cap type was deciding whether the HAT got drawn, not just
+  the hair.** A hat's parts carry their own `z` — `cap` or `capOverHair` — and
+  that is what picks the layer. `CharLook` asked for `CAP_OVER_HAIR` in one
+  branch out of four, so a `capOverHair` hat was invisible in the other three:
+  25 simply did not appear (Tilted Fedora), and 27 hid all the hair and then
+  drew an empty layer, which is a player standing there **bald with no helmet**
+  (Red Snowboard Helmet). Both layers are now asked for in every branch, in the
+  climbing view too, where `CAP_OVER_HAIR` was never drawn at all. A hat using
+  only `cap` is untouched — `Clothing::draw` does nothing for an empty layer.
+  `Character/Look/CharLook.cpp`
+- **Every "Weekdays" 2x EXP card was inert, at every hour of every day.** Nine
+  rows in `nxcoupons` had lost the leading `5` of their item id — `211004` where
+  the item is `5211004` — so `Server.updateActiveCoupons` matched nothing and
+  `Character.setActiveCoupons` skipped the coupon. 8 of the 35 rate coupons on
+  sale could never work. Renumbered `+5000000`. **Coupons are also gated by a
+  weekday bitmask and a 4-hour window**, so buying the wrong one for the current
+  hour did nothing and said nothing; all 40 rows are now `activeday=254`,
+  `starthour=0`, `endhour=24`. Takes effect on server restart, or within
+  `COUPON_INTERVAL` (60 min).
+- **144 of the game's 908 hats could never be drawn — 60 of them on sale in the
+  cash shop.** `CharEquips::getcaptype()` compared the item's `vslot` against
+  three literal strings and returned `NONE` for every other spelling, and
+  `CharLook`'s `NONE` branch draws the hair and never calls
+  `equips.draw(HAT, ...)` at all. The hat had an icon, a name, a price, every
+  stance, every bitmap and every origin — it listed, sold, banked, equipped, and
+  was invisible, with nothing in the game to say why. A vslot is a LIST of the
+  visual slots an equip covers (`CpHdH1H2H3H4`), not a name, so it is now read
+  by counting the hair tokens. The three known literals are kept ahead of it, so
+  the 764 hats that already drew correctly cannot be touched.
+  `Character/Look/CharEquips.cpp`
+- **`shop_audit.py` passed all 60 of them**, because it only ever asked whether
+  the ART existed, never whether the renderer would reach it. "The data is
+  present" and "the client will draw it" are different questions. Now checks the
+  vslot too.
+- **The audit's last 5 "broken" items were the Transparent set, working
+  perfectly.** Transparent Hat / Earrings / Shoes / Gloves / Cape have no
+  character art because drawing nothing IS the product — you wear them for the
+  stats and show your hairstyle. Second time this tool has condemned a whole
+  category of working items, and the same mistake as the face accessories:
+  asking whether art sits where the tool expects instead of what the item is
+  for. Told apart structurally rather than by an id list — nothing but `info` is
+  a deliberately empty equip, whereas art that exists under names the renderer
+  never asks for is the real fault. **The shop now audits 1866 of 1866 clean.**
+- **The texture atlas had no eviction, and one animation owned 70% of it.**
+  `Logo.img/Nexon` in the v178 `UI.nx` is 136 frames of 720x480 — 47M pixels
+  against an atlas holding 67M — and playing it once at launch cost that space
+  for the whole session. Add the cash shop's ~14M and there was no room left for
+  the map, so sprites were skipped one at a time and the world drew flat grey
+  with only the chat text on it. The text survived because fonts sit below
+  `fontymax` and a reset does not touch them, which is what made it read as a
+  rendering bug rather than running out of room. The atlas is now emptied at
+  `UI::change_state` and when the intro ends, via the existing `reset_pending`
+  request so it happens at the top of a frame rather than mid-draw.
+  `IO/UI.cpp`, `IO/UITypes/UILogo.cpp`, `Graphics/GraphicsGL.cpp`
+- **"Only `KEYCODE_BACK` was ever seen" from the Quest controllers was my own
+  filter.** The probe excluded `SOURCE_MOUSE`, which is exactly where a
+  controller button arrives, so it reported the absence it had created. An
+  unfiltered probe found six distinguishable signals. Findings and the ceiling
+  are in `docs_QUEST.md`; **do not re-run that investigation.**
+- **A and the trigger are the same event because vrshell makes them the same
+  event.** The controllers reach a 2D app as *injected* touchscreen events from
+  `IInputDataInjection` (device ids in the `0x100000` virtual range), with the
+  distinction discarded on the way in. The real gamepad node carries all of it —
+  `BTN_GAMEPAD/EAST/NORTH/WEST`, both grips, Menu, an analog trigger — and
+  Android marks it `Enabled: false` behind a signature permission.
+  `secure/controller_emulation_mode` 1 and 2 were both tried across reboots:
+  they add enabled-but-silent sibling nodes and leave the real one off.
 - **"Missing nx file" for a complete 4.5 GB install.** adb writes the data as
   the shell user into a folder it creates with `drwxrws---`; the game runs as
   someone else and could not traverse in. Present, unreadable, reported

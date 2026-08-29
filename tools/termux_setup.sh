@@ -228,13 +228,13 @@ fi
 #
 # Left alone if there is no address: better to keep yesterday's than to write
 # a blank one.
-MY_IP=$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*//p' | head -1)
+MY_IP=$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)
 
 if [ -n "$MY_IP" ]; then
 	if ! grep -q "LANHOST: $MY_IP" config.yaml 2>/dev/null; then
 		echo "address is $MY_IP - updating config.yaml"
 
-		sed -i "s/^\( *HOST:\)[^#]*/ $MY_IP /; s/^\( *LANHOST:\)[^#]*/ $MY_IP /" config.yaml
+		sed -i "s/^\( *HOST:\)[^#]*/\1 $MY_IP /; s/^\( *LANHOST:\)[^#]*/\1 $MY_IP /" config.yaml
 	else
 		echo "address is $MY_IP - config already agrees"
 	fi
