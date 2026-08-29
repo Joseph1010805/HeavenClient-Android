@@ -170,6 +170,16 @@ namespace ms
 
 			recv.read_short();
 			recv.read_int();	// bonus 2
+
+			// THE EXTRA BYTE THAT ONLY EXISTS WHEN inchat IS SET.
+			//
+			// Cosmic writes it - `if (inChat) p.writeByte(0);` in
+			// getShowExpGain - and this read a fixed layout, so every field
+			// after it was one byte out. Harmless only because nothing after
+			// it was used for anything.
+			if (inchat)
+				recv.read_byte();
+
 			recv.read_bool();	// 'event or party'
 			recv.read_int();	// bonus 3
 			recv.read_int();	// bonus 4 - equip
@@ -178,9 +188,26 @@ namespace ms
 
 			std::string message = "You have gained experience (+" + std::to_string(gain) + ")";
 
+			// inchat is EXPERIENCE FROM A QUEST, and it was the one kind the
+			// player never saw.
+			//
+			// It said "Mode: 3, inchat is not handled" in red, which is a
+			// message about the client rather than about the game - so
+			// finishing a quest, or answering one of Robin's tutorial
+			// questions, silently levelled you up with nothing to say why.
+			//
+			// The flag means the server wants it in the CHAT LOG rather than
+			// floating over the character, so that is where it goes when there
+			// is a chat log to put it in.
 			if (inchat)
 			{
-				show_status(Color::Name::RED, "Mode: 3, inchat is not handled.");
+				if (auto chatbar = UI::get().get_element<UIChatbar>())
+					chatbar->send_chatline(message, UIChatbar::LineType::YELLOW);
+				else
+					show_status(Color::Name::YELLOW, message);
+
+				if (bonus1 > 0)
+					show_status(Color::Name::YELLOW, "+ Bonus EXP (+" + std::to_string(bonus1) + ")");
 			}
 			else
 			{
@@ -220,18 +247,69 @@ namespace ms
 
 		std::string message = recv.read_string();
 
+		// EVERY SERVER MESSAGE WAS READ AND THROWN AWAY.
+		//
+		// Only type 4, the scrolling banner, was ever shown. The rest were
+		// parsed off the wire correctly and then dropped on the floor - so a
+		// megaphone reached every client in the channel and none of them
+		// displayed a word of it. The shout worked; the hearing did not.
+		//
+		// That covers more than megaphones: notices, GM announcements and the
+		// coloured server lines all arrive this way.
+		//
+		//   0  notice        1  popup           2  megaphone
+		//   3  super mega    4  scrolling       5  pink
+		//   6  light blue    7  NPC-styled
+		//
+		// The extra fields still have to be read even when they are unused -
+		// leaving them on the wire is how the NEXT packet gets misread.
+		Color::Name colour = Color::Name::WHITE;
+
 		if (type == 3)
 		{
 			recv.read_byte(); // channel
-			recv.read_bool(); // megaphone
+			recv.read_bool(); // whether to show the megaphone ear
+
+			colour = Color::Name::YELLOW;
 		}
 		else if (type == 4)
 		{
 			UI::get().set_scrollnotice(message);
+			return;
 		}
 		else if (type == 7)
 		{
 			recv.read_int(); // npcid
+		}
+		else if (type == 2)
+		{
+			colour = Color::Name::YELLOW;
+		}
+		else if (type == 5)
+		{
+			colour = Color::Name::RED;
+		}
+
+		if (message.empty())
+			return;
+
+		// The chat log, because these are things somebody SAID, and chat is
+		// where you look for those - and because it stays readable after the
+		// moment has passed, which a floating message does not.
+		if (auto chatbar = UI::get().get_element<UIChatbar>())
+		{
+			UIChatbar::LineType line = UIChatbar::LineType::WHITE;
+
+			if (colour == Color::Name::YELLOW)
+				line = UIChatbar::LineType::YELLOW;
+			else if (colour == Color::Name::RED)
+				line = UIChatbar::LineType::RED;
+
+			chatbar->send_chatline(message, line);
+		}
+		else if (auto messenger = UI::get().get_element<UIStatusMessenger>())
+		{
+			messenger->show_status(colour, message);
 		}
 	}
 
