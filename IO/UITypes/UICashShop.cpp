@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "UICashShop.h"
 
+#include "UINotice.h"
+
 #include "../KeyAction.h"
 #include "../UI.h"
 #include "../../Timer.h"
@@ -374,11 +376,11 @@ namespace ms
 		// Drawn here, between the backdrop and the panels below it, so
 		// nothing can end up standing on top of the tabs.
 		preview_look.draw(
-			DrawArgument(position + Point<int16_t>(static_cast<int16_t>(char_x), static_cast<int16_t>(STAGE_Y + char_yoff)), !facing_right),
+			DrawArgument(position + Point<int16_t>(static_cast<int16_t>(char_x), static_cast<int16_t>(STAGE_Y + char_yoff))),
 			inter);
 
 		draw_panel(position + Point<int16_t>(LEFT_X, SELECTED_Y), LEFT_W, SELECTED_H, "SELECTED");
-		draw_panel(position + Point<int16_t>(LEFT_X, INVENTORY_Y), LEFT_W, INVENTORY_H, "MY CASH ITEMS");
+		draw_panel(position + Point<int16_t>(LEFT_X, INVENTORY_Y), LEFT_W, INVENTORY_H, "INFORMATION");
 
 		if (selected_item >= 0 && selected_item < static_cast<int16_t>(items.size()))
 		{
@@ -476,36 +478,55 @@ namespace ms
 			break;
 		}
 
-		// The locker, in the MY CASH ITEMS panel.
+		// THE INFORMATION PANEL.
 		//
-		// This used to show the character's own CASH inventory tab, which is
-		// not where a purchase lands and so was always empty however much
-		// was bought. Bought items sit in the shop's per-account locker
-		// until they are taken out; that is what is drawn here, and tapping
-		// one takes it out.
-		const std::vector<CashLockerItem>& locker = get_cash_locker();
-		int16_t shown = 0;
-
-		for (const CashLockerItem& owned : locker)
+		// This was MY CASH ITEMS - a grid of what sat in the account locker.
+		// It is gone for two reasons: a purchase now goes straight to the
+		// character's inventory rather than resting in a locker, so the grid
+		// had nothing to show; and the thing actually wanted while shopping is
+		// what an item IS, which was nowhere on the screen.
+		//
+		// Same detail the inventory shows on hover - icon, category and the
+		// item's own description text - drawn in the column rather than in a
+		// floating tooltip, because on a handheld there is no hover to keep a
+		// tooltip alive.
+		if (selected_item >= 0 && selected_item < static_cast<int16_t>(items.size()))
 		{
-			if (shown >= SLOT_COLS * SLOT_ROWS)
-				break;
+			const Item& sel = items[selected_item];
+			const ItemData& data = ItemData::get(sel.get_itemid());
 
-			Point<int16_t> slot_pos = position + locker_slot(shown);
+			Point<int16_t> at = position + Point<int16_t>(LEFT_X + 12, INVENTORY_Y + 30);
 
-			GraphicsGL::get().drawrectangle(
-				slot_pos.x(), slot_pos.y(), 32, 32, 1.0f, 1.0f, 1.0f, 0.08f);
+			if (data.is_valid())
+			{
+				// v83 item icons carry a (0, 32) origin, so drawing at the top
+				// edge would put the picture above the panel.
+				data.get_icon(false).draw(DrawArgument(at + Point<int16_t>(0, 32)));
 
-			// v83 item icons carry a (0, 32) origin, so draw at the
-			// slot's bottom edge to land the 32x32 icon inside it.
-			ItemData::get(owned.itemid).get_icon(false).draw(DrawArgument(slot_pos + Point<int16_t>(0, 32)));
+				panel_title.change_text(data.get_category());
+				panel_title.draw(at + Point<int16_t>(42, 0));
 
-			shown++;
+				// Re-wrapped only when the selection changes - laying out a
+				// paragraph every frame is most of the cost of this panel.
+				if (info_desc_for != sel.get_itemid())
+				{
+					info_desc_for = sel.get_itemid();
+
+					std::string body = data.get_desc();
+
+					if (body.empty())
+						body = "No description.";
+
+					info_desc = Text(Text::Font::A11M, Text::Alignment::LEFT,
+						Color::Name::WHITE, body, LEFT_W - 24);
+				}
+
+				info_desc.draw(at + Point<int16_t>(0, 40));
+			}
 		}
-
-		if (locker.empty())
+		else
 		{
-			panel_title.change_text("Nothing bought yet.");
+			panel_title.change_text("Select an item to see what it does.");
 			panel_title.draw(position + Point<int16_t>(LEFT_X + 12, INVENTORY_Y + 30));
 		}
 	}
@@ -561,7 +582,20 @@ namespace ms
 		if (dx != 0.0f)
 		{
 			char_x += dx;
-			facing_right = dx > 0.0f;
+			// WHICH WAY HE FACES, set on the look rather than at the draw.
+			//
+			// CharLook keeps its own `flip` and folds it into every part it
+			// draws; passing another flip in the DrawArgument fought with it,
+			// which is why he walked backwards. The world does it this way -
+			// Char::set_direction - and this now matches.
+			//
+			// Only when actually moving: `dx > 0` was also asked while standing
+			// still, so stopping turned him to face left every time.
+			if (dx != 0.0f)
+			{
+				facing_right = dx > 0.0f;
+				preview_look.set_direction(facing_right);
+			}
 
 			// The stage is the preview panel now, not the right-hand third
 			// of the window the old picture gave it.
@@ -596,6 +630,15 @@ namespace ms
 			cur_stance = want;
 			preview_look.set_stance(static_cast<Stance::Id>(cur_stance));
 		}
+	}
+
+	void UICashShop::send_scroll(double yoffset)
+	{
+		// UIStateCashShop has always forwarded the wheel to whatever is in
+		// front; this window simply had nothing to receive it, so the item
+		// grid could only be dragged by its bar.
+		if (list_slider.isenabled())
+			list_slider.send_scroll(yoffset);
 	}
 
 	Button::State UICashShop::button_pressed(uint16_t buttonid)
@@ -674,9 +717,31 @@ namespace ms
 					return Button::State::NORMAL;
 				}
 
-				// Currency type 1 = NX Credit (standard purchase)
-				int8_t currency = 1;
-				BuyCashItemPacket(currency, item.sn).dispatch();
+				// ASK FIRST.
+				//
+				// A tap on a handheld is easy to make by accident, the BUY
+				// buttons sit under your thumb while scrolling, and there is no
+				// refund - so the one irreversible thing on this screen was the
+				// easiest to do without meaning to.
+				//
+				// The name and the price are both in the question, because
+				// "Buy this?" is not enough to catch the case that matters:
+				// having selected one item and pressed BUY under another.
+				int32_t sn = item.sn;
+
+				std::string asking = "Buy " + item.get_name() + " for "
+					+ std::to_string(item.get_price()) + " NX?";
+
+				UI::get().emplace<UIYesNo>(asking,
+					[sn](bool yes)
+					{
+						if (!yes)
+							return;
+
+						// Currency type 1 = NX Credit (standard purchase)
+						int8_t currency = 1;
+						BuyCashItemPacket(currency, sn).dispatch();
+					});
 			}
 
 			return Button::State::NORMAL;

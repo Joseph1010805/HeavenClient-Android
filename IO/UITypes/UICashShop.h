@@ -41,6 +41,7 @@ namespace ms
 			void draw(float inter) const;
 		void update() override;
 		void send_key(int32_t keycode, bool pressed, bool escape) override;
+		void send_scroll(double yoffset) override;
 
 		Button::State button_pressed(uint16_t buttonid);
 
@@ -121,7 +122,10 @@ namespace ms
 		// Where the character stands inside the preview panel, and how far
 		// left and right the arrow keys may walk them without leaving it.
 		static constexpr int16_t STAGE_X = LEFT_X + LEFT_W / 2;
-		static constexpr int16_t STAGE_Y = PREVIEW_Y + PREVIEW_H - 40;
+		// Where his FEET are. Measured off a screenshot rather than guessed:
+		// at -40 he stood shin-deep in the ground, because the floor in the
+		// backdrop art sits higher than the bottom of the panel.
+		static constexpr int16_t STAGE_Y = PREVIEW_Y + PREVIEW_H - 63;
 		static constexpr int16_t STAGE_MIN_X = LEFT_X + 40;
 		static constexpr int16_t STAGE_MAX_X = LEFT_X + LEFT_W - 40;
 
@@ -288,6 +292,12 @@ namespace ms
 		uint8_t cur_stance = 0;
 
 		Texture preview_scene[3];
+		// The INFORMATION panel's description, wrapped to the column. Held
+		// rather than rebuilt each frame because wrapping a paragraph is the
+		// expensive part and the selection rarely changes.
+		mutable Text info_desc;
+		mutable int32_t info_desc_for = 0;
+
 		mutable Text preview_name;
 		mutable Text preview_desc;
 		mutable Text preview_price;

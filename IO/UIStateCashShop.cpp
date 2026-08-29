@@ -87,11 +87,28 @@ namespace ms
 
 	void UIStateCashShop::send_key(KeyType::Id type, int32_t action, bool pressed, bool escape)
 	{
+		auto cashshop = dynamic_cast<UICashShop*>(get(UIElement::Type::CASHSHOP));
+
 		if (pressed && escape)
 		{
-			if (auto cashshop = dynamic_cast<UICashShop*>(get(UIElement::Type::CASHSHOP)))
+			if (cashshop)
 				cashshop->exit_cashshop();
+
+			return;
 		}
+
+		// EVERYTHING ELSE WAS BEING DROPPED ON THE FLOOR.
+		//
+		// UICashShop has walking, jumping and the stances to match - key_left,
+		// key_right, char_jumping, the lot - and it had never once been handed
+		// a key, because this only ever looked for escape. The feature was
+		// written, compiled and shipped, and could not be reached.
+		//
+		// Passed on as ACTIONS rather than raw keys, so the character walks on
+		// whatever the player has bound left, right and jump to, exactly as it
+		// does in the world.
+		if (cashshop && type == KeyType::Id::ACTION)
+			cashshop->send_key(action, pressed, escape);
 	}
 
 	void UIStateCashShop::send_scroll(double yoffset)
