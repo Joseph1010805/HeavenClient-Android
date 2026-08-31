@@ -104,6 +104,22 @@ namespace ms
 		camera.set_view(mapinfo.get_walls(), mapinfo.get_borders());
 	}
 
+	void Stage::draw_backdrop(double viewx, double viewy, float alpha) const
+	{
+		if (state != State::ACTIVE)
+			return;
+
+		// Only the BACKGROUND layers - no tiles, no objects, no mobs. The
+		// panel wants the sky and the far scenery of wherever the party is
+		// standing, not a second copy of the fight.
+		backgrounds.drawbackgrounds(viewx, viewy, alpha);
+	}
+
+	Point<double> Stage::view_position(float alpha) const
+	{
+		return camera.realposition(alpha);
+	}
+
 	void Stage::draw(float alpha) const
 	{
 		if (state != State::ACTIVE)
@@ -151,6 +167,9 @@ namespace ms
 		mists.update(physics);
 		summons.update(physics);
 		npcs.update(physics);
+		// Before the mobs move, not after - a mob deciding where to walk this
+		// tick should be chasing where the player is now, not last tick.
+		mobs.set_target(player.get_position());
 		mobs.update(physics);
 		chars.update(physics);
 		drops.update(physics);
@@ -182,6 +201,17 @@ namespace ms
 				MobAttackResult result = player.damage(attack);
 				TakeDamagePacket(result, TakeDamagePacket::From::TOUCH).dispatch();
 			}
+		}
+
+		// Swings that connected. `from` is the mob's attack index rather than
+		// TOUCH(-1), which is how the server finds the same attack in its own
+		// MobAttackInfo table - see TakeDamageHandler.
+		for (auto& hit : mobs.take_landed_attacks(player.get_position()))
+		{
+			MobAttackResult result = player.damage(hit.second);
+
+			TakeDamagePacket(hit.first, 0, result.damage,
+				result.mobid, result.oid, result.direction).dispatch();
 		}
 	}
 

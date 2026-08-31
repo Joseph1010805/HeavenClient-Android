@@ -46,6 +46,14 @@ namespace ms
 	class Stage : public Singleton<Stage>
 	{
 	public:
+		// THE MAP'S OWN BACKGROUND, for the lower panel to draw on.
+		//
+		// The panel used a fixed wooden frame; this lets it wear whatever
+		// scenery the party is standing in, which changes as they walk. Const
+		// and by reference - the panel draws it, it never owns or moves it.
+		void draw_backdrop(double viewx, double viewy, float alpha) const;
+
+		Point<double> view_position(float alpha) const;
 		Stage();
 
 		void init();

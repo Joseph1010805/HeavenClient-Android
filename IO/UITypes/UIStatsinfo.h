@@ -38,6 +38,10 @@ namespace ms
 		// close box and drag bar taken away.
 		void set_panel(Point<int16_t> screen);
 
+		// Needed only so the panel's own chips get the press before the
+		// window's drag handling does anything with it.
+		Cursor::State send_cursor(bool clicked, Point<int16_t> cursorpos) override;
+
 		void draw(float alpha) const override;
 		void update() override;
 
@@ -84,13 +88,41 @@ namespace ms
 		static constexpr int16_t PANEL_ROW_H = 15;
 		static constexpr int16_t PANEL_TOP = 26;
 		static constexpr int16_t PANEL_COL_W = 166;
-		static constexpr int16_t PANEL_LEFT_X = 6;
+		// Clear of the HP gauge down the left edge, which is drawn after the
+		// page and was eating the first letter of every row.
+		static constexpr int16_t PANEL_LEFT_X = 16;
 		static constexpr int16_t PANEL_RIGHT_X = 176;
 
 		// Where a value sits within its column, and where the spend arrow
 		// after it goes.
 		static constexpr int16_t PANEL_VALUE_X = 54;
 		static constexpr int16_t PANEL_ARROW_X = 148;
+
+		// THE PANEL'S OWN SPEND CONTROLS.
+		//
+		// The window's real buttons are MapleButtons placed against artwork
+		// that the panel does not draw. They were still active and still
+		// taking touches from wherever their sprites happened to land, which
+		// is why AUTO did nothing - the press was landing on a picture that
+		// was not there. The panel draws chips instead and hit-tests them
+		// itself, then calls the SAME button_pressed handlers, so none of the
+		// spend logic is duplicated or reimplemented.
+		static constexpr int16_t PANEL_CHIP_W = 26;
+		static constexpr int16_t PANEL_CHIP_H = 15;
+		static constexpr int16_t PANEL_AUTO_W = 74;
+
+		// Right after the VALUE, not out at PANEL_ARROW_X - that is 148, and
+		// the right-hand column starts at 176, so a 26-wide chip there ran
+		// into "CRIT RATE".
+		static constexpr int16_t PANEL_CHIP_X = 104;
+
+		Rectangle<int16_t> panel_chip_box(size_t row) const;
+		Rectangle<int16_t> panel_auto_box() const;
+
+		// True when the press was ours.
+		bool panel_pressed(Point<int16_t> at);
+
+		mutable Text panel_chip_text;
 
 		// Which rows appear in which column, in order.
 		static const StatLabel PANEL_LEFT[];

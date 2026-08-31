@@ -56,6 +56,11 @@ namespace ms
 		Cursor::State check_dragtop(bool clicking, Point<int16_t> cursorpos);
 
 		void send_chatline(const std::string& line, LineType type);
+
+		// Who last whispered us, so /r can answer without retyping a name.
+		// Typing an exact character name on a handheld is the whole reason
+		// whisper would otherwise go unused.
+		void set_last_whisperer(const std::string& name);
 		// Acts on a typed party command. False means it was ordinary chat.
 		bool handle_command(const std::string& line);
 		void display_message(Messages::Type line, UIChatbar::LineType type);
@@ -151,6 +156,7 @@ namespace ms
 		// The spoken sentence as it currently stands, and how long it has gone
 		// WITHOUT CHANGING. A pause is what ends a spoken line - see update().
 		std::string dictated;
+		std::string last_whisperer;
 		int32_t dictation_quiet;
 
 		// How long a silence means "finished". Long enough to think in the

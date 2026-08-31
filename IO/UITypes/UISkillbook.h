@@ -68,6 +68,69 @@ namespace ms
 		bool panel = false;
 		static constexpr float PANEL_FADE = 0.6f;
 
+		// THE PANEL PAGE, BUILT LIKE THE EQUIPMENT PAGE.
+		//
+		// Same numbers as UIEquipInventory deliberately - a 32x32 box on a
+		// 52x50 pitch, a grid starting at 46, a tab row above it and one wide
+		// action bar along the bottom. Copied rather than derived so the two
+		// pages can be compared by reading them side by side.
+		static constexpr int16_t P_COLS = 6;
+		static constexpr int16_t P_CELL_W = 52;
+		static constexpr int16_t P_CELL_H = 50;
+		static constexpr int16_t P_GRID_TOP = 46;
+		static constexpr int16_t P_TAB_TOP = 3;
+		static constexpr int16_t P_TAB_H = 22;
+		static constexpr int16_t P_ACTION_H = 28;
+
+		// How far in from either edge anything on this page starts.
+		//
+		// The HP and MP gauges run the FULL HEIGHT of both edges of the panel
+		// and are drawn after the page, so anything within 12 pixels of a side
+		// is painted over. The stat sheet above lost the first letter of every
+		// row this way - "STR" read as "TR".
+		static constexpr int16_t P_EDGE = 16;
+
+		Point<int16_t> panel_screen = Point<int16_t>(344, 300);
+
+		// How tall this page is with the skills it is currently showing.
+		//
+		// THE PAGE DOES NOT OWN THE PANEL. It is the lower half of the
+		// character column, under the stat sheet, and that column scrolls -
+		// so everything is measured from this window's own top and its own
+		// height, never from the panel's. Laying the action bar out against
+		// the panel's 300 put it below the stat sheet's height as well, which
+		// is exactly how far off the bottom of the screen SPEND ended up.
+		int16_t panel_height() const;
+		void relayout_panel();
+
+		void draw_panel(float alpha) const;
+
+		// Hit tests, in panel coordinates. -1 for nothing.
+		int16_t panel_tab_at(Point<int16_t> at) const;
+		int16_t panel_cell_at(Point<int16_t> at) const;
+
+		Rectangle<int16_t> panel_tab_box(uint16_t tabid) const;
+		Rectangle<int16_t> panel_cell_box(size_t index) const;
+		Rectangle<int16_t> panel_action_box() const;
+		Rectangle<int16_t> panel_minus_box() const;
+		Rectangle<int16_t> panel_plus_box() const;
+
+		// Handles a press on the panel. True when it was ours, so the book's
+		// own borrowed buttons never see it.
+		bool panel_pressed(Point<int16_t> at);
+
+		// How many points the SPEND button will send. The old window asked
+		// this with 200 pixels of borrowed artwork that does not fit here.
+		int16_t panel_spend = 1;
+
+		// Which skill is picked out, as an index into `skills`. -1 for none.
+		int16_t panel_selected = -1;
+
+		mutable Text panel_tab_text;
+		mutable Text panel_level_text;
+		mutable Text panel_name_text;
+		mutable Text panel_action_text;
+
 
 		Button::State button_pressed(uint16_t id) override;
 

@@ -19,6 +19,9 @@
 
 #include "UIMegaphone.h"
 #include "UIChatbar.h"
+#include "UIPartyHUD.h"
+
+#include "../../Net/Packets/GameplayPackets.h"
 
 #include "../Components/AreaButton.h"
 #include "../../Speech.h"
@@ -292,6 +295,11 @@ namespace ms
 		shout_icon = nl::nx::item["Cash"]["0507.img"]["05071000"]["info"]["icon"];
 		speak_icon = nl::nx::ui["StatusBar3.img"]["chat"]["common"]["BtChat"]["normal"]["0"];
 
+		// PARTY borrows the retired Community button's artwork, which is a
+		// group of people - exactly the right picture, and free now that the
+		// button itself is gone.
+		party_icon = menu["button:Community"]["normal"]["0"];
+
 		// Invisible hit areas over hand-drawn icons. MapleButton wants a node with
 		// normal/pressed/mouseOver/disabled under it, and an item icon is a single
 		// bitmap - so the button is the box and the picture is drawn separately.
@@ -301,11 +309,14 @@ namespace ms
 		// rather than by MapleButton, so there is no origin to cancel.
 		shout_pos = Point<int16_t>(MENU_RIGHT - MENU_PITCH * 6, buttonPos.y());
 		speak_pos = Point<int16_t>(MENU_RIGHT - MENU_PITCH * 5, buttonPos.y());
+		party_pos = Point<int16_t>(MENU_RIGHT - MENU_PITCH * 7, buttonPos.y());
 
 		buttons[Buttons::BT_SHOUT] = std::make_unique<AreaButton>(
 			shout_pos, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE));
 		buttons[Buttons::BT_SPEAK] = std::make_unique<AreaButton>(
 			speak_pos, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE));
+		buttons[Buttons::BT_PARTY] = std::make_unique<AreaButton>(
+			party_pos, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE));
 
 		// Nothing to hear with, nothing to press. Asked of the recogniser rather
 		// than assumed, so a device with no model deployed simply does not show
@@ -328,6 +339,7 @@ namespace ms
 
 			buttons[Buttons::BT_SHOUT]->set_active(false);
 			buttons[Buttons::BT_SPEAK]->set_active(false);
+			buttons[Buttons::BT_PARTY]->set_active(false);
 		}
 
 		std::string fold = "button:Fold";
@@ -517,6 +529,19 @@ namespace ms
 
 	void UIStatusbar::draw(float alpha) const
 	{
+		// Across the TOP of the screen, not the bottom - the phone mount
+		// clamps the lower edge, and a boss bar is read constantly during a
+		// fight. Drawn in screen space rather than relative to the bar, since
+		// it does not belong to the bar's artwork.
+		if (boss_hp_ticks > 0 && boss_gage.is_active())
+		{
+			int16_t vwidth = Constants::Constants::get().get_viewwidth();
+
+			boss_gage.draw(
+				Point<int16_t>(static_cast<int16_t>((vwidth - boss_gage.width()) / 2), 30),
+				boss_hp_percent);
+		}
+
 		UIElement::draw_sprites(alpha);
 
 		for (size_t i = 0; i <= Buttons::BT_EVENT; i++)
@@ -566,6 +591,7 @@ namespace ms
 		// cover them - which is exactly what the HP/MP frame was doing.
 		buttons.at(Buttons::BT_SHOUT)->draw(position);
 		buttons.at(Buttons::BT_SPEAK)->draw(position);
+		buttons.at(Buttons::BT_PARTY)->draw(position);
 
 		// PLUS THE ORIGIN, or the picture and its hit box are in different
 		// places.
@@ -598,6 +624,14 @@ namespace ms
 
 			speak_icon.draw(DrawArgument(
 				speak_at, speak_at, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE), 1.0f, 1.0f, 1.0f, 0.0f));
+		}
+
+		if (buttons.at(Buttons::BT_PARTY)->is_active())
+		{
+			Point<int16_t> party_at = position + party_pos + party_icon.get_origin();
+
+			party_icon.draw(DrawArgument(
+				party_at, party_at, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE), 1.0f, 1.0f, 1.0f, 0.0f));
 		}
 
 
@@ -686,6 +720,11 @@ namespace ms
 	{
 		UIElement::update();
 
+		// Age the boss bar out. Nothing announces the end of a boss fight, so
+		// this is the only thing that ever hides it.
+		if (boss_hp_ticks > 0 && --boss_hp_ticks <= 0)
+			boss_gage.clear();
+
 		for (auto sprite : hpmp_sprites)
 			sprite.update();
 
@@ -749,6 +788,22 @@ namespace ms
 			buttons[i]->set_position(event_pos + pos_adj);
 	}
 
+	void UIStatusbar::update_boss_hp(const std::string& name, int8_t percent,
+		int8_t color, int8_t bgcolor)
+	{
+		if (percent <= 0)
+		{
+			boss_hp_ticks = 0;
+			boss_gage.clear();
+
+			return;
+		}
+
+		boss_gage.set_mob(name, color, bgcolor);
+		boss_hp_percent = static_cast<float>(percent) / 100.0f;
+		boss_hp_ticks = BOSS_HP_LINGER;
+	}
+
 	Button::State UIStatusbar::button_pressed(uint16_t id)
 	{
 		switch (id)
@@ -762,6 +817,20 @@ namespace ms
 			// the finished sentence itself - see its update().
 			if (auto chatbar = UI::get().get_element<UIChatbar>())
 				chatbar->start_dictation();
+			return Button::State::NORMAL;
+		case Buttons::BT_PARTY:
+			// One button, two jobs, because they are never both available:
+			// with no party the only useful action is to start one, and with a
+			// party the only useful action is to fill or leave it.
+			if (!Stage::get().get_player().get_party().is_in_party())
+			{
+				CreatePartyPacket().dispatch();
+			}
+			else if (auto hud = UI::get().get_element<UIPartyHUD>())
+			{
+				hud->toggle_invites();
+			}
+
 			return Button::State::NORMAL;
 		case Buttons::BT_CASHSHOP:
 			// DISABLED until SET_CASH_SHOP parses cleanly.
@@ -1134,6 +1203,7 @@ namespace ms
 			buttons[Buttons::BT_SHOUT]->set_active(!quickslot_active);
 			buttons[Buttons::BT_SPEAK]->set_active(
 				!quickslot_active && Speech::get().available());
+			buttons[Buttons::BT_PARTY]->set_active(!quickslot_active);
 		}
 	}
 
@@ -1282,6 +1352,24 @@ namespace ms
 		}
 
 		return Point<int16_t>(0, 0);
+	}
+
+	int16_t UIStatusbar::padslot_keycode(size_t slot) const
+	{
+		return slot < QUICKSLOT_COUNT ? padslots[slot].keycode : -1;
+	}
+
+	std::string UIStatusbar::padslot_name(size_t slot) const
+	{
+		// OutlinedText is five Texts stacked; the middle one carries the word.
+		return slot < QUICKSLOT_COUNT
+			? padslots[slot].label.inner.get_text() : std::string();
+	}
+
+	bool UIStatusbar::bind_padslot_public(size_t slot, Keyboard::Mapping mapping)
+	{
+		return slot < QUICKSLOT_COUNT
+			&& bind_padslot(static_cast<int16_t>(slot), mapping);
 	}
 
 	void UIStatusbar::load_padslots()
@@ -1450,7 +1538,7 @@ namespace ms
 				shout.contains(cursorpos) ? "HIT" : "miss");
 		}
 
-		for (uint16_t id : { Buttons::BT_SHOUT, Buttons::BT_SPEAK })
+		for (uint16_t id : { Buttons::BT_SHOUT, Buttons::BT_SPEAK, Buttons::BT_PARTY })
 		{
 			auto& button = buttons[id];
 

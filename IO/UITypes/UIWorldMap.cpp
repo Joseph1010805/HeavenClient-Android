@@ -105,6 +105,17 @@ namespace ms
 		dragarea = Point<int16_t>(bg_dimension_x, 20);
 	}
 
+	bool UIWorldMap::step_out()
+	{
+		if (parent_map.empty())
+			return false;
+
+		Sound(Sound::Name::SELECTMAP).play();
+		update_world(parent_map);
+
+		return true;
+	}
+
 	void UIWorldMap::set_panel(Point<int16_t> screen)
 	{
 		panel = true;

@@ -93,6 +93,46 @@ namespace ms
 		std::getline(stream, rest);
 		rest = trim(rest);
 
+		// /w <name> <message>, and /r to answer whoever spoke last.
+		if (command == "/w" || command == "/whisper")
+		{
+			std::istringstream who(rest);
+			std::string target;
+			who >> target;
+
+			std::string body;
+			std::getline(who, body);
+			body = trim(body);
+
+			if (target.empty() || body.empty())
+			{
+				send_chatline("[Whisper] Usage: /w <name> <message>", LineType::YELLOW);
+			}
+			else
+			{
+				WhisperPacket(target, body).dispatch();
+				send_chatline("[to " + target + "] " + body, LineType::YELLOW);
+				last_whisperer = target;
+			}
+
+			return true;
+		}
+
+		if (command == "/r" || command == "/reply")
+		{
+			if (last_whisperer.empty())
+				send_chatline("[Whisper] Nobody has whispered you yet.", LineType::YELLOW);
+			else if (rest.empty())
+				send_chatline("[Whisper] Usage: /r <message>", LineType::YELLOW);
+			else
+			{
+				WhisperPacket(last_whisperer, rest).dispatch();
+				send_chatline("[to " + last_whisperer + "] " + rest, LineType::YELLOW);
+			}
+
+			return true;
+		}
+
 		// /invite <name> is what the original client accepted, so keep it.
 		if (command == "/invite")
 		{
@@ -658,6 +698,11 @@ namespace ms
 		auto bounds = getbounds(dragarea);
 
 		return bounds.contains(cursorpos);
+	}
+
+	void UIChatbar::set_last_whisperer(const std::string& name)
+	{
+		last_whisperer = name;
 	}
 
 	void UIChatbar::send_chatline(const std::string& line, LineType type)

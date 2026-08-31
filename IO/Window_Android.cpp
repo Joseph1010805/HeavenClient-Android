@@ -564,7 +564,15 @@ namespace ms
 		//
 		//   0 = left stick  -> top screen
 		//   1 = right stick -> main screen
-		Sint16 stick_scroll[1] = { 0 };
+		// [0] LEFT stick -> the TOP screen's windows.
+		// [1] RIGHT stick -> the BOTTOM panel's pages.
+		//
+		// Split deliberately, and each stick drives ONE screen only. An
+		// earlier attempt had one stick move both, because a split was tried
+		// and appeared not to work - but with both screens listening to one
+		// stick there is no way to scroll one without the other, which is the
+		// thing two screens need.
+		Sint16 stick_scroll[2] = { 0, 0 };
 
 		// A held stick has to keep scrolling, and a scroll is a discrete notch
 		// rather than a distance - so it is repeated on a timer here rather
@@ -580,11 +588,11 @@ namespace ms
 			constexpr int64_t FAST_MS = 40;
 			constexpr int64_t SLOW_MS = 220;
 
-			static int64_t due[1] = { 0 };
+			static int64_t due[2] = { 0, 0 };
 
 			int64_t now = static_cast<int64_t>(SDL_GetTicks());
 
-			for (int i = 0; i < 1; i++)
+			for (int i = 0; i < 2; i++)
 			{
 				Sint16 value = stick_scroll[i];
 				Sint16 magnitude = static_cast<Sint16>(value < 0 ? -value : value);
@@ -614,19 +622,12 @@ namespace ms
 				// behaves and the opposite of the axis sign.
 				double notch = (value < 0) ? 1.0 : -1.0;
 
-				// ONE STICK SCROLLS BOTH SCREENS.
-				//
-				// This was split - left for the top screen, right for the main
-				// one - and at the table the right stick moved both, which is
-				// not what the code says and is what actually happens. Rather
-				// than keep chasing a split nobody needs, the right stick is
-				// simply given everything: it is the one your thumb is already
-				// on, and there is never more than one scrollable thing in
-				// front of you.
-				//
-				// The left stick is left free. Walking is on the d-pad.
-				SecondScreen::scroll(notch);
-				UI::get().send_scroll(notch);
+				// Each stick owns one screen, always - not by focus. Which
+				// hand reaches which screen is the point of having two.
+				if (i == 0)
+					UI::get().send_scroll(notch);     // left  -> top
+				else
+					SecondScreen::scroll(notch);      // right -> bottom
 			}
 		}
 
@@ -1103,6 +1104,8 @@ namespace ms
 				// split, so it is worth keeping that way round.
 				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY)
 					stick_scroll[0] = ev.caxis.value;
+				else if (ev.caxis.axis == SDL_CONTROLLER_AXIS_RIGHTY)
+					stick_scroll[1] = ev.caxis.value;
 
 				break;
 			}

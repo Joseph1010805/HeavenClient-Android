@@ -21,6 +21,7 @@
 
 #include "../Components/Charset.h"
 #include "../Components/Gauge.h"
+#include "../Components/MobGage.h"
 #include "../Character/CharStats.h"
 #include "../Graphics/SpecialText.h"
 
@@ -44,8 +45,27 @@ namespace ms
 
 		UIStatusbar(const CharStats& stats);
 
+		// THE PAD SLOTS, for the panel's hotkey page.
+		//
+		// They live here because they belong to the quickslot bar, but the
+		// lower panel binds to them too - so the page needs to read what is in
+		// them and write to them, without owning them.
+		static constexpr size_t PAD_COLS = 6;
+		static constexpr size_t PAD_COUNT = 12;
+
+		// The key on a given pad button, or <= 0 where nothing can be bound.
+		int16_t padslot_keycode(size_t slot) const;
+		// The letter printed on it - Y, X, L2 and so on.
+		std::string padslot_name(size_t slot) const;
+		// Bind something to one. False when the slot cannot take it.
+		bool bind_padslot_public(size_t slot, Keyboard::Mapping mapping);
+
 		void draw(float alpha) const override;
 		void update() override;
+
+		// Called whenever a boss reports its HP. Percent <= 0 clears the bar.
+		void update_boss_hp(const std::string& name, int8_t percent,
+			int8_t color, int8_t bgcolor);
 
 		void send_key(int32_t keycode, bool pressed, bool escape) override;
 		bool is_in_range(Point<int16_t> cursorpos) const override;
@@ -177,11 +197,13 @@ namespace ms
 			// to BT_EVENT and the setting menu runs loops up to
 			// BT_SETTING_QUIT, and both would swallow anything inserted higher.
 			BT_SHOUT,
-			BT_SPEAK
+			BT_SPEAK,
+			BT_PARTY
 		};
 
 		// Where SHOUT and SPEAK sit, worked out from the menu row itself so
 		// they stay with it at every screen width.
+		Point<int16_t> party_pos;
 		Point<int16_t> shout_pos;
 		Point<int16_t> speak_pos;
 
@@ -233,6 +255,18 @@ namespace ms
 
 		Texture shout_icon;
 		Texture speak_icon;
+		Texture party_icon;
+
+		// THE BOSS GAUGE.
+		//
+		// Nothing tells the client a boss fight has ended, so the bar is kept
+		// alive by a countdown that every HP report refreshes. Stop hitting
+		// the boss - or kill it - and the bar ages out on its own.
+		MobGage boss_gage;
+		float boss_hp_percent = 0.0f;
+		int32_t boss_hp_ticks = 0;
+
+		static constexpr int32_t BOSS_HP_LINGER = 500;
 
 		const CharStats& stats;
 

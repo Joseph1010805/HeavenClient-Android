@@ -139,6 +139,31 @@ namespace ms
 		static constexpr int16_t PANEL_ACTION_H = 26;
 		static constexpr int16_t PANEL_ACTION_W = 96;
 
+		// HOW FAR APART THE SLOTS SIT ON THE PANEL.
+		//
+		// The icon artwork stays 36x35; this is the PITCH between cells. Edge
+		// to edge they read as one grey mass and a thumb cannot tell which one
+		// it is on - the equipment page breathes, and this makes the bag match.
+		//
+		// Used by the position, the hit test AND the grid origin. One number,
+		// so they cannot drift apart and leave taps landing a slot away.
+		// THE SAME NUMBERS THE EQUIPMENT PAGE USES.
+		//
+		// Copied deliberately rather than chosen to look similar: the two
+		// pages sit one swipe apart and a bag whose cells are a few pixels
+		// off the rack's reads as a different game. See UIEquipInventory's
+		// PANEL_COLS / PANEL_CELL_W / PANEL_CELL_H / PANEL_GRID_TOP.
+		//
+		// 6 x 52 = 312 of the panel's 344.
+		static constexpr int16_t PANEL_COLS = 6;
+		static constexpr int16_t PANEL_CELL_W = 52;
+		static constexpr int16_t PANEL_CELL_H = 50;
+
+		// The BOX drawn in a cell, which is the icon's size and not the
+		// cell's - equipment draws 32x32 boxes inside a 52x50 pitch, so the
+		// squares have air around them instead of tiling into a sheet.
+		static constexpr int16_t CELL_BOX = 32;
+
 		static constexpr uint16_t ICON_WIDTH = 36;
 		static constexpr uint16_t ICON_HEIGHT = 35;
 

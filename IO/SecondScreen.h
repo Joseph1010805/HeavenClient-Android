@@ -98,6 +98,21 @@ namespace ms
 		// down instead.
 		Keyboard::Mapping selected_mapping();
 
+		// The last thing picked out on ANY page, which survives a page turn.
+		// What the hotkey page binds.
+		Keyboard::Mapping carried_mapping();
+
+		// Turn the panel to the hotkey page. Does nothing without a panel.
+		void show_hotkeys();
+
+		// Put a shop on the panel instead of over the game.
+		//
+		// Does nothing where there is no second screen - available() is a
+		// CAPABILITY check, not a device one, so the RP5 and the Quest simply
+		// keep the shop on their only screen and no model names appear
+		// anywhere. Returns whether the panel took it.
+		bool show_shop(UIElement* shop, bool equipment);
+
 		// Whether the pointer is currently on the panel. A window opened while
 		// it is gets put somewhere the player is already looking.
 		bool has_cursor();

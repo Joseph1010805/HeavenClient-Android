@@ -216,11 +216,361 @@ namespace ms
 		dragarea = Point<int16_t>(dimension.x(), 20);
 	}
 
-	void UISkillbook::set_panel(Point<int16_t>)
+	int16_t UISkillbook::panel_height() const
+	{
+		size_t rows = (skills.size() + P_COLS - 1) / P_COLS;
+
+		if (rows < 1)
+			rows = 1;
+
+		return static_cast<int16_t>(
+			P_GRID_TOP + rows * P_CELL_H + P_ACTION_H + 20);
+	}
+
+	void UISkillbook::relayout_panel()
+	{
+		if (!panel)
+			return;
+
+		// The column above needs to know how tall this got, or the scroll
+		// stops short of the action bar.
+		dimension = Point<int16_t>(panel_screen.x(), panel_height());
+	}
+
+	Rectangle<int16_t> UISkillbook::panel_tab_box(uint16_t tabid) const
+	{
+		// Five tabs sharing the width, the way the quest log's three do.
+		// Inside the gauges. They run the full height of both edges, and a tab
+		// drawn under one is a tab you cannot press.
+		int16_t w = static_cast<int16_t>((panel_screen.x() - P_EDGE * 2) / 5);
+		int16_t x = static_cast<int16_t>(P_EDGE + tabid * w);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(x, P_TAB_TOP),
+			Point<int16_t>(static_cast<int16_t>(x + w - 2),
+				static_cast<int16_t>(P_TAB_TOP + P_TAB_H)));
+	}
+
+	Rectangle<int16_t> UISkillbook::panel_cell_box(size_t index) const
+	{
+		int16_t left = static_cast<int16_t>((panel_screen.x() - P_COLS * P_CELL_W) / 2);
+
+		int16_t col = static_cast<int16_t>(index % P_COLS);
+		int16_t row = static_cast<int16_t>(index / P_COLS);
+
+		int16_t x = static_cast<int16_t>(left + col * P_CELL_W + 10);
+		int16_t y = static_cast<int16_t>(P_GRID_TOP + row * P_CELL_H);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(x, y),
+			Point<int16_t>(static_cast<int16_t>(x + 32),
+				static_cast<int16_t>(y + 32)));
+	}
+
+	// THE ACTION ROW RUNS FROM THE LEFT, and stops well short of the right.
+	//
+	// It used to be measured back from the right edge, which put SPEND at
+	// x226-326 - exactly where the panel pins its own "TO HOTKEYS" button.
+	// SPEND was drawn, underneath it. Two things that belong to different
+	// layers must not be laid out from the same edge.
+	Rectangle<int16_t> UISkillbook::panel_action_box() const
+	{
+		int16_t top = static_cast<int16_t>(panel_height() - P_ACTION_H - 8);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(P_EDGE, top),
+			Point<int16_t>(static_cast<int16_t>(P_EDGE + 88),
+				static_cast<int16_t>(top + P_ACTION_H)));
+	}
+
+	Rectangle<int16_t> UISkillbook::panel_minus_box() const
+	{
+		int16_t top = static_cast<int16_t>(panel_height() - P_ACTION_H - 8);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(static_cast<int16_t>(P_EDGE + 100), top),
+			Point<int16_t>(static_cast<int16_t>(P_EDGE + 128),
+				static_cast<int16_t>(top + P_ACTION_H)));
+	}
+
+	Rectangle<int16_t> UISkillbook::panel_plus_box() const
+	{
+		int16_t top = static_cast<int16_t>(panel_height() - P_ACTION_H - 8);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(static_cast<int16_t>(P_EDGE + 156), top),
+			Point<int16_t>(static_cast<int16_t>(P_EDGE + 184),
+				static_cast<int16_t>(top + P_ACTION_H)));
+	}
+
+	int16_t UISkillbook::panel_tab_at(Point<int16_t> at) const
+	{
+		for (uint16_t t = 0; t < 5; t++)
+			if (panel_tab_box(t).contains(at))
+				return static_cast<int16_t>(t);
+
+		return -1;
+	}
+
+	int16_t UISkillbook::panel_cell_at(Point<int16_t> at) const
+	{
+		for (size_t i = 0; i < skills.size(); i++)
+		{
+			// A finger, not a mouse: the whole cell counts, not just the
+			// 32 pixels the icon occupies.
+			Rectangle<int16_t> box = panel_cell_box(i);
+			Rectangle<int16_t> reach(
+				Point<int16_t>(box.left() - 8, box.top() - 4),
+				Point<int16_t>(box.right() + 8, box.bottom() + 12));
+
+			if (reach.contains(at))
+				return static_cast<int16_t>(i);
+		}
+
+		return -1;
+	}
+
+	void UISkillbook::draw_panel(float alpha) const
+	{
+		if (panel_tab_text.get_text().empty())
+		{
+			panel_tab_text = Text(Text::Font::A11M, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+			panel_level_text = Text(Text::Font::A11M, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+			panel_name_text = Text(Text::Font::A12M, Text::Alignment::LEFT,
+				Color::Name::WHITE);
+			panel_action_text = Text(Text::Font::A11B, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+		}
+
+		// THE TABS, NAMED.
+		//
+		// "Beginner", "Warrior", "Fighter" - the real job names, out of
+		// JobData, not "Tab 1". Same shape as the quest log's tab row so the
+		// two read as the same control.
+		for (uint16_t t = 0; t < 5; t++)
+		{
+			Rectangle<int16_t> box = panel_tab_box(t);
+			bool here = (t == tab);
+
+			GraphicsGL::get().drawrectangle(
+				position.x() + box.left(), position.y() + box.top(),
+				box.width(), box.height(),
+				here ? 0.86f : 1.0f, here ? 0.74f : 1.0f, here ? 0.36f : 1.0f,
+				here ? 0.55f : 0.14f);
+
+			// ROMAN NUMERALS.
+			//
+			// The job names were tried and were wrong twice over: on a
+			// character who has not advanced, get_subjob returns the SAME job
+			// for every tab, so all five read "Beginner" - and the real names
+			// are long enough to run into each other in a fifth of 344 pixels
+			// anyway. I/II/III/IV/V fit, never collide, and cannot be wrong.
+			static const char* NUMERAL[] = { "I", "II", "III", "IV", "V" };
+
+			panel_tab_text.change_text(NUMERAL[t]);
+			panel_tab_text.draw(position + Point<int16_t>(
+				static_cast<int16_t>(box.left() + box.width() / 2),
+				static_cast<int16_t>(box.top() + 2)));
+		}
+
+		// THE GRID. The same faint box the equipment rack and the bag draw,
+		// with the icon in it and the level under it.
+		for (size_t i = 0; i < skills.size(); i++)
+		{
+			Rectangle<int16_t> box = panel_cell_box(i);
+
+			Point<int16_t> at = position + Point<int16_t>(box.left(), box.top());
+
+			GraphicsGL::get().drawrectangle(
+				at.x(), at.y(), 32, 32, 1.0f, 1.0f, 1.0f, 0.14f);
+
+			if (static_cast<int16_t>(i) == panel_selected)
+				GraphicsGL::get().drawrectangle(
+					at.x() + 1, at.y() + 1, 32, 32, 1.0f, 0.92f, 0.45f, 0.85f);
+
+			if (!check_required(skills[i].get_id()))
+				skills[i].get_icon()->set_state(StatefulIcon::State::DISABLED);
+
+			// THE ICON ONLY.
+			//
+			// SkillDisplayMeta::draw paints the icon AND the skill's name and
+			// level 38 pixels to its right - which is correct for the book's
+			// list, where a row is 140 wide and has nothing beside it, and
+			// wrong here, where the next icon is 52 pixels away. Every name
+			// was being written across its neighbour. That is the bunching.
+			skills[i].get_icon()->draw(at);
+
+			// The level under the box, where equipment puts the slot's name.
+			panel_level_text.change_text(
+				std::to_string(skills[i].get_level()) + "/"
+				+ std::to_string(SkillData::get(skills[i].get_id()).get_masterlevel()));
+
+			panel_level_text.draw(at + Point<int16_t>(16, 32));
+		}
+
+		// THE ACTION BAR: what is picked, how many points, and SPEND.
+		//
+		// This IS the "how many points" dialog, rebuilt at the panel's size.
+		// The original is 200 pixels of artwork that opens to the RIGHT of a
+		// 174-wide book - 374 across, on a screen 344 wide - which is why it
+		// never appeared here however often the arrow was pressed.
+		int16_t sp = spare_sp();
+		bool ready = panel_selected >= 0
+			&& panel_selected < static_cast<int16_t>(skills.size())
+			&& sp >= panel_spend;
+
+		if (panel_selected >= 0 && panel_selected < static_cast<int16_t>(skills.size()))
+		{
+			const SkillData& data = SkillData::get(skills[panel_selected].get_id());
+
+			panel_name_text.change_text(data.get_name());
+		}
+		else
+		{
+			panel_name_text.change_text("Pick a skill");
+		}
+
+		int16_t bar_y = static_cast<int16_t>(panel_screen.y() - P_ACTION_H - 16);
+
+		// The name and the SP go on their OWN line, above the controls - the
+		// row below is four boxes wide and there is no room beside them.
+		panel_name_text.draw(position + Point<int16_t>(P_EDGE, bar_y - 20));
+
+		panel_level_text.change_text(std::to_string(sp) + " SP LEFT");
+		panel_level_text.draw(position + Point<int16_t>(
+			static_cast<int16_t>(P_EDGE + 250), bar_y - 20));
+
+		auto chip = [&](Rectangle<int16_t> box, const char* label, bool live)
+		{
+			GraphicsGL::get().drawrectangle(
+				position.x() + box.left(), position.y() + box.top(),
+				box.width(), box.height(),
+				live ? 0.30f : 0.16f, live ? 0.34f : 0.16f,
+				live ? 0.42f : 0.16f, live ? 0.92f : 0.45f);
+
+			panel_action_text.change_text(label);
+			panel_action_text.draw(position + Point<int16_t>(
+				static_cast<int16_t>(box.left() + box.width() / 2),
+				static_cast<int16_t>(box.top() + 4)));
+		};
+
+		chip(panel_minus_box(), "-", panel_spend > 1);
+		chip(panel_plus_box(), "+", panel_spend < sp);
+
+		// The count, between the two.
+		panel_level_text.change_text(std::to_string(panel_spend));
+		panel_level_text.draw(position + Point<int16_t>(
+			static_cast<int16_t>(P_EDGE + 142), bar_y + 4));
+
+		Rectangle<int16_t> act = panel_action_box();
+
+		GraphicsGL::get().drawrectangle(
+			position.x() + act.left(), position.y() + act.top(),
+			act.width(), act.height(),
+			ready ? 0.18f : 0.10f,
+			ready ? 0.44f : 0.16f,
+			ready ? 0.20f : 0.10f,
+			ready ? 0.92f : 0.55f);
+
+		panel_action_text.change_text("SPEND");
+		panel_action_text.draw(position + Point<int16_t>(
+			static_cast<int16_t>(act.left() + act.width() / 2),
+			static_cast<int16_t>(act.top() + 5)));
+
+		(void)alpha;
+	}
+
+	bool UISkillbook::panel_pressed(Point<int16_t> at)
+	{
+		if (int16_t t = panel_tab_at(at); t >= 0)
+		{
+			if (t != static_cast<int16_t>(tab))
+			{
+				change_tab(static_cast<uint16_t>(t));
+				panel_selected = -1;
+				panel_spend = 1;
+			}
+
+			return true;
+		}
+
+		if (int16_t cell = panel_cell_at(at); cell >= 0)
+		{
+			panel_selected = cell;
+			panel_spend = 1;
+
+			return true;
+		}
+
+		int16_t sp = spare_sp();
+
+		if (panel_minus_box().contains(at))
+		{
+			if (panel_spend > 1)
+				panel_spend--;
+
+			return true;
+		}
+
+		if (panel_plus_box().contains(at))
+		{
+			if (panel_spend < sp)
+				panel_spend++;
+
+			return true;
+		}
+
+		if (panel_action_box().contains(at))
+		{
+			if (panel_selected < 0
+				|| panel_selected >= static_cast<int16_t>(skills.size())
+				|| sp < panel_spend)
+				return true;
+
+			int32_t id = skills[panel_selected].get_id();
+
+			// One packet per point - v83 has no "spend n" message, the level
+			// goes up by one each time. Sent in a row and the UI locked ONCE
+			// at the end, rather than locking between each and dropping the
+			// rest on the floor.
+			for (int16_t i = 0; i < panel_spend; i++)
+				SpendSpPacket(id).dispatch();
+
+			panel_spend = 1;
+
+			UI::get().disable();
+
+			return true;
+		}
+
+		return false;
+	}
+
+	void UISkillbook::set_panel(Point<int16_t> screen)
 	{
 		panel = true;
+		panel_screen = screen;
 
-		buttons[Buttons::BT_CLOSE]->set_active(false);
+		// AS WIDE AS THE PANEL, AS TALL AS ITS OWN CONTENT.
+		//
+		// The book is 174 wide and the panel is 344, so a window left at its
+		// own size sat in the middle with a third of the screen empty either
+		// side - and the spend-points dialog, which opens to the RIGHT of it,
+		// opened off the edge. That is why it never appeared.
+		relayout_panel();
+
+		// EVERY BORROWED BUTTON OFF.
+		//
+		// The book's twelve tiny spend arrows, its tabs and its close box are
+		// all placed against a 174-wide page of artwork that is no longer
+		// drawn here. They were still taking touches from wherever they
+		// happened to land. The panel draws its own tabs, cells and action
+		// bar and hit-tests them itself - see panel_pressed.
+		for (auto& entry : buttons)
+			if (entry.second)
+				entry.second->set_active(false);
 	}
 
 	bool UISkillbook::indragrange(Point<int16_t> cursorpos) const
@@ -233,20 +583,39 @@ namespace ms
 
 	void UISkillbook::draw(float alpha) const
 	{
-		// Faint on the panel. Nothing is moved: the list, the spend arrows and
-		// the level readouts line up with this artwork, and it is only the
-		// artwork's opacity that changes.
+		// DECONSTRUCTED ON THE PANEL, like every other page.
+		//
+		// This was the last window still drawing the game's own artwork - a
+		// book, faded to 0.6 - while the inventory, the equipment rack, the
+		// stat sheet and the quest log had all been reduced to plain cells on
+		// the panel's frame. One page in a book and five on parchment is the
+		// whole of why the skills looked like they belonged somewhere else.
+		//
+		// The rows draw their own faint boxes below; nothing else is needed.
 		if (panel)
-			UIElement::draw_sprites(alpha, PANEL_FADE);
-		else
+		{
+			draw_panel(alpha);
+
+			return;
+		}
+
+		if (!panel)
+		{
 			UIElement::draw_sprites(alpha);
 
-		// These three were placed against the wider window too - the book name
-		// at x 173 and the SP count at x 304, both outside a window 174 across,
-		// so neither was ever visible.
-		bookicon.draw(position + Point<int16_t>(11, 26));
-		booktext.draw(position + Point<int16_t>(87, 30));
-		splabel.draw(position + Point<int16_t>(165, 248));
+			// These three were placed against the wider window - the book name
+			// at x 173 and the SP count at x 304, both outside a window 174
+			// across, so neither was ever visible.
+			bookicon.draw(position + Point<int16_t>(11, 26));
+			booktext.draw(position + Point<int16_t>(87, 30));
+			splabel.draw(position + Point<int16_t>(165, 248));
+		}
+		else
+		{
+			// The one number that matters here, on the row the panel keeps
+			// free above the list.
+			splabel.draw(position + Point<int16_t>(6, 4));
+		}
 
 		Point<int16_t> pos = position + SKILL_OFFSET + Point<int16_t>(-1, 0);
 
@@ -259,7 +628,22 @@ namespace ms
 
 			if (index < skills.size())
 			{
-				if (check_required(skills[index].get_id()))
+				// THE SAME FAINT BOX THE OTHER GRIDS DRAW.
+				//
+				// 32x32 at 0.14, which is what the equipment page uses for a
+				// worn slot and what the inventory now uses for a bag slot.
+				// On the panel the row plates (skille/skilld/skillb) are not
+				// drawn at all - they are pieces of the book.
+				if (panel)
+				{
+					GraphicsGL::get().drawrectangle(
+						pos.x(), pos.y(), 32, 32, 1.0f, 1.0f, 1.0f, 0.14f);
+
+					if (!check_required(skills[index].get_id()))
+						skills[index].get_icon()->set_state(
+							StatefulIcon::State::DISABLED);
+				}
+				else if (check_required(skills[index].get_id()))
 				{
 					skille.draw(pos);
 				}
@@ -271,12 +655,14 @@ namespace ms
 
 				skills[index].draw(pos + SKILL_META_OFFSET);
 			}
-			else
+			else if (!panel)
 			{
 				skillb.draw(pos);
 			}
 
-			if (i < ROWS - 1)
+			// The divider is part of the book's page. On the panel the gap
+			// between the boxes is the divider.
+			if (i < ROWS - 1 && !panel)
 				line.draw(pos + LINE_OFFSET);
 
 			pos.shift_y(ROW_HEIGHT);
@@ -483,6 +869,21 @@ namespace ms
 
 	Cursor::State UISkillbook::send_cursor(bool clicked, Point<int16_t> cursorpos)
 	{
+		// THE PANEL PAGE TAKES ITS OWN TOUCHES.
+		//
+		// Everything below this belongs to the book: dragging the window,
+		// its slider, and picking a skill icon up to put on the quickslot
+		// bar. None of it is placed where the panel draws, so letting it run
+		// first is how a press meant for a tab became a drag of an icon that
+		// was not under the finger.
+		if (panel)
+		{
+			if (clicked)
+				panel_pressed(cursorpos - position);
+
+			return Cursor::State::IDLE;
+		}
+
 		Cursor::State dstate = UIDragElement::send_cursor(clicked, cursorpos);
 
 		if (dragged)
@@ -699,6 +1100,9 @@ namespace ms
 		slider.setrows(ROWS, skillcount);
 		change_offset(0);
 		change_sp();
+
+		// The grid grew or shrank, so the page did too.
+		relayout_panel();
 	}
 
 	void UISkillbook::change_offset(uint16_t new_offset)

@@ -54,6 +54,13 @@ namespace ms
 		// change to the window.
 		void set_panel(Point<int16_t> screen);
 
+		// UP ONE REGION, if there is one above this.
+		//
+		// False when this is already the top of the world, which is what tells
+		// the panel to leave the map instead of trying to climb further. The
+		// same step the BACK button and Escape take.
+		bool step_out();
+
 		// Write place names into THIS tooltip instead of the main UI's.
 		//
 		// There is one MapTooltip in the client, and when a map is open on each

@@ -191,6 +191,85 @@ namespace ms
 		return PANEL_TOP + static_cast<int16_t>(row) * PANEL_ROW_H;
 	}
 
+	Rectangle<int16_t> UIStatsinfo::panel_chip_box(size_t row) const
+	{
+		int16_t x = static_cast<int16_t>(PANEL_LEFT_X + PANEL_CHIP_X);
+		int16_t y = static_cast<int16_t>(panel_row_y(row) - 1);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(x, y),
+			Point<int16_t>(static_cast<int16_t>(x + PANEL_CHIP_W),
+				static_cast<int16_t>(y + PANEL_CHIP_H)));
+	}
+
+	Rectangle<int16_t> UIStatsinfo::panel_auto_box() const
+	{
+		int16_t y = static_cast<int16_t>(panel_row_y(PANEL_LEFT_COUNT) + 4);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(PANEL_LEFT_X, y),
+			Point<int16_t>(static_cast<int16_t>(PANEL_LEFT_X + PANEL_AUTO_W),
+				static_cast<int16_t>(y + PANEL_CHIP_H + 5)));
+	}
+
+	bool UIStatsinfo::panel_pressed(Point<int16_t> at)
+	{
+		if (!hasap)
+			return false;
+
+		struct Spend { Buttons button; StatLabel row; };
+
+		static const Spend SPEND[] = {
+			{ Buttons::BT_HP,  StatLabel::HP  },
+			{ Buttons::BT_MP,  StatLabel::MP  },
+			{ Buttons::BT_STR, StatLabel::STR },
+			{ Buttons::BT_DEX, StatLabel::DEX },
+			{ Buttons::BT_INT, StatLabel::INT },
+			{ Buttons::BT_LUK, StatLabel::LUK }
+		};
+
+		for (const Spend& s : SPEND)
+		{
+			size_t row = 0;
+
+			for (size_t i = 0; i < PANEL_LEFT_COUNT; i++)
+				if (PANEL_LEFT[i] == s.row)
+					row = i;
+
+			if (panel_chip_box(row).contains(at))
+			{
+				// The window's own handler, unchanged - this only decides
+				// WHERE the press counts, never what it does.
+				button_pressed(s.button);
+
+				return true;
+			}
+		}
+
+		if (panel_auto_box().contains(at))
+		{
+			button_pressed(Buttons::BT_AUTO);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	Cursor::State UIStatsinfo::send_cursor(bool clicked, Point<int16_t> cursorpos)
+	{
+		// THE PANEL'S CHIPS FIRST.
+		//
+		// Below this is UIDragElement, which on the panel is only ever going
+		// to try to drag a window that is pinned, and then UIElement's button
+		// pass, whose buttons are all switched off here. Neither would ever
+		// reach the spend controls, which is why AUTO did nothing.
+		if (panel && clicked && panel_pressed(cursorpos - position))
+			return Cursor::State::IDLE;
+
+		return UIDragElement::send_cursor(clicked, cursorpos);
+	}
+
 	void UIStatsinfo::set_panel(Point<int16_t> screen)
 	{
 		panel = true;
@@ -266,6 +345,17 @@ namespace ms
 
 		buttons[Buttons::BT_AUTO]->set_active(true);
 
+		// AND THEN EVERY ONE OF THEM OFF AGAIN.
+		//
+		// Positioned above so the non-panel window is unaffected, then
+		// deactivated here because on the panel the chips below do the job.
+		// A MapleButton with no artwork under it is an invisible hit box in
+		// the middle of a page of stats.
+		for (const Spend& s : SPEND)
+			buttons[s.button]->set_active(false);
+
+		buttons[Buttons::BT_AUTO]->set_active(false);
+
 		// Pale values, not the near-black the window used - they sit on a dark
 		// plate here rather than on white artwork.
 		for (size_t i = 0; i < StatLabel::NUM_LABELS; i++)
@@ -320,11 +410,10 @@ namespace ms
 
 	void UIStatsinfo::draw_panel_list() const
 	{
-		// A plate behind the sheet so pale text has something to sit on, and
-		// nothing else - the window's own picture is not drawn at all.
-		GraphicsGL::get().drawrectangle(
-			position.x(), position.y(), dimension.x(), dimension.y(),
-			0.0f, 0.0f, 0.0f, 0.45f);
+		// NO PLATE. It was black at 0.45 over the whole sheet, which put a
+		// dark rectangle in the middle of a panel whose other pages show the
+		// frame through. The hairline below is enough to say there are two
+		// columns; the text is outlined and reads on the frame directly.
 
 		// A hairline between the columns, so the eye knows there are two.
 		GraphicsGL::get().drawrectangle(
@@ -349,6 +438,48 @@ namespace ms
 			panel_names[row].draw(Point<int16_t>(position.x() + PANEL_RIGHT_X, y));
 			statlabels[row].draw(Point<int16_t>(position.x() + PANEL_RIGHT_X + PANEL_VALUE_X + 20, y));
 		}
+
+		// THE SPEND CHIPS. Only while there is anything to spend - unlike the
+		// window's arrows, which are always there and merely greyed, because
+		// on a page this dense six dead boxes are six things to read past.
+		if (panel_chip_text.get_text().empty())
+			panel_chip_text = Text(Text::Font::A11B, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+
+		if (!hasap)
+			return;
+
+		struct Spend { StatLabel row; };
+
+		static const StatLabel SPENDABLE[] = {
+			StatLabel::HP, StatLabel::MP, StatLabel::STR,
+			StatLabel::DEX, StatLabel::INT, StatLabel::LUK
+		};
+
+		auto chip = [&](Rectangle<int16_t> box, const char* label)
+		{
+			GraphicsGL::get().drawrectangle(
+				position.x() + box.left(), position.y() + box.top(),
+				box.width(), box.height(), 0.86f, 0.74f, 0.36f, 0.75f);
+
+			panel_chip_text.change_text(label);
+			panel_chip_text.draw(Point<int16_t>(
+				position.x() + box.left() + box.width() / 2,
+				position.y() + box.top() - 2));
+		};
+
+		for (StatLabel want : SPENDABLE)
+		{
+			size_t row = 0;
+
+			for (size_t i = 0; i < PANEL_LEFT_COUNT; i++)
+				if (PANEL_LEFT[i] == want)
+					row = i;
+
+			chip(panel_chip_box(row), "+");
+		}
+
+		chip(panel_auto_box(), "AUTO");
 	}
 
 	bool UIStatsinfo::indragrange(Point<int16_t> cursorpos) const

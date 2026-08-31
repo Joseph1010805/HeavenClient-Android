@@ -156,27 +156,39 @@ namespace ms
 			// strength - the two are the same pixels. The grid is drawn
 			// instead: plain translucent cells, no frame, and the icons and
 			// numbers on top of them at full strength.
-			Point<int16_t> origin = position + grid_origin();
-
+			//
+			// THE SAME CELL THE EQUIPMENT PAGE DRAWS.
+			//
+			// It was a different size, at a different spacing, at three times
+			// the strength - which is the whole of why this page never looked
+			// like its neighbour however often the two were compared:
+			//
+			//   PITCH   the cells stepped by ICON_WIDTH/ICON_HEIGHT (36x35)
+			//           while get_slotpos puts the ICONS at PANEL_CELL_W/H
+			//           (52x50). The two grids started together at the top
+			//           left and had drifted a cell and a half apart by the
+			//           right-hand end, so every icon sat off its own square.
+			//   SIZE    a cell filled its whole pitch; equipment draws a 32x32
+			//           box, the size of the icon that goes in it.
+			//   ALPHA   0.5 against equipment's 0.14 - a wall of white slabs
+			//           beside a page of faint outlines.
+			//
+			// Drawn off get_slotpos now, the same call the icons use, so the
+			// two cannot drift apart again.
 			int16_t held = inventory.get_slotmax(tab);
+			int16_t first = slotrange.at(tab).first;
 
-			for (int16_t row = 0; row < visible_rows(); row++)
+			for (int16_t i = 0; i < held; i++)
 			{
-				for (int16_t col = 0; col < columns(); col++)
-				{
-					// Only slots the character actually has. The window
-					// normally stamps a crossed-out square on the rest, which
-					// on a grid sized to the screen rather than to the bag
-					// meant a wall of crosses.
-					if (row * columns() + col >= held)
-						continue;
+				int16_t slot = static_cast<int16_t>(first + i);
 
-					GraphicsGL::get().drawrectangle(
-						origin.x() + col * ICON_WIDTH + 1,
-						origin.y() + row * ICON_HEIGHT + 1,
-						ICON_WIDTH - 2, ICON_HEIGHT - 2,
-						1.0f, 1.0f, 1.0f, 0.5f);
-				}
+				if (!is_visible(slot))
+					continue;
+
+				Point<int16_t> at = position + get_slotpos(slot);
+
+				GraphicsGL::get().drawrectangle(
+					at.x(), at.y(), CELL_BOX, CELL_BOX, 1.0f, 1.0f, 1.0f, 0.14f);
 			}
 
 			// What is picked, marked by a brighter cell rather than by fading
@@ -186,7 +198,7 @@ namespace ms
 				Point<int16_t> at = position + get_slotpos(selected);
 
 				GraphicsGL::get().drawrectangle(
-					at.x() + 1, at.y() + 1, ICON_WIDTH - 2, ICON_HEIGHT - 2,
+					at.x() + 1, at.y() + 1, CELL_BOX, CELL_BOX,
 					1.0f, 0.92f, 0.45f, 0.85f);
 			}
 		}
@@ -882,12 +894,12 @@ namespace ms
 			int16_t py = cursorpos.y() - origin.y();
 
 			if (px < 0 || py < 0
-				|| px >= columns() * ICON_WIDTH
-				|| py >= visible_rows() * ICON_HEIGHT)
+				|| px >= columns() * PANEL_CELL_W
+				|| py >= visible_rows() * PANEL_CELL_H)
 				return 0;
 
 			int16_t at = slotrange.at(tab).first
-				+ (px / ICON_WIDTH) + columns() * (py / ICON_HEIGHT);
+				+ (px / PANEL_CELL_W) + columns() * (py / PANEL_CELL_H);
 
 			return is_visible(at) ? at : 0;
 		}
@@ -909,8 +921,8 @@ namespace ms
 
 		if (panel)
 			return grid_origin() + Point<int16_t>(
-				(absslot % columns()) * ICON_WIDTH,
-				(absslot / columns()) * ICON_HEIGHT);
+				(absslot % columns()) * PANEL_CELL_W,
+				(absslot / columns()) * PANEL_CELL_H);
 
 		return Point<int16_t>(
 			10 + (absslot % COLUMNS) * ICON_WIDTH,
@@ -996,8 +1008,16 @@ namespace ms
 		if (!panel)
 			return;
 
-		// As many whole columns as the panel is wide enough for.
-		panel_columns = (panel_screen.x() - PANEL_SIDE * 2) / ICON_WIDTH;
+		// As many whole columns as the panel is wide enough for - measured in
+		// CELL widths, not icon widths.
+		//
+		// This divided by ICON_WIDTH (36) while the cells were drawn at the
+		// cell pitch, so a 344 wide panel asked for nine columns and then drew
+		// them 522 wide. The grid ran off the side of the screen.
+		panel_columns = (panel_screen.x() - PANEL_SIDE * 2) / PANEL_CELL_W;
+
+		if (panel_columns > PANEL_COLS)
+			panel_columns = PANEL_COLS;
 
 		if (panel_columns < 1)
 			panel_columns = 1;
@@ -1006,7 +1026,7 @@ namespace ms
 		// and the action button below it need.
 		dimension = Point<int16_t>(
 			panel_screen.x(),
-			PANEL_GRID_TOP + PANEL_ROWS * ICON_HEIGHT + PANEL_ACTION_H + 22);
+			PANEL_GRID_TOP + PANEL_ROWS * PANEL_CELL_H + PANEL_ACTION_H + 22);
 
 		// Everything the window normally carries is furniture for a window:
 		// a close box, resize handles, sort and gather and the rest. Off.
@@ -1062,7 +1082,7 @@ namespace ms
 		// Centred across the window, which is itself the full width of the
 		// panel - so the grid uses the space the narrow window left empty.
 		return Point<int16_t>(
-			(panel_screen.x() - columns() * ICON_WIDTH) / 2,
+			(panel_screen.x() - columns() * PANEL_CELL_W) / 2,
 			PANEL_GRID_TOP);
 	}
 

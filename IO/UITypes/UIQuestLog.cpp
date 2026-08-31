@@ -161,7 +161,14 @@ namespace ms
 
 	void UIQuestLog::draw_plate(Point<int16_t> at, int16_t w, int16_t h) const
 	{
-		GraphicsGL::get().drawrectangle(at.x(), at.y(), w, h, 0.05f, 0.06f, 0.09f, 0.92f);
+		// NOTHING. The plate was near-black at 0.92 - a slab covering the
+		// panel's own frame, which is the thing that makes every page look
+		// like part of the same panel. The rows below carry their own faint
+		// cells, the same way the inventory and equipment grids do, so the
+		// text still has something to sit on.
+		(void)at;
+		(void)w;
+		(void)h;
 	}
 
 	void UIQuestLog::draw(float inter) const

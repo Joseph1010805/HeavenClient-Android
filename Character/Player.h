@@ -24,6 +24,7 @@
 #include "Telerock.h"
 #include "Monsterbook.h"
 #include "Party.h"
+#include "BuddyList.h"
 #include "Buff.h"
 #include "ActiveBuffs.h"
 #include "PassiveBuffs.h"
@@ -185,6 +186,9 @@ namespace ms
 		Party& get_party();
 		const Party& get_party() const;
 
+		BuddyList& get_buddies();
+		const BuddyList& get_buddies() const;
+
 	private:
 		CharStats stats;
 		Inventory inventory;
@@ -193,6 +197,7 @@ namespace ms
 		Telerock telerock;
 		Monsterbook monsterbook;
 		Party party;
+		BuddyList buddies;
 
 		EnumMap<Buffstat::Id, Buff> buffs;
 		ActiveBuffs active_buffs;

@@ -38,9 +38,16 @@ namespace ms
 		UIElement::Type get_type() const override;
 
 	private:
+		// The still the sequence settles on, wherever it arrives there from.
+		void draw_end() const;
+
 		Animation Nexon;
 		Animation Wizet;
 		Texture WizetEnd;
+
+		// The still the startup sequence settles on. Wizet's last frame by
+		// default; the game's own wordmark when Map001.nx supplies one.
+		Texture custom_logo;
 
 		bool nexon_ended;
 		bool wizet_ended;

@@ -473,6 +473,21 @@ namespace ms
 		PosPARTYHUD() : PointEntry("PosPARTYHUD", "(10, 80)") {}
 	};
 
+	// The default position of the quest tracker. Top right, opposite the party
+	// panel, where it is out of the way of both the bar and the minimap.
+	// The panel's touch hotkey bar, as "type:action" per slot, comma
+	// separated. One entry rather than twelve, so adding a slot later does
+	// not orphan settings files written by an older build.
+	struct HotkeySlots : public Configuration::StringEntry
+	{
+		HotkeySlots() : StringEntry("HotkeySlots", "") {}
+	};
+
+	struct PosQUESTHELPER : public Configuration::PointEntry
+	{
+		PosQUESTHELPER() : PointEntry("PosQUESTHELPER", "(600, 80)") {}
+	};
+
 	// The default position of the megaphone window. Above the chat bar, which
 	// is where the button that opens it lives.
 	struct PosMEGAPHONE : public Configuration::PointEntry

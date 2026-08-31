@@ -41,6 +41,28 @@ namespace ms
 		Nexon = Logo["Nexon"];
 		Wizet = Logo["Wizet"];
 		WizetEnd = Logo["Wizet"]["40"];
+
+		// The game's own wordmark, built into Map001.nx by
+		// tools/make_assets.py. Absent in a checkout without that file, which
+		// is why the stock artwork above is still loaded rather than replaced.
+		custom_logo = nl::nx::map001["Custom"]["Logo"];
+	}
+
+	void UILogo::draw_end() const
+	{
+		if (!custom_logo.is_valid())
+		{
+			WizetEnd.draw(position + Point<int16_t>(263, 195));
+			return;
+		}
+
+		// Centred on the screen rather than at Wizet's baked offset, which was
+		// chosen for artwork of a different size.
+		Point<int16_t> size = custom_logo.get_dimensions();
+
+		custom_logo.draw(position + Point<int16_t>(
+			(Constants::Constants::get().get_viewwidth() - size.x()) / 2,
+			(Constants::Constants::get().get_viewheight() - size.y()) / 2));
 	}
 
 	void UILogo::draw(float inter) const
@@ -58,12 +80,12 @@ namespace ms
 				if (!wizet_ended)
 					Wizet.draw(position + Point<int16_t>(263, 195), inter);
 				else
-					WizetEnd.draw(position + Point<int16_t>(263, 195));
+					draw_end();
 			}
 		}
 		else
 		{
-			WizetEnd.draw(position + Point<int16_t>(263, 195));
+			draw_end();
 		}
 	}
 

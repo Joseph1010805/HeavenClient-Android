@@ -64,6 +64,8 @@ namespace ms
 		settings.emplace<MiniMapSimpleMode>();
 		settings.emplace<MiniMapDefaultHelpers>();
 		settings.emplace<PosPARTYHUD>();
+		settings.emplace<PosQUESTHELPER>();
+		settings.emplace<HotkeySlots>();
 		settings.emplace<AllowPartyInvite>();
 
 		settings.emplace<Joystick_Y>();

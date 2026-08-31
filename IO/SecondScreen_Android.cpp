@@ -407,6 +407,31 @@ namespace ms
 			return panel_ptr->selected_mapping();
 		}
 
+		Keyboard::Mapping carried_mapping()
+		{
+			if (!panel_ptr)
+				return {};
+
+			return panel_ptr->carried_mapping();
+		}
+
+		void show_hotkeys()
+		{
+			if (panel_ptr)
+				panel_ptr->show_page(SecondScreenPanel::HOTKEYS);
+		}
+
+		bool show_shop(UIElement* shop, bool equipment)
+		{
+			if (!available() || shop == nullptr)
+				return false;
+
+			get_panel().show_guest(shop,
+				equipment ? "ShopEquipBg" : "ShopItemBg");
+
+			return true;
+		}
+
 		Point<int16_t> cursor()
 		{
 			if (width <= 0 || height <= 0)
