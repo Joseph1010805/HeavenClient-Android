@@ -300,6 +300,31 @@ namespace ms
 		);
 	}
 
+	void MoveMobResponseHandler::handle(InPacket& recv) const
+	{
+		// PacketCreator.moveMonsterResponse:
+		//   int   objectid
+		//   short moveid
+		//   bool  useSkills
+		//   short currentMp
+		//   byte  skillId
+		//   byte  skillLevel
+		int32_t oid = recv.read_int();
+		recv.read_short();				// move id, ours, echoed back
+		bool useskills = recv.read_bool();
+		recv.read_short();				// the mob's current MP
+
+		int8_t skill_id = recv.read_byte();
+		int8_t skill_level = recv.read_byte();
+
+		// useSkills false means "not this time" - the server sends zeroes with
+		// it, but do not rely on that.
+		if (!useskills)
+			skill_id = skill_level = 0;
+
+		Stage::get().get_mobs().grant_skill(oid, skill_id, skill_level);
+	}
+
 	void KillMobHandler::handle(InPacket& recv) const
 	{
 		int32_t oid = recv.read_int();

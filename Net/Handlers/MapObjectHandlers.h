@@ -92,6 +92,19 @@ namespace ms
 	};
 
 	// Updates a mob's hp with the client.
+	// The server's answer to a mob move we sent as its controller.
+	//
+	// It carries the mob's current MP and, crucially, the skill the mob is
+	// ALLOWED to use on its next move. This was a NullHandler until 30 August,
+	// which is why no monster - boss or otherwise - had ever cast a skill: the
+	// permission arrived every single move and was thrown away.
+	//
+	// Opcode: MOVE_MOB_RESPONSE(240)
+	class MoveMobResponseHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
 	// Opcode: SHOW_MOB_HP(250)
 	class ShowMobHpHandler : public PacketHandler
 	{

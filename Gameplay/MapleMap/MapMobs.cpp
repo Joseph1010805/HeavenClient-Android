@@ -18,6 +18,9 @@
 #include "MapMobs.h"
 #include "Mob.h"
 
+#include "../../IO/UI.h"
+#include "../../IO/UITypes/UIStatusbar.h"
+
 #include <algorithm>
 #include <iostream>
 #include <map>
@@ -87,10 +90,24 @@ namespace ms
 			mob->set_control(mode);
 	}
 
+	void MapMobs::grant_skill(int32_t oid, int8_t skill_id, int8_t skill_level)
+	{
+		if (Optional<Mob> mob = mobs.get(oid))
+			mob->grant_skill(skill_id, skill_level);
+	}
+
 	void MapMobs::send_mobhp(int32_t oid, int8_t percent, uint16_t playerlevel)
 	{
 		if (Optional<Mob> mob = mobs.get(oid))
+		{
 			mob->show_hp(percent, playerlevel);
+
+			// A boss also drives the wide gauge at the top of the screen.
+			if (mob->is_boss())
+				if (auto statusbar = UI::get().get_element<UIStatusbar>())
+					statusbar->update_boss_hp(mob->get_name(), percent,
+						mob->get_hp_tag_color(), mob->get_hp_tag_bgcolor());
+		}
 	}
 
 	void MapMobs::send_movement(int32_t oid, Point<int16_t> start, std::vector<Movement>&& movements)
@@ -159,6 +176,33 @@ namespace ms
 			return 0;
 
 		return iter->second->get_oid();
+	}
+
+	void MapMobs::set_target(Point<int16_t> position)
+	{
+		for (auto& entry : mobs)
+			if (auto* mob = static_cast<Mob*>(entry.second.get()))
+				mob->set_target(position);
+	}
+
+	std::vector<std::pair<int8_t, MobAttack>> MapMobs::take_landed_attacks(Point<int16_t> target)
+	{
+		std::vector<std::pair<int8_t, MobAttack>> landed;
+
+		for (auto& entry : mobs)
+		{
+			auto* mob = static_cast<Mob*>(entry.second.get());
+
+			if (mob == nullptr || !mob->has_pending_hit())
+				continue;
+
+			int8_t index = mob->pending_attack_index();
+
+			if (MobAttack attack = mob->take_pending_hit(target))
+				landed.emplace_back(index, attack);
+		}
+
+		return landed;
 	}
 
 	MobAttack MapMobs::create_attack(int32_t oid) const

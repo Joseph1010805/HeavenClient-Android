@@ -37,6 +37,11 @@ namespace ms
 		// Update all mobs.
 		void update(const Physics& physics);
 
+		// Hand every mob the player's position, so aggressive ones can chase.
+		// Separate from update() because MapMobs is called from Stage, which is
+		// the only place that knows both the mobs and the player.
+		void set_target(Point<int16_t> position);
+
 		// Spawn a new mob.
 		void spawn(MobSpawn&& spawn);
 		// Kill a mob.
@@ -46,6 +51,9 @@ namespace ms
 
 		// Update who a mob is controlled by.
 		void set_control(int32_t oid, bool control);
+
+		// Record the skill the server will let this mob use on its next move.
+		void grant_skill(int32_t oid, int8_t skill_id, int8_t skill_level);
 		// Update a mob's hp display.
 		void send_mobhp(int32_t oid, int8_t percent, uint16_t playerlevel);
 		// Update a mob's movements.
@@ -62,6 +70,11 @@ namespace ms
 		int32_t find_colliding(const MovingObject& moveobj) const;
 		// Create an attack by the specified mob.
 		MobAttack create_attack(int32_t oid) const;
+
+		// Swings that finished this tick, paired with the attack index the
+		// TAKE_DAMAGE packet needs. Only those that actually reached `target`
+		// come back; the rest are resolved as misses and dropped.
+		std::vector<std::pair<int8_t, MobAttack>> take_landed_attacks(Point<int16_t> target);
 		// Return the position of a mob.
 		Point<int16_t> get_mob_position(int32_t oid) const;
 		// Return the head position of a mob.
