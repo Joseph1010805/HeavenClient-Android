@@ -146,6 +146,19 @@ public final class SpeechInput
         }
     }
 
+    /**
+     * Whether Vosk currently holds the microphone.
+     *
+     * <p>Android hands an {@code AudioRecord} to one owner at a time, so voice
+     * chat asks this before opening its own - see {@link VoiceChat}. Two
+     * things quietly fighting over the microphone looks like a hardware fault
+     * from the outside, and this is what makes the refusal explicit instead.
+     */
+    public static boolean isListening()
+    {
+        return service != null;
+    }
+
     public static void stop()
     {
         if (service != null)

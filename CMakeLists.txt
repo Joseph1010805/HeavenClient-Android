@@ -112,6 +112,8 @@ set(HEAVEN_SOURCES
         Character/ActiveBuffs.h
         Character/Buff.cpp
         Character/Buff.h
+        Character/BuddyList.cpp
+        Character/BuddyList.h
         Character/Char.cpp
         Character/Char.h
         Character/CharEffect.cpp
@@ -296,6 +298,8 @@ set(HEAVEN_SOURCES
         IO/Components/MapleFrame.h
         IO/Components/MapTooltip.cpp
         IO/Components/MapTooltip.h
+        IO/Components/MobGage.cpp
+        IO/Components/MobGage.h
         IO/Components/Nametag.cpp
         IO/Components/Nametag.h
         IO/Components/Npctext.cpp
@@ -326,6 +330,8 @@ set(HEAVEN_SOURCES
         IO/UITypes/UICharSelect.h
         IO/UITypes/UIChat.cpp
         IO/UITypes/UIChat.h
+        IO/UITypes/UICharacterPage.cpp
+        IO/UITypes/UICharacterPage.h
         IO/UITypes/UIChatbar.cpp
         IO/UITypes/UIChatbar.h
         IO/UITypes/UICygnusCreation.cpp
@@ -338,6 +344,8 @@ set(HEAVEN_SOURCES
         IO/UITypes/UIExplorerCreation.h
         IO/UITypes/UIGender.cpp
         IO/UITypes/UIGender.h
+        IO/UITypes/UIHotkeys.cpp
+        IO/UITypes/UIHotkeys.h
         IO/UITypes/UIItemInventory.cpp
         IO/UITypes/UIItemInventory.h
         IO/UITypes/UIJoypad.cpp
@@ -364,6 +372,8 @@ set(HEAVEN_SOURCES
         IO/UITypes/UINpcTalk.h
         IO/UITypes/UIOptionMenu.cpp
         IO/UITypes/UIOptionMenu.h
+        IO/UITypes/UIQuestHelper.cpp
+        IO/UITypes/UIQuestHelper.h
         IO/UITypes/UIQuestLog.cpp
         IO/UITypes/UIQuestLog.h
         IO/UITypes/UIQuit.cpp
@@ -514,6 +524,7 @@ set(HEAVEN_SOURCES
         Configuration.cpp
 
         Speech.cpp
+        Voice.cpp
         Configuration.h
         Console.h
         Constants.h
