@@ -45,7 +45,12 @@ if ! command -v adb >/dev/null 2>&1; then
 fi
 
 DEV="${1:-}"
-SERVER_IP="${2:-192.168.1.71}"
+# Only touch ServerIP when one is GIVEN. Defaulting it and then writing that
+# default over a working device is how the Thor - which hosts, and so wants
+# 127.0.0.1 - got pointed at the PC and spent an evening unable to log in.
+SERVER_IP="${2:-}"
+SERVER_IP_GIVEN=1
+[ -z "$SERVER_IP" ] && SERVER_IP=127.0.0.1 && SERVER_IP_GIVEN=0
 
 if [ -z "$DEV" ]; then
 	echo "usage: $0 <device-serial> [server-ip]"
@@ -171,6 +176,7 @@ echo "Fonts:"
 # rather than to the fonts alone. Without it a 4.5 GB install sits there
 # perfectly and the game shows a black screen.
 sh "chmod -R a+rX '$DIR'" >/dev/null 2>&1
+	sh "chmod 666 '$DIR/Settings' 2>/dev/null" >/dev/null 2>&1
 
 sh "mkdir -p '$DIR/fonts/Roboto'" >/dev/null 2>&1
 
@@ -182,6 +188,7 @@ if [ "$(sh "ls '$DIR/fonts' 2>/dev/null | wc -l" | tr -d '\r')" -gt 0 ]; then
 	# a+rX, not 644 - a flat 644 on the directory itself makes it
 	# untraversable and the fonts inside unreachable.
 	sh "chmod -R a+rX '$DIR'" >/dev/null 2>&1
+	sh "chmod 666 '$DIR/Settings' 2>/dev/null" >/dev/null 2>&1
 	echo "  ok"
 else
 	echo "  FAILED"
@@ -216,6 +223,7 @@ if [ -d "$MODEL" ]; then
 	adb -s "$DEV" push "$MODEL" "$STAGE/" >/dev/null 2>&1
 	sh "rm -rf '$DIR/vosk-model' && mv '$STAGE/vosk-model' '$DIR/vosk-model'" >/dev/null 2>&1
 	sh "chmod -R a+rX '$DIR'" >/dev/null 2>&1
+	sh "chmod 666 '$DIR/Settings' 2>/dev/null" >/dev/null 2>&1
 
 	if [ "$(sh "ls '$DIR/vosk-model' 2>/dev/null | wc -l" | tr -d '')" -gt 0 ]; then
 		echo "  ok"
@@ -243,12 +251,75 @@ fi
 # The catch: at 1.5x everything is SMALLER than it was at 2.4x. The font scale
 # in GraphicsGL is the counterweight for text; artwork still wants its own.
 echo
-echo "Settings (server $SERVER_IP):"
+if [ "$SERVER_IP_GIVEN" -eq 1 ]; then
+	echo "Settings (server $SERVER_IP):"
+else
+	echo "Settings (no address given - leaving ServerIP alone):"
+fi
 # Staged in the repo rather than /tmp: adb is being given raw paths here, and
 # a Unix /tmp/... is exactly the thing it cannot resolve.
-printf 'ServerIP = %s\nServerPort = 8484\nWidth = 1280\nHeight = 720\n' "$SERVER_IP" > "$REPO_UNIX/.Settings.tmp"
-adb -s "$DEV" push "$REPO/.Settings.tmp" "$DIR/Settings" >/dev/null 2>&1
+# WHICH ADDRESS THIS DEVICE SHOULD USE.
+#
+# The default here is the PC. A device that HOSTS its own server - the Thor
+# does - must point at 127.0.0.1 instead, or it spends the whole login talking
+# to a machine that is not running a server: the character list never arrives
+# and pressing Start gives "lost connection".
+#
+# Getting this wrong looks exactly like data loss. It is not; the characters
+# are in the database on the host the whole time.
+#
+#   tools/deploy_data.sh <serial> 127.0.0.1     # a device that hosts
+#   tools/deploy_data.sh <serial> 192.168.1.184 # a device that joins the Thor
+#
+# DO NOT overwrite a Settings that already exists.
+#
+# This used to write a fixed Width/Height every run, and on 31 August 2026 a
+# deploy silently put the client back to 1280x720 - a resolution that had been
+# tried and DECIDED AGAINST in favour of 800x600. Nothing announced it; the
+# game simply came back the wrong size.
+#
+# Settings is the player's file, not the deploy's. The only thing this script
+# has any business setting is the server address, and only when there is no
+# file at all to read one from.
+if [ "$(remote_size "$DIR/Settings")" -gt 0 ]; then
+	echo "  kept (already on the device - resolution and bindings are the player's)"
+
+	# Still worth making sure it points at this machine.
+	if [ "$SERVER_IP_GIVEN" -eq 1 ]; then
+		sh "sed -i 's/^ServerIP = .*/ServerIP = $SERVER_IP/' '$DIR/Settings'" >/dev/null 2>&1
+		echo "  ServerIP set to $SERVER_IP"
+	else
+		echo "  ServerIP left as $(sh "grep '^ServerIP' '$DIR/Settings'" | tr -d '' | awk '{print $3}')"
+	fi
+
+	SETTINGS_DONE=1
+else
+	SETTINGS_DONE=0
+fi
+
+if [ "$SETTINGS_DONE" -eq 0 ]; then
+printf 'ServerIP = %s\nServerPort = 8484\nWidth = 800\nHeight = 600\n' "$SERVER_IP" > "$REPO_UNIX/.Settings.tmp"
+
+# THROUGH THE STAGE, like everything else.
+#
+# This used to push straight into $DIR, which scoped storage refuses:
+#
+#     adb: error: failed to copy ...: remote fchown failed: ...
+#     1 file pushed, 0 skipped.
+#
+# Both lines. The push TRUNCATES the Settings already on the device and then
+# fails, so a run left the device with no settings at all while reporting
+# only that one item "did not make it" - and the .nx files above were already
+# doing this correctly, which is what hid it.
+adb -s "$DEV" push "$REPO/.Settings.tmp" "$STAGE/Settings" >/dev/null 2>&1
+# 666, NOT 644. Everything else here is read-only data the game only
+# reads, but Settings is the one file it WRITES - the saved login, the
+# window positions, the key bindings. adb pushes land owned by `shell`
+# and the game runs as a different user, so at 644 it can read its own
+# settings and never save them: "Save ID" ticks and nothing persists.
+sh "mv '$STAGE/Settings' '$DIR/Settings' && chmod 666 '$DIR/Settings'" >/dev/null 2>&1
 rm -f "$REPO_UNIX/.Settings.tmp"
+fi
 
 if [ "$(remote_size "$DIR/Settings")" -gt 0 ]; then
 	echo "  ok"

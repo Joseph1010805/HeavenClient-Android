@@ -41,11 +41,85 @@ BOTTOM_IMAGE = 'bottomscreenbackground.jpg'
 # corner, so they are cropped from the left rather than the middle - centring
 # them would take the character off the picture entirely.
 PAGE_IMAGES = {
-    'InvBg': 'inventory.png',
+    # TEMPORARY: the painted bag replaced with new artwork. The original is
+    # kept beside it as inventory.png.maplebak - put the name back to revert.
+    'InvBg': 'inventory.jpg',
+
+    # The shop backdrops. Not pages you can swipe to - the panel shows one
+    # while a shop is open and goes back afterwards - but they are built the
+    # same way and cropped to the same shape.
+    'ShopItemBg': 'itemshop.jpg',
+    'ShopEquipBg': 'Equipment shop.jpg',
     'EquipBg': 'equipment.png',
     'AbilityBg': 'ability.png',
     'SkillBg': 'skill.png',
     'ChatBg': 'chatandemotions.png',
+    # Pre-cropped to the panel's shape from the RIGHT, because the leaf sits
+    # against that edge and bottom_bgra's centre band would cut through it.
+    'HotkeyBg': 'hotkeysbg.jpg',
+}
+
+# THE PANEL'S OWN ICONS.
+#
+# Hand-picked artwork rather than nodes borrowed from the game's own files -
+# a map mark of a town is not an inventory, and reading node names to guess
+# what a picture looks like got Equipment a picture of Perion.
+#
+# Kept at their painted size (about 30px) and scaled up by the panel, which
+# is what keeps them crisp: these are pixel art and enlarging them in the
+# build would only blur them here instead of there.
+# NOTE THE icon_ PREFIX. The source names collided with the PAGE backgrounds -
+# `equipment.png` was the equipment page's 1280x720 artwork, and copying a 32px
+# icon over it destroyed the page. Prefixed, they cannot collide again.
+ICON_IMAGES = {
+    'IconHome': 'icon_home.png',
+    'IconAdventure': 'icon_adventure.png',
+    'IconInventory': 'icon_inventory.png',
+    'IconEquipment': 'icon_equipment.png',
+    'IconStats': 'icon_stats.png',
+    'IconQuest': 'icon_quest.png',
+    'IconHotkeys': 'icon_key.png',
+    'IconSocial': 'icon_social.png',
+    'IconMap': 'icon_map.png',
+    'IconSettings': 'icon_settings.png',
+    'IconTime': 'icon_time.png',
+    'IconLuck': 'icon_luck.png',
+    'IconMinigame': 'icon_minigame.png',
+    'IconScroll': 'icon_scroll.png',
+    'IconSave': 'icon_save.png',
+    'IconMouse': 'icon_mouse.png',
+    'IconHp': 'icon_hp.png',
+    'IconMp': 'icon_mp.png',
+    'IconShout': 'icon_shout.png',
+    'IconRoomMessage': 'icon_roommessage.png',
+}
+
+# THE GAUGE CHANNEL, both ways up.
+#
+# One drawing, 180x20 - a rounded silver rim round a black trough. The EXP bar
+# is horizontal and the HP/MP bars are vertical, so the vertical one is made
+# HERE by rotating the picture, not at runtime: DrawArgument can rotate, but
+# it rotates about a centre and getting that right blind is how the icons
+# ended up at 57 degrees. A second bitmap costs 14KB and cannot be got wrong.
+BAR_IMAGE = 'barframe.png'
+
+# Icons built from MORE THAN ONE picture, back to front.
+#
+# Character is the two dolls BACK TO BACK, each looking the other way - the
+# pair reads as "your party" where either alone reads as one person. They were
+# stacked, one behind the other, which just looked like a queue.
+#
+# Both source sprites face LEFT, so the right-hand one is flipped: that is what
+# turns "both walking the same way" into "standing back to back". They overlap
+# by a few pixels so the shoulders touch rather than leaving a gap down the
+# middle of the icon.
+#
+# Listed back-first: (file, offset, flip). The canvas grows to hold the lot.
+ICON_COMPOSITES = {
+    'IconCharacter': [
+        ('icon_characterleft.png', (0, 0), False),
+        ('icon_characterrightmirorimage.png', (22, 0), True),
+    ],
 }
 
 # The handheld's lower panel is 1240x1080. The client draws it in a design
@@ -325,6 +399,80 @@ def main():
         art = bottom_bgra(os.path.join(SRC, filename), anchor='left')
         builder.bitmap(custom, node_name, art, BOTTOM_W, BOTTOM_H, origin=(0, 0))
         print('  %-9s %dx%d  %s' % (node_name, BOTTOM_W, BOTTOM_H, filename))
+
+    # The panel's icons, at the size they were drawn.
+    def icon_sources():
+        for node_name, filename in sorted(ICON_IMAGES.items()):
+            path = os.path.join(SRC, filename)
+
+            if not os.path.exists(path):
+                print('  %-14s MISSING %s' % (node_name, filename))
+                continue
+
+            yield node_name, Image.open(path).convert('RGBA')
+
+        for node_name, parts in sorted(ICON_COMPOSITES.items()):
+            layers = []
+
+            for filename, at, flip in parts:
+                path = os.path.join(SRC, filename)
+
+                if not os.path.exists(path):
+                    print('  %-14s MISSING %s' % (node_name, filename))
+                    layers = []
+                    break
+
+                layer = Image.open(path).convert('RGBA')
+
+                if flip:
+                    layer = layer.transpose(Image.FLIP_LEFT_RIGHT)
+
+                layers.append((layer, at))
+
+            if not layers:
+                continue
+
+            w = max(im.width + at[0] for im, at in layers)
+            h = max(im.height + at[1] for im, at in layers)
+
+            canvas = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+
+            for im, at in layers:
+                canvas.alpha_composite(im, at)
+
+            yield node_name, canvas
+
+    for node_name, src in icon_sources():
+
+        # BGRA, and the swap has to be REAL. Writing `b, g, r, a = split()`
+        # only renames the channels - split() still hands back R, G, B, A - so
+        # merging them back in that order changes nothing and every icon
+        # arrives with red and blue exchanged. A brown book comes out blue.
+        r, g, b, a = src.split()
+        data = Image.merge('RGBA', (b, g, r, a)).tobytes()
+
+        builder.bitmap(custom, node_name, data, src.width, src.height,
+                       origin=(0, 0))
+        # No filename here: a composite has several, and `filename` left over
+        # from the loop above named the wrong file for every icon printed.
+        print('  %-14s %dx%d' % (node_name, src.width, src.height))
+
+    bar_path = os.path.join(SRC, BAR_IMAGE)
+
+    if os.path.exists(bar_path):
+        flat = Image.open(bar_path).convert('RGBA')
+
+        for node_name, im in (('BarH', flat),
+                              ('BarV', flat.transpose(Image.ROTATE_90))):
+            r, g, b, a = im.split()
+
+            builder.bitmap(custom, node_name,
+                           Image.merge('RGBA', (b, g, r, a)).tobytes(),
+                           im.width, im.height, origin=(0, 0))
+
+            print('  %-14s %dx%d' % (node_name, im.width, im.height))
+    else:
+        print('  BarH/BarV      MISSING %s' % BAR_IMAGE)
 
     logo, lw, lh = logo_bgra(os.path.join(SRC, LOGO_IMAGE), 240)
     builder.bitmap(custom, 'Logo', logo, lw, lh, origin=(0, 0))
