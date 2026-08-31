@@ -45,10 +45,22 @@ namespace ms
 
 		UIElement::Type get_type() const override;
 
+		// Open or close the invite list - the panel's second half, which shows
+		// everyone standing on this map who is not already in the party. The
+		// status bar's party button drives this.
+		//
+		// Tapping a name beats typing one: the alternative is /invite <name>
+		// spelled correctly on a handheld, which is the whole reason parties
+		// never got used.
+		void toggle_invites();
+		bool invites_open() const;
+
 	private:
 		static constexpr int16_t WIDTH = 150;
 		static constexpr int16_t TITLE_H = 23;
 		static constexpr int16_t ROW_H = 31;
+		static constexpr int16_t INVITE_HEAD_H = 18;
+		static constexpr int16_t INVITE_ROW_H = 17;
 
 		MapleFrame frame;
 		Texture gauge_bar, gauge_fill, gauge_grad;
@@ -63,6 +75,14 @@ namespace ms
 		};
 		mutable std::vector<KickHit> kick_hits;
 		Texture leader_star;
+
+		// The invite half. `nearby` is rebuilt each update() from the map's
+		// characters so it cannot go stale as people walk in and out; the
+		// hitboxes are rebuilt each draw() alongside the rows they belong to.
+		bool show_invites = false;
+		std::vector<std::pair<int32_t, std::string>> nearby;
+		mutable std::vector<KickHit> invite_hits;
+		mutable Rectangle<int16_t> leave_rect;
 
 		mutable Text title;
 		mutable Text member_name;

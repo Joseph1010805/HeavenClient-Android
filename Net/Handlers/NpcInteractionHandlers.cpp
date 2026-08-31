@@ -20,6 +20,7 @@
 #include "../IO/UI.h"
 #include "../IO/UITypes/UINpcTalk.h"
 #include "../IO/UITypes/UIShop.h"
+#include "../IO/SecondScreen.h"
 
 namespace ms
 {
@@ -56,6 +57,11 @@ namespace ms
 
 		shop.reset(npcid);
 
+		// Which backdrop the panel should wear, decided from the stock:
+		// item ids starting with 1 are equipment, everything else is
+		// consumables and sundries.
+		bool sells_equipment = false;
+
 		int16_t size = recv.read_short();
 
 		for (int16_t i = 0; i < size; i++)
@@ -68,6 +74,9 @@ namespace ms
 			recv.skip(4);
 
 			bool norecharge = recv.read_short() == 1;
+
+			if (itemid / 1000000 == 1)
+				sells_equipment = true;
 
 			if (norecharge)
 			{
@@ -85,5 +94,10 @@ namespace ms
 				shop.add_rechargable(itemid, price, pitch, time, rechargeprice, slotmax);
 			}
 		}
+
+		// On a two-screen device the shop goes DOWN THERE, over the shelves,
+		// leaving the game itself visible above it. Does nothing anywhere
+		// else - see SecondScreen::show_shop.
+		SecondScreen::show_shop(oshop.get(), sells_equipment);
 	}
 }

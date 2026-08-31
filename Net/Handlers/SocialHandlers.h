@@ -30,6 +30,17 @@ namespace ms
 		void handle(InPacket& recv) const override;
 	};
 
+	// The friends list, and every change to it.
+	//
+	// This was a NullHandler, so the list the server sends on every login has
+	// been arriving and being discarded since the client was written.
+	//
+	// Opcode: BUDDY_LIST(63)
+	class BuddyListHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
 	// A party member's health changed.
 	//
 	// Sent whenever somebody in the party takes damage or heals, and while

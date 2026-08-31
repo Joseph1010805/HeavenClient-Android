@@ -109,6 +109,7 @@ namespace ms
 			USE_SKILL = 91,
 
 			// Gameplay 2
+			WHISPER = 120,
 			PARTY_OPERATION = 124,
 			DENY_PARTY_REQUEST = 125,
 

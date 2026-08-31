@@ -70,7 +70,16 @@ namespace ms
 
 		const auto& members = party.get_members();
 		int16_t rows = static_cast<int16_t>(members.size());
-		int16_t inner_h = static_cast<int16_t>(TITLE_H + rows * ROW_H);
+
+		// The invite half adds a heading, a row per nearby player and the
+		// leave row, and the frame has to be sized for all of it BEFORE it is
+		// drawn - so this is counted up here rather than as we go.
+		int16_t invite_rows = show_invites
+			? static_cast<int16_t>(nearby.size() + 1) : 0;
+		int16_t invite_h = show_invites
+			? static_cast<int16_t>(INVITE_HEAD_H + invite_rows * INVITE_ROW_H) : 0;
+
+		int16_t inner_h = static_cast<int16_t>(TITLE_H + rows * ROW_H + invite_h);
 
 		int16_t top_h = 7;
 		int16_t panel_h = static_cast<int16_t>(top_h + inner_h + 10);
@@ -154,6 +163,44 @@ namespace ms
 			}
 		}
 
+		invite_hits.clear();
+		leave_rect = Rectangle<int16_t>();
+
+		if (show_invites)
+		{
+			int16_t iy = static_cast<int16_t>(top_h + TITLE_H + 11 + rows * ROW_H);
+
+			static const ColorBox rule(WIDTH - 10, 1, Color::Name::WHITE, 0.4f);
+			rule.draw(DrawArgument(tl + Point<int16_t>(5, iy)));
+
+			member_name.change_text(nearby.empty()
+				? "Nobody else on this map"
+				: "Tap a name to invite");
+			member_name.draw(tl + Point<int16_t>(10, iy + 3));
+
+			iy = static_cast<int16_t>(iy + INVITE_HEAD_H);
+
+			for (const auto& who : nearby)
+			{
+				member_name.change_text(who.second);
+				member_name.draw(tl + Point<int16_t>(15, iy));
+
+				Point<int16_t> rt = tl + Point<int16_t>(5, iy);
+				invite_hits.push_back({ who.first, who.second,
+					Rectangle<int16_t>(rt, rt + Point<int16_t>(WIDTH - 10, INVITE_ROW_H)) });
+
+				iy = static_cast<int16_t>(iy + INVITE_ROW_H);
+			}
+
+			// Leave sits last, so a mis-tap while inviting does not drop you
+			// out of the party you are trying to fill.
+			member_hp_text.change_text("Leave party");
+			member_hp_text.draw(tl + Point<int16_t>(WIDTH - 8, iy));
+
+			Point<int16_t> lt = tl + Point<int16_t>(5, iy);
+			leave_rect = Rectangle<int16_t>(lt, lt + Point<int16_t>(WIDTH - 10, INVITE_ROW_H));
+		}
+
 		UIElement::draw(inter);
 	}
 
@@ -184,8 +231,51 @@ namespace ms
 					chr->set_party_hp(m.hp, m.maxhp);
 			}
 
+			// Everyone on this map who is not already with us. Rebuilt every
+			// tick so the list cannot offer somebody who has walked off.
+			nearby.clear();
+
+			if (show_invites)
+			{
+				for (auto& entry : *chars.get_chars())
+				{
+					auto* obj = entry.second.get();
+
+					if (obj == nullptr)
+						continue;
+
+					int32_t cid = obj->get_oid();
+
+					bool already = (cid == my_cid);
+					for (const auto& m : party.get_members())
+						already = already || (m.cid == cid);
+
+					if (already)
+						continue;
+
+					std::string name = static_cast<Char*>(obj)->get_name();
+
+					if (!name.empty())
+						nearby.emplace_back(cid, name);
+				}
+
+				std::sort(nearby.begin(), nearby.end(),
+					[](const auto& a, const auto& b) { return a.second < b.second; });
+			}
+
 			int16_t rows = static_cast<int16_t>(party.get_members().size());
-			dimension = Point<int16_t>(WIDTH, static_cast<int16_t>(TITLE_H + rows * ROW_H + 14));
+			int16_t extra = show_invites
+				? static_cast<int16_t>(INVITE_HEAD_H + (nearby.size() + 1) * INVITE_ROW_H)
+				: 0;
+
+			dimension = Point<int16_t>(WIDTH,
+				static_cast<int16_t>(TITLE_H + rows * ROW_H + extra + 14));
+		}
+		else
+		{
+			// Not in a party, so there is nothing to invite anyone to.
+			show_invites = false;
+			nearby.clear();
 		}
 
 		for (int32_t cid : stamped_cids)
@@ -226,7 +316,49 @@ namespace ms
 			}
 		}
 
+		for (const auto& hit : invite_hits)
+		{
+			if (hit.rect.contains(cursorpos))
+			{
+				if (clicked)
+				{
+					InviteToPartyPacket(hit.name).dispatch();
+					return Cursor::State::CLICKING;
+				}
+
+				return Cursor::State::CANCLICK;
+			}
+		}
+
+		if (leave_rect.contains(cursorpos))
+		{
+			if (clicked)
+			{
+				UI::get().emplace<UIYesNo>(
+					"Leave the party?",
+					[](bool yes)
+					{
+						if (yes)
+							LeavePartyPacket().dispatch();
+					});
+
+				return Cursor::State::CLICKING;
+			}
+
+			return Cursor::State::CANCLICK;
+		}
+
 		return UIDragElement::send_cursor(clicked, cursorpos);
+	}
+
+	void UIPartyHUD::toggle_invites()
+	{
+		show_invites = !show_invites;
+	}
+
+	bool UIPartyHUD::invites_open() const
+	{
+		return show_invites;
 	}
 
 	UIElement::Type UIPartyHUD::get_type() const

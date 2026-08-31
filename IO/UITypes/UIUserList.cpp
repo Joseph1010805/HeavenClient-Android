@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIUserList.h"
 
+#include "../../Gameplay/Stage.h"
+
 #include "../IO/Components/MapleButton.h"
 #include "../IO/Components/TwoSpriteButton.h"
 
@@ -104,6 +106,8 @@ namespace ms
 
 		friends_cur_location = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LIGHTGREY, "My Location - " + get_cur_location(), 0);
 		friends_name = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::BLACK, "none", 0);
+		friend_online_row = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::BLACK);
+		friend_offline_row = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LIGHTGREY);
 		friends_group_name = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE, "Default Group (0/0)", 0);
 
 		buttons[Buttons::BT_FRIEND_ADD] = std::make_unique<MapleButton>(Friend["BtAddFriend"]);
@@ -216,6 +220,32 @@ namespace ms
 			friends_name.draw(position + Point<int16_t>(24, 134));
 			friends_group_name.draw(position + Point<int16_t>(29, 114));
 			friends_slider.draw(position);
+
+			// The list itself. Everything above this line is the window's
+			// chrome, which was all this tab has ever drawn - the friends
+			// were arriving from the server and being discarded.
+			const BuddyList& buddies = Stage::get().get_player().get_buddies();
+
+			friends_online_text.change_text(
+				std::to_string(buddies.count_online()) + "/"
+				+ std::to_string(buddies.count()));
+
+			int16_t row = 0;
+
+			for (const auto& b : buddies.get_entries())
+			{
+				if (row >= FRIEND_ROWS)
+					break;
+
+				// Online in white, offline greyed - sorted online-first by
+				// BuddyList, so the useful ones are always at the top.
+				Text& line = b.online() ? friend_online_row : friend_offline_row;
+
+				line.change_text(b.name + (b.online() ? "" : "  (offline)"));
+				line.draw(position + Point<int16_t>(24, 134 + row * FRIEND_ROW_H));
+
+				row++;
+			}
 		}
 		else if (tab == Buttons::BT_TAB_BOSS)
 		{

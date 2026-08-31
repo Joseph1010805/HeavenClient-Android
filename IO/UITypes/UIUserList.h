@@ -119,10 +119,20 @@ namespace ms
 		int friend_total = 50;
 		std::vector<Sprite> friend_sprites;
 		Texture friend_grid[4];
-		Text friends_online_text;
+		// Recomputed while drawing, so it cannot show a stale count.
+		mutable Text friends_online_text;
 		Text friends_cur_location;
 		Text friends_name;
 		Text friends_group_name;
+
+		// One row per friend, drawn down the tab. Two Texts rather than one
+		// recoloured, because Text carries its colour and swapping it every
+		// row would rebuild the layout each time.
+		mutable Text friend_online_row;
+		mutable Text friend_offline_row;
+
+		static constexpr int16_t FRIEND_ROWS = 8;
+		static constexpr int16_t FRIEND_ROW_H = 18;
 		Slider friends_slider;
 
 		// Boss tab

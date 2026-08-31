@@ -97,6 +97,46 @@ namespace ms
 		}
 	}
 
+	void BuddyListHandler::handle(InPacket& recv) const
+	{
+		int8_t mode = recv.read_byte();
+
+		// 7 is "here is the whole list", which is what arrives at login and
+		// after every add or removal. The other modes are notifications the
+		// list refresh follows anyway.
+		if (mode != 7)
+			return;
+
+		int8_t count = recv.read_byte();
+
+		std::vector<BuddyEntry> entries;
+
+		for (int8_t i = 0; i < count; i++)
+		{
+			BuddyEntry e;
+
+			e.cid = recv.read_int();
+
+			// Fixed 13 bytes, null padded - NOT a length-prefixed string.
+			// Reading it as one would swallow the rest of the entry.
+			e.name = recv.read_padded_string(13);
+
+			recv.read_byte();				// opposite status
+			e.channel = recv.read_int();	// channel - 1, so < 0 is offline
+			e.group = recv.read_padded_string(13);
+
+			recv.read_int();				// map id, always zero here
+
+			entries.push_back(std::move(e));
+		}
+
+		// A trailing int per entry, which Cosmic writes as zeroes.
+		for (int8_t i = 0; i < count; i++)
+			recv.read_int();
+
+		Stage::get().get_player().get_buddies().update(std::move(entries));
+	}
+
 	void UpdatePartyMemberHpHandler::handle(InPacket& recv) const
 	{
 		// int cid, int hp, int maxhp - PacketCreator.updatePartyMemberHP.

@@ -327,6 +327,49 @@ namespace ms
 		UI::get().get_element<UIChatbar>()->send_chatline(message, UIChatbar::LineType::YELLOW);
 	}
 
+	void WhisperHandler::handle(InPacket& recv) const
+	{
+		int8_t flag = recv.read_byte();
+
+		auto chatbar = UI::get().get_element<UIChatbar>();
+
+		// RECEIVE(0x10) - somebody whispered us.
+		if (flag & 0x10)
+		{
+			std::string sender = recv.read_string();
+			recv.read_byte();				// channel, one channel here
+			recv.read_bool();				// from a GM
+
+			std::string message = recv.read_string();
+
+			if (chatbar)
+			{
+				chatbar->set_last_whisperer(sender);
+				chatbar->send_chatline(
+					"[" + sender + " whispers] " + message, UIChatbar::LineType::YELLOW);
+			}
+
+			return;
+		}
+
+		// RESULT(0x08) - the answer to one we sent. success false means the
+		// server could not find that name, which is otherwise silent.
+		if (flag & 0x08)
+		{
+			std::string target = recv.read_string();
+			bool found = recv.read_bool();
+
+			if (chatbar && !found)
+				chatbar->send_chatline(
+					"[Whisper] " + target + " is not online.", UIChatbar::LineType::RED);
+
+			return;
+		}
+
+		// LOCATION(0x01) replies to a find. Not asked for anywhere yet, so the
+		// rest is deliberately left unread rather than guessed at.
+	}
+
 	void ChatReceivedHandler::handle(InPacket& recv) const
 	{
 		int32_t charid = recv.read_int();

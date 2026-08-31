@@ -111,6 +111,7 @@ namespace ms
 		FIELD_SET_VARIABLE = 92,
 		FAMILY_PRIV_LIST = 100,
 		CANCEL_RENAME_BY_OTHER = 120,
+		WHISPER = 135,
 		SCRIPT_PROGRESS_MESSAGE = 122,
 		RECEIVE_POLICE = 123,
 		SKILL_MACROS = 124,
@@ -261,6 +262,7 @@ namespace ms
 		// Messaging handlers
 		emplace<SHOW_STATUS_INFO, ShowStatusInfoHandler>();
 		emplace<CHAT_RECEIVED, ChatReceivedHandler>();
+		emplace<WHISPER, WhisperHandler>();
 		emplace<SCROLL_RESULT, ScrollResultHandler>();
 		emplace<SERVER_MESSAGE, ServerMessageHandler>();
 		emplace<WEEK_EVENT_MESSAGE, WeekEventMessageHandler>();
@@ -276,10 +278,10 @@ namespace ms
 		emplace<OPEN_NPC_SHOP, OpenNpcShopHandler>();
 
 		// TODO: Handle packets below correctly
-		emplace<MOVE_MOB_RESPONSE, NullHandler>();
+		emplace<MOVE_MOB_RESPONSE, MoveMobResponseHandler>();
 		emplace<MEMO_RESULT, NullHandler>();
 		emplace<ENABLE_REPORT, NullHandler>();
-		emplace<BUDDY_LIST, NullHandler>();
+		emplace<BUDDY_LIST, BuddyListHandler>();
 		emplace<GUILD_OPERATION, NullHandler>();
 		emplace<FAMILY_PRIV_LIST, NullHandler>();
 		emplace<SCRIPT_PROGRESS_MESSAGE, NullHandler>();

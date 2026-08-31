@@ -56,6 +56,19 @@ namespace ms
 
 	// Shows the effect of a scroll.
 	// Opcode: SCROLL_RESULT(167)
+	// A private message arriving, or the server's answer to one we sent.
+	//
+	// Both directions share opcode WHISPER; the leading byte is a WhisperFlag
+	// pair saying which this is. RESULT(0x08) answers our own attempt and is
+	// how "no such player" comes back - without handling it, a whisper to a
+	// misspelled name simply vanishes.
+	//
+	// Opcode: WHISPER(135)
+	class WhisperHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
 	class ScrollResultHandler : public PacketHandler
 	{
 		void handle(InPacket& recv) const override;
