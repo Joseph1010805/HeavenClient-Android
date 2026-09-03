@@ -23,6 +23,8 @@
 #include "../Components/MapleButton.h"
 
 #include "../Gameplay/MapleMap/Npc.h"
+#include "../../Graphics/GraphicsGL.h"
+#include "../../Gameplay/QuestTracker.h"
 
 #include <nlnx/nx.hpp>
 
@@ -110,14 +112,60 @@ namespace ms
 			{
 				Animation portal_marker(marker["portal"]);
 
-				// MAX_ADJ is the drop the largest layout gives its canvas, and
-				// the max branch below adds it to every static marker at draw
-				// time rather than storing it. Without it here the portals sat
-				// that far above everything else on the map.
+				// A MARKER'S OWN HALF-WIDTH IS A SCREEN DISTANCE, NOT A MAP
+				// ONE - which is the whole reason the portals were off.
+				//
+				// static_marker_info stores each portal already shifted left
+				// by half a marker and already moved to the window's canvas
+				// corner. Both are distances on the SCREEN. Feeding that
+				// through panel_point scaled them along with the map, so
+				// every portal was out by its own half-width times the zoom.
+				//
+				// MAX_ADJ was worse: it is the drop the largest WINDOW layout
+				// gives its canvas, and this panel draws no window at all, so
+				// adding it - and then scaling it too - pushed every portal
+				// forty-odd pixels down the map.
+				//
+				// Both are undone here, the map position alone is scaled, and
+				// the half-width goes back on afterwards. That is exactly the
+				// order draw_movable_markers uses, which is why the dots were
+				// right while the portals were not.
+				Point<int16_t> half =
+					portal_marker.get_dimensions() / Point<int16_t>(2, 0);
+
+				Point<int16_t> canvas_corner(map_draw_origin_x, map_draw_origin_y);
+
 				for (auto sprite : static_marker_info)
-					portal_marker.draw(position + panel_point(sprite.second + Point<int16_t>(0, MAX_ADJ)), alpha);
+				{
+					Point<int16_t> on_canvas = sprite.second + half - canvas_corner;
+
+					portal_marker.draw(
+						position + panel_marker(on_canvas) - half, alpha);
+				}
 
 				draw_movable_markers(position, alpha);
+			}
+
+			// BACK TO ME.
+			//
+			// Always there, not only once the view has wandered. It was
+			// hidden until you had dragged, which meant the one control on
+			// the page could not be found by looking at the page - you had to
+			// already know it existed to make it appear.
+			{
+				Rectangle<int16_t> box = panel_centre_box();
+
+				GraphicsGL::get().drawrectangle(
+					position.x() + box.left(), position.y() + box.top(),
+					box.width(), box.height(), 0.86f, 0.74f, 0.36f, 0.92f);
+
+				if (centre_label.get_text().empty())
+					centre_label = Text(Text::Font::A12M, Text::Alignment::CENTER,
+						Color::Name::WHITE, "CENTRE");
+
+				centre_label.draw(Point<int16_t>(
+					position.x() + box.left() + box.width() / 2,
+					position.y() + box.top() + 5));
 			}
 		}
 		else
@@ -221,8 +269,71 @@ namespace ms
 			UI::get().clear_tooltip(Tooltip::Parent::MINIMAP);
 	}
 
+	bool UIMiniMap::send_drag(Point<int16_t> from, Point<int16_t> to)
+	{
+		// A finger or a stylus, moving with the screen still under it. The
+		// panel offers this before it offers a hover - see
+		// UIElement::send_drag - because a hover is all this page used to be
+		// told, and panning ran only while it believed a button was held.
+		if (!panel)
+			return false;
+
+		panel_pan = panel_pan + (to - from);
+
+		return true;
+	}
+
 	Cursor::State UIMiniMap::send_cursor(bool clicked, Point<int16_t> cursorpos)
 	{
+		// ON THE PANEL THIS IS A MAP YOU DRAG, not a window with buttons.
+		if (panel)
+		{
+			// THE BUTTON IS TESTED WHERE IT IS DRAWN.
+			//
+			// panel_centre_box is measured from the corner of the space this
+			// page was given, and draw() adds `position` to put it on screen.
+			// The test did not, so the box answered to presses `position`
+			// above and to the left of the button anybody could see - which
+			// on this layout is about 24 by 40 pixels away. Pressing CENTRE
+			// did nothing, and pressing empty map above it centred the view.
+			Rectangle<int16_t> box = panel_centre_box();
+
+			Rectangle<int16_t> centre(
+				Point<int16_t>(box.left(), box.top()) + position,
+				Point<int16_t>(box.right(), box.bottom()) + position);
+
+			if (clicked && centre.contains(cursorpos))
+			{
+				panel_pan = Point<int16_t>(0, 0);
+				panning = false;
+
+				return Cursor::State::CLICKING;
+			}
+
+			// Dragging with a real mouse, where the button genuinely stays
+			// down between moves. A touch never gets here - it arrives
+			// through send_drag above.
+			if (clicked)
+			{
+				if (!panning)
+				{
+					panning = true;
+					pan_from = cursorpos;
+				}
+				else
+				{
+					panel_pan = panel_pan + (cursorpos - pan_from);
+					pan_from = cursorpos;
+				}
+
+				return Cursor::State::CLICKING;
+			}
+
+			panning = false;
+
+			return Cursor::State::IDLE;
+		}
+
 		Cursor::State dstate = UIDragElement::send_cursor(clicked, cursorpos);
 
 		if (dragged)
@@ -492,6 +603,18 @@ namespace ms
 		UI::get().show_map(Tooltip::Parent::MINIMAP, name, description, mapid, false);
 	}
 
+	Rectangle<int16_t> UIMiniMap::panel_centre_box() const
+	{
+		// Bottom right, clear of the gauges down either edge and of the
+		// address bar along the top.
+		constexpr int16_t W = 86;
+		constexpr int16_t H = 30;
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(panel_screen.x() - W - 18, panel_screen.y() - H - 18),
+			Point<int16_t>(panel_screen.x() - 18, panel_screen.y() - 18));
+	}
+
 	void UIMiniMap::set_panel(Point<int16_t> screen)
 	{
 		panel = true;
@@ -565,6 +688,19 @@ namespace ms
 		// rather than empty space beyond the map.
 		int16_t min_x = panel_screen.x() - panel_size.x();
 		int16_t min_y = panel_screen.y() - panel_size.y();
+
+		if (x > 0) x = 0;
+		if (y > 0) y = 0;
+		if (x < min_x) x = min_x;
+		if (y < min_y) y = min_y;
+
+		// AND WHEREVER THE PLAYER HAS DRAGGED IT.
+		//
+		// Applied after the clamp and clamped again, so a drag can reach the
+		// edges of the map but not past them - a map with empty space beyond
+		// its own corner looks broken rather than scrolled.
+		x = static_cast<int16_t>(x + panel_pan.x());
+		y = static_cast<int16_t>(y + panel_pan.y());
 
 		if (x > 0) x = 0;
 		if (y > 0) y = 0;
@@ -754,7 +890,22 @@ namespace ms
 		for (auto npc = npcs->begin(); npc != npcs->end(); ++npc)
 		{
 			Point<int16_t> npc_pos = npc->second.get()->get_position();
-			marker_sprite.draw(init_pos + panel_marker((npc_pos + center_offset) / scale) - sprite_offset, alpha);
+			Point<int16_t> at = init_pos
+				+ panel_marker((npc_pos + center_offset) / scale) - sprite_offset;
+
+			// THE ONE THE QUEST WANTS, ringed.
+			//
+			// Every NPC gets the same dot, which is no help at all when the
+			// question is "which of these six". Drawn UNDER the dot so the
+			// dot stays the thing you recognise.
+			if (QuestTracker::get().is_target(
+				static_cast<Npc*>(npc->second.get())->get_npcid()))
+			{
+				GraphicsGL::get().drawrectangle(
+					at.x() - 3, at.y() - 3, 12, 12, 1.0f, 0.86f, 0.30f, 0.85f);
+			}
+
+			marker_sprite.draw(at, alpha);
 		}
 
 		// other characters

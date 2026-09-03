@@ -16,6 +16,9 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIHotkeys.h"
+#include "UIKeyConfig.h"
+
+#include "../../Net/Packets/InventoryPackets.h"
 
 #include "../UI.h"
 #include "../SecondScreen.h"
@@ -89,6 +92,19 @@ namespace ms
 		}
 
 		Setting<HotkeySlots>::get().save(packed);
+
+		// AND WRITE THE FILE, NOW.
+		//
+		// Setting::save only changes the value in memory. The file is written
+		// by Configuration::save, which the Configuration destructor calls -
+		// and that destructor runs on a clean shutdown, which is not how a
+		// game on a handheld ever ends. Android kills it from outside, so
+		// nothing was ever written and every hotkey placed was gone by the
+		// next launch.
+		//
+		// The same fault has been fixed once before, in the login screen, for
+		// the saved account name. See UILogin::login.
+		Configuration::get().save();
 	}
 
 	Point<int16_t> UIHotkeys::cell_origin(size_t slot) const
@@ -119,6 +135,12 @@ namespace ms
 				icon = SkillData::get(slot.action).get_icon(SkillData::Icon::NORMAL);
 			else if (slot.type == KeyType::Id::ITEM)
 				icon = ItemData::get(slot.action).get_icon(false);
+			else if (slot.type != KeyType::Id::NONE)
+				// Everything else is a bound ACTION, MENU or FACE, and the
+				// key config's icon strip has a picture for each. A slot
+				// holding Jump used to be an empty square.
+				icon = UIKeyConfig::action_icon(
+					static_cast<KeyAction::Id>(slot.action));
 
 			if (icon.is_valid())
 			{
@@ -164,6 +186,53 @@ namespace ms
 		if (slot.type == KeyType::Id::NONE)
 			return;
 
+		// AN EQUIP IS WORN AND TAKEN OFF, NOT "USED".
+		//
+		// Stage::send_key knows how to consume a potion and cast a skill, and
+		// there is nothing sensible for it to do with a hat. So a slot
+		// holding a piece of equipment toggles it: off if it is on, on if it
+		// is in the bag. That is the only thing anybody could mean by putting
+		// a weapon on a button.
+		//
+		// Item ids beginning with 1 are equipment - the same test the
+		// inventory uses to decide which tab something belongs in.
+		bool wearable = (slot.type == KeyType::Id::ITEM
+			|| slot.type == KeyType::Id::CASH)
+			&& slot.action / 1000000 == 1;
+
+		if (wearable)
+		{
+			const Inventory& bag = Stage::get().get_player().get_inventory();
+
+			// ON already? Take it off, into the first free bag slot.
+			for (int16_t worn = 1; worn < 120; worn++)
+			{
+				if (bag.get_item_id(InventoryType::Id::EQUIPPED, worn) != slot.action)
+					continue;
+
+				if (int16_t free = bag.find_free_slot(InventoryType::Id::EQUIP))
+					UnequipItemPacket(worn, free).dispatch();
+
+				return;
+			}
+
+			// Otherwise find it in the bag and put it on.
+			for (int16_t held = 1; held <= bag.get_slotmax(InventoryType::Id::EQUIP); held++)
+			{
+				if (bag.get_item_id(InventoryType::Id::EQUIP, held) != slot.action)
+					continue;
+
+				EquipItemPacket(held, bag.find_equipslot(slot.action)).dispatch();
+
+				return;
+			}
+
+			// Neither worn nor carried - it has been dropped or sold, and the
+			// slot is pointing at nothing. Silence is right: a message every
+			// time a stale button is pressed would be worse than the button.
+			return;
+		}
+
 		// Stage already knows how to act on a bound thing - a skill goes to
 		// combat, an item to the player. Going through it means a hotkey and a
 		// key press take exactly the same path.
@@ -195,12 +264,57 @@ namespace ms
 
 			save();
 
+			// AND YOU ARE NO LONGER HOLDING IT.
+			//
+			// Without this the carry outlives the placement, so the next tap
+			// on any slot places the same thing again instead of using what
+			// is in it. The page filled up perfectly and nothing on it could
+			// ever be pressed - which is exactly how it was reported.
+			SecondScreen::clear_carried();
+
 			return Cursor::State::CLICKING;
 		}
+
+		// ONE USE PER TAP. See since_fire.
+		if (since_fire < COOLDOWN)
+			return Cursor::State::CLICKING;
+
+		since_fire = 0;
 
 		fire(slots[slot]);
 
 		return Cursor::State::CLICKING;
+	}
+
+	void UIHotkeys::update()
+	{
+		if (since_fire < COOLDOWN)
+			since_fire++;
+
+		UIElement::update();
+	}
+
+	bool UIHotkeys::clear_at(Point<int16_t> cursorpos)
+	{
+		int16_t index = cell_at(cursorpos - position);
+
+		if (index < 0)
+			return false;
+
+		Slot& slot = slots[static_cast<size_t>(index)];
+
+		if (slot.type == KeyType::Id::NONE)
+			return false;
+
+		slot.type = KeyType::Id::NONE;
+		slot.action = 0;
+
+		// Straight to the settings file, like placing one. A slot that empties
+		// on screen and fills itself back in at the next login is worse than
+		// one that cannot be emptied at all.
+		save();
+
+		return true;
 	}
 
 	UIElement::Type UIHotkeys::get_type() const

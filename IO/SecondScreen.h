@@ -102,8 +102,27 @@ namespace ms
 		// What the hotkey page binds.
 		Keyboard::Mapping carried_mapping();
 
+		// Called once whatever was being carried has been put down.
+		void clear_carried();
+
 		// Turn the panel to the hotkey page. Does nothing without a panel.
 		void show_hotkeys();
+
+		// Turn the panel to the trade page and hand back its window, BUILDING
+		// it if it has not been opened yet.
+		//
+		// Not the same as hosted(TRADE): pages are built the first time they
+		// are looked at, and the first thing that happens in a trade is a
+		// packet arriving - before anybody has looked at anything. Asking for
+		// the window without building it would drop the opening move.
+		//
+		// Null where there is no panel, and the caller then puts the window
+		// on the main screen instead.
+		UIElement* open_trade();
+
+		// The same for the bank, which arrives the same way: unasked for,
+		// because an NPC opened it. See open_trade.
+		UIElement* open_storage();
 
 		// Put a shop on the panel instead of over the game.
 		//
@@ -120,6 +139,69 @@ namespace ms
 		// Play the level-up flourish on the panel. Does nothing where there is
 		// no panel, so the one-screen build is unaffected.
 		void play_levelup();
+
+		// THE SAME PANEL ON A DEVICE WITH ONLY ONE SCREEN.
+		//
+		// Everything above draws to a surface the RP5 and the Quest do not
+		// have, so on those the panel did not exist at all - and with it went
+		// Mail, Party, the bag pages, the stat popup and every menu. Half the
+		// client was reachable only on the Thor.
+		//
+		// The panel never needed a second screen to work: every one of its
+		// draw calls already takes the space to lay out in, and its touches
+		// are given a position and that same space. So on a one-screen device
+		// it is drawn OVER the game instead, from the main screen's own pass,
+		// and put away again. Same panel, same pages, same code.
+		//
+		// It is deliberately a takeover rather than a corner widget: this is
+		// what replaces the game's own icon row, and a menu that half-covers
+		// the map is easier to read than one squeezed beside it.
+
+		// True where there is no second display - the case this exists for.
+		bool overlay_supported();
+
+		// Whether it is currently over the game.
+		bool overlay_showing();
+
+		// Open or close it. Does nothing on a device that has a real panel,
+		// which shows the same pages downstairs already.
+		void toggle_overlay();
+
+		// THE PANEL'S TOP-LEVEL SECTIONS, named so the status bar can ask for
+		// one without this header having to expose the whole page list.
+		//
+		// These stand in for the game's own bottom-row menus on a one-screen
+		// device: pressing Character down there opens OUR character section
+		// rather than their icon popup.
+		enum class Section
+		{
+			HOME,
+			CHARACTER,
+			ADVENTURE,
+			SOCIAL,
+			SETTINGS,
+			DAILY
+		};
+
+		// Open the overlay at a section. Returns false where there is no
+		// overlay - a device with a real panel - and the caller then does
+		// whatever it did before.
+		bool open_overlay(Section section);
+
+		// Whether anything inside the panel is asking to be looked at, for the
+		// single MENU icon that stands in for the whole row on a one-screen
+		// device. False where there is no overlay - the Thor badges its own
+		// buttons downstairs.
+		bool overlay_alert();
+
+		// Draw it, in the MAIN screen's pass and its design pixels. Nothing
+		// happens unless it is open.
+		void draw_overlay();
+
+		// Offer a press to the overlay. Returns whether it took it - if it
+		// did, the game must not also act on it, or a tap on a menu button
+		// would walk the character as well.
+		bool overlay_send_cursor(Point<int16_t> position, bool pressed, bool released);
 
 	}
 }

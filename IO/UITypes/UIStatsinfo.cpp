@@ -65,7 +65,9 @@ namespace ms
 		buttons[Buttons::BT_DEX] = std::make_unique<MapleButton>(main["BtHpUp"], Point<int16_t>(0, 105));	// TODO: "BtDexUp" not working
 		buttons[Buttons::BT_INT] = std::make_unique<MapleButton>(main["BtHpUp"], Point<int16_t>(0, 123));	// TODO: "BtIntUp" not working
 		buttons[Buttons::BT_LUK] = std::make_unique<MapleButton>(main["BtHpUp"], Point<int16_t>(0, 141));	// TODO: "BtLukUp" not working
-		buttons[Buttons::BT_AUTO] = std::make_unique<MapleButton>(main["BtAuto"]);
+		// BT_AUTO IS DELIBERATELY NOT BUILT. Auto-assign was removed - see
+		// the note above panel_cancel_box. The enumerator stays so the
+		// button ids either side of it keep their values.
 		buttons[Buttons::BT_HYPERSTATOPEN] = std::make_unique<MapleButton>(main["BtHyperStatOpen"]);
 		buttons[Buttons::BT_HYPERSTATCLOSE] = std::make_unique<MapleButton>(main["BtHyperStatClose"]);
 		buttons[Buttons::BT_DETAILOPEN] = std::make_unique<MapleButton>(main["BtDetailOpen"]);
@@ -191,25 +193,154 @@ namespace ms
 		return PANEL_TOP + static_cast<int16_t>(row) * PANEL_ROW_H;
 	}
 
-	Rectangle<int16_t> UIStatsinfo::panel_chip_box(size_t row) const
+	Rectangle<int16_t> UIStatsinfo::panel_popup_box() const
 	{
-		int16_t x = static_cast<int16_t>(PANEL_LEFT_X + PANEL_CHIP_X);
-		int16_t y = static_cast<int16_t>(panel_row_y(row) - 1);
-
+		// Most of the page, so the buttons inside it can be thumb-sized. It
+		// is drawn over the statistics, which nobody is reading at the moment
+		// they are spending a point.
 		return Rectangle<int16_t>(
-			Point<int16_t>(x, y),
-			Point<int16_t>(static_cast<int16_t>(x + PANEL_CHIP_W),
-				static_cast<int16_t>(y + PANEL_CHIP_H)));
+			Point<int16_t>(6, 24),
+			Point<int16_t>(static_cast<int16_t>(panel_screen.x() - 6),
+				static_cast<int16_t>(panel_screen.y() - 10)));
 	}
 
-	Rectangle<int16_t> UIStatsinfo::panel_auto_box() const
+	Rectangle<int16_t> UIStatsinfo::panel_popup_close() const
 	{
-		int16_t y = static_cast<int16_t>(panel_row_y(PANEL_LEFT_COUNT) + 4);
+		Rectangle<int16_t> box = panel_popup_box();
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(static_cast<int16_t>(box.right() - 34), box.top() + 4),
+			Point<int16_t>(static_cast<int16_t>(box.right() - 6),
+				static_cast<int16_t>(box.top() + 28)));
+	}
+
+	Rectangle<int16_t> UIStatsinfo::panel_levelup_box() const
+	{
+		// MEASURED FROM THE BOTTOM OF THE BOX, not from the end of the rows.
+		//
+		// Placed after the last stat row it sat wherever thirteen rows
+		// happened to end - which on this panel was below the content box, so
+		// "NOTHING TO SPEND" was printed straight over the HP and MP numbers.
+		// The bottom of the page is a fact; the height of the sheet is not.
+		constexpr int16_t H = 28;
+
+		int16_t y = static_cast<int16_t>(panel_screen.y() - H - 2);
 
 		return Rectangle<int16_t>(
 			Point<int16_t>(PANEL_LEFT_X, y),
-			Point<int16_t>(static_cast<int16_t>(PANEL_LEFT_X + PANEL_AUTO_W),
-				static_cast<int16_t>(y + PANEL_CHIP_H + 5)));
+			Point<int16_t>(static_cast<int16_t>(panel_screen.x() - PANEL_LEFT_X),
+				static_cast<int16_t>(y + H)));
+	}
+
+	Rectangle<int16_t> UIStatsinfo::panel_chip_box(size_t index) const
+	{
+		// TWO ROWS OF THREE, INSIDE THE POPUP. A single row of six across a
+		// 344-wide panel gives each button 52 pixels; two rows give them 90,
+		// which is a thumb rather than a fingernail - and this is the one
+		// screen in the game where a mis-tap cannot be undone.
+		Rectangle<int16_t> box = panel_popup_box();
+
+		constexpr int16_t COLS = 3;
+		constexpr int16_t W = 92;
+		constexpr int16_t H = 44;
+		constexpr int16_t GAP = 8;
+
+		int16_t total = static_cast<int16_t>(COLS * W + (COLS - 1) * GAP);
+		int16_t left = static_cast<int16_t>(box.left() + (box.width() - total) / 2);
+
+		int16_t col = static_cast<int16_t>(index % COLS);
+		int16_t row = static_cast<int16_t>(index / COLS);
+
+		int16_t x = static_cast<int16_t>(left + col * (W + GAP));
+		int16_t y = static_cast<int16_t>(box.top() + 40 + row * (H + GAP));
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(x, y),
+			Point<int16_t>(static_cast<int16_t>(x + W),
+				static_cast<int16_t>(y + H)));
+	}
+
+	// AUTO IS GONE, NOT DISABLED.
+	//
+	// It was one button that spent every point you had, in one press, with no
+	// undo - and it could not know where they should go. For a Beginner it
+	// guessed strength, which is the wrong answer for three of the four
+	// classes; refusing for Beginners only narrowed the accident rather than
+	// removing it, because it still poured the lot into one stat for everyone
+	// else the moment it was pressed. There is no version of "spend all of it
+	// for me" that is safe on a screen with no undo, so its room went to the
+	// two buttons that make the rest of the popup safe instead.
+	namespace
+	{
+		// The end-of-popup row: GO BACK on the left, LOCK IN on the right.
+		constexpr int16_t END_H = 34;
+		constexpr int16_t END_GAP = 10;
+	}
+
+	Rectangle<int16_t> UIStatsinfo::panel_cancel_box() const
+	{
+		Rectangle<int16_t> box = panel_popup_box();
+
+		int16_t y = static_cast<int16_t>(box.bottom() - END_H - 8);
+		int16_t half = static_cast<int16_t>((box.width() - 60 - END_GAP) / 2);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(static_cast<int16_t>(box.left() + 30), y),
+			Point<int16_t>(static_cast<int16_t>(box.left() + 30 + half),
+				static_cast<int16_t>(y + END_H)));
+	}
+
+	Rectangle<int16_t> UIStatsinfo::panel_commit_box() const
+	{
+		Rectangle<int16_t> box = panel_popup_box();
+		Rectangle<int16_t> back = panel_cancel_box();
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(static_cast<int16_t>(back.right() + END_GAP),
+				back.top()),
+			Point<int16_t>(static_cast<int16_t>(box.right() - 30),
+				back.bottom()));
+	}
+
+	int16_t UIStatsinfo::pending_total() const
+	{
+		int16_t total = 0;
+
+		for (size_t i = 0; i < SPEND_COUNT; i++)
+			total = static_cast<int16_t>(total + pending[i]);
+
+		return total;
+	}
+
+	int16_t UIStatsinfo::ap_left() const
+	{
+		int16_t have = static_cast<int16_t>(stats.get_stat(Maplestat::Id::AP));
+
+		return static_cast<int16_t>(have - pending_total());
+	}
+
+	void UIStatsinfo::discard_pending()
+	{
+		for (size_t i = 0; i < SPEND_COUNT; i++)
+			pending[i] = 0;
+	}
+
+	void UIStatsinfo::commit_pending()
+	{
+		static const Maplestat::Id STAT[SPEND_COUNT] = {
+			Maplestat::Id::STR,
+			Maplestat::Id::DEX,
+			Maplestat::Id::INT,
+			Maplestat::Id::LUK,
+			Maplestat::Id::HP,
+			Maplestat::Id::MP
+		};
+
+		for (size_t i = 0; i < SPEND_COUNT; i++)
+			for (int16_t n = 0; n < pending[i]; n++)
+				send_apup(STAT[i]);
+
+		discard_pending();
 	}
 
 	bool UIStatsinfo::panel_pressed(Point<int16_t> at)
@@ -217,43 +348,91 @@ namespace ms
 		if (!hasap)
 			return false;
 
-		struct Spend { Buttons button; StatLabel row; };
-
-		static const Spend SPEND[] = {
-			{ Buttons::BT_HP,  StatLabel::HP  },
-			{ Buttons::BT_MP,  StatLabel::MP  },
-			{ Buttons::BT_STR, StatLabel::STR },
-			{ Buttons::BT_DEX, StatLabel::DEX },
-			{ Buttons::BT_INT, StatLabel::INT },
-			{ Buttons::BT_LUK, StatLabel::LUK }
-		};
-
-		for (const Spend& s : SPEND)
+		// NOTHING INSIDE THE POPUP IS LIVE WHILE THE POPUP IS SHUT.
+		//
+		// This is the bug that made LEVEL UP dump every point into STR. The
+		// six chips and AUTO were tested on every press regardless of whether
+		// the popup was open, and `panel_auto_box` - which lives along the
+		// bottom of the popup - OVERLAPS the LEVEL UP bar by twelve pixels,
+		// because the bar is measured from the bottom of the page and the
+		// popup ends ten pixels above it.
+		//
+		// So a thumb on the gold bar landed on an invisible "AUTO - SPEND
+		// THEM ALL", which for a Beginner is all of them into strength. The
+		// popup that was supposed to open was never opened by anything at
+		// all: nothing in this file ever set `spend_open` to true.
+		if (!spend_open)
 		{
-			size_t row = 0;
-
-			for (size_t i = 0; i < PANEL_LEFT_COUNT; i++)
-				if (PANEL_LEFT[i] == s.row)
-					row = i;
-
-			if (panel_chip_box(row).contains(at))
+			if (panel_levelup_box().contains(at))
 			{
-				// The window's own handler, unchanged - this only decides
-				// WHERE the press counts, never what it does.
-				button_pressed(s.button);
+				spend_open = true;
+
+				return true;
+			}
+
+			return false;
+		}
+
+		// Shut it again. Drawn top-right of the popup as an X.
+		//
+		// The X DISCARDS. Anything staged and not locked in was never sent, so
+		// closing the popup has to throw it away rather than leave it waiting
+		// to be committed by something else later.
+		if (panel_popup_close().contains(at))
+		{
+			discard_pending();
+
+			spend_open = false;
+
+			return true;
+		}
+
+		if (panel_cancel_box().contains(at))
+		{
+			discard_pending();
+
+			spend_open = false;
+
+			return true;
+		}
+
+		if (panel_commit_box().contains(at))
+		{
+			// Nothing staged is not an error, just nothing to do - and it
+			// still shuts, because that is what pressing it means.
+			commit_pending();
+
+			spend_open = false;
+
+			return true;
+		}
+
+		// THE FOUR ATTRIBUTES FIRST, then HP and MP - the order the chips are
+		// drawn in, and the order commit_pending sends them in. The window's
+		// own Buttons are no longer involved: a chip stages a number now, it
+		// does not press a button.
+		for (size_t i = 0; i < SPEND_COUNT; i++)
+		{
+			if (panel_chip_box(i).contains(at))
+			{
+				// STAGED, NOT SENT. The wire is only touched by LOCK IN.
+				//
+				// Silently ignored once every point is spoken for, which the
+				// button already shows by going dark - there is nothing to
+				// explain and an error box for pressing a dead button is
+				// worse than the button simply not moving.
+				if (ap_left() > 0)
+					pending[i] = static_cast<int16_t>(pending[i] + 1);
 
 				return true;
 			}
 		}
 
-		if (panel_auto_box().contains(at))
-		{
-			button_pressed(Buttons::BT_AUTO);
-
-			return true;
-		}
-
-		return false;
+		// A PRESS ANYWHERE ELSE ON THE POPUP STOPS HERE.
+		//
+		// The popup covers the statistics; letting a press fall through it
+		// would work the page underneath, which the player cannot see.
+		return panel_popup_box().contains(at);
 	}
 
 	Cursor::State UIStatsinfo::send_cursor(bool clicked, Point<int16_t> cursorpos)
@@ -273,6 +452,7 @@ namespace ms
 	void UIStatsinfo::set_panel(Point<int16_t> screen)
 	{
 		panel = true;
+		panel_screen = screen;
 
 		// Nothing to close and nothing to drag on a page.
 		buttons[Buttons::BT_CLOSE]->set_active(false);
@@ -337,14 +517,6 @@ namespace ms
 			buttons[s.button]->set_active(true);
 		}
 
-		Point<int16_t> auto_at = Point<int16_t>(
-			PANEL_LEFT_X, panel_row_y(PANEL_LEFT_COUNT) + 4);
-
-		buttons[Buttons::BT_AUTO]->set_position(
-			auto_at + buttons[Buttons::BT_AUTO]->origin());
-
-		buttons[Buttons::BT_AUTO]->set_active(true);
-
 		// AND THEN EVERY ONE OF THEM OFF AGAIN.
 		//
 		// Positioned above so the non-panel window is unaffected, then
@@ -353,8 +525,6 @@ namespace ms
 		// the middle of a page of stats.
 		for (const Spend& s : SPEND)
 			buttons[s.button]->set_active(false);
-
-		buttons[Buttons::BT_AUTO]->set_active(false);
 
 		// Pale values, not the near-black the window used - they sit on a dark
 		// plate here rather than on white artwork.
@@ -408,6 +578,124 @@ namespace ms
 		}
 	}
 
+	void UIStatsinfo::draw_spend_popup() const
+	{
+		Rectangle<int16_t> box = panel_popup_box();
+
+		// A PLATE THICK ENOUGH TO BE A DIFFERENT SURFACE. The statistics
+		// behind it stop competing for attention - this is a decision, and
+		// the page underneath is reference material.
+		GraphicsGL::get().drawrectangle(
+			position.x() + box.left(), position.y() + box.top(),
+			box.width(), box.height(), 0.06f, 0.07f, 0.10f, 0.97f);
+
+		int16_t ap = ap_left();
+
+		// WHAT IS STILL FREE, not what the character owns. Points already
+		// staged are spoken for even though nothing has been sent, and a
+		// header that kept counting them as available would invite a player
+		// to allocate more than they have and then wonder which ones took.
+		panel_chip_text.change_text(
+			"SPEND A POINT - " + std::to_string(ap) + " LEFT");
+		panel_chip_text.draw(Point<int16_t>(
+			position.x() + box.left() + box.width() / 2,
+			position.y() + box.top() + 10));
+
+		Rectangle<int16_t> shut = panel_popup_close();
+
+		GraphicsGL::get().drawrectangle(
+			position.x() + shut.left(), position.y() + shut.top(),
+			shut.width(), shut.height(), 0.45f, 0.16f, 0.16f, 0.92f);
+
+		panel_chip_text.change_text("X");
+		panel_chip_text.draw(Point<int16_t>(
+			position.x() + shut.left() + shut.width() / 2,
+			position.y() + shut.top() + 4));
+
+		static const char* SPEND_NAME[] = {
+			"STR", "DEX", "INT", "LUK", "HP", "MP"
+		};
+
+		// WHAT THE STAT IS NOW, under its own button.
+		//
+		// Spending a point is a decision, and the number it is being added to
+		// is the whole of the information needed to make it. Without this the
+		// popup covers the sheet with the figures on it, so deciding meant
+		// closing the popup, reading, and opening it again.
+		//
+		// HP and MP show the MAXIMUM, because that is what the point raises -
+		// the current value is a matter of how recently you were hit.
+		auto current = [&](size_t index) -> int32_t
+		{
+			switch (index)
+			{
+			case 0: return stats.get_stat(Maplestat::Id::STR);
+			case 1: return stats.get_stat(Maplestat::Id::DEX);
+			case 2: return stats.get_stat(Maplestat::Id::INT);
+			case 3: return stats.get_stat(Maplestat::Id::LUK);
+			case 4: return stats.get_stat(Maplestat::Id::MAXHP);
+			default: return stats.get_stat(Maplestat::Id::MAXMP);
+			}
+		};
+
+		auto button = [&](Rectangle<int16_t> at, const std::string& label, bool live,
+			const std::string& below)
+		{
+			GraphicsGL::get().drawrectangle(
+				position.x() + at.left(), position.y() + at.top(),
+				at.width(), at.height(),
+				live ? 0.86f : 0.18f, live ? 0.74f : 0.18f,
+				live ? 0.36f : 0.20f, live ? 0.92f : 0.45f);
+
+			// The label sits higher when there is a number under it, so the
+			// pair reads as one block rather than as text that slipped.
+			int16_t lift = below.empty() ? 8 : 15;
+
+			panel_chip_text.change_text(label);
+			panel_chip_text.draw(Point<int16_t>(
+				position.x() + at.left() + at.width() / 2,
+				position.y() + at.top() + at.height() / 2 - lift));
+
+			if (!below.empty())
+			{
+				panel_chip_text.change_text(below);
+				panel_chip_text.draw(Point<int16_t>(
+					position.x() + at.left() + at.width() / 2,
+					position.y() + at.top() + at.height() / 2 + 1));
+			}
+		};
+
+		// WHAT IT IS NOW, AND WHAT IT WOULD BE. A staged point shows as
+		// "4 -> 5" under its button, so the whole plan can be read off the
+		// popup before any of it is sent - which is the point of staging it.
+		//
+		// HP and MP are shown without a target: a point there adds an amount
+		// the server decides from the class, and inventing a number here would
+		// be a guess printed as a fact.
+		for (size_t i = 0; i < SPEND_COUNT; i++)
+		{
+			std::string below = std::to_string(current(i));
+
+			if (pending[i] > 0)
+				below += (i < 4)
+					? " > " + std::to_string(current(i) + pending[i])
+					: " +" + std::to_string(pending[i]);
+
+			button(panel_chip_box(i), SPEND_NAME[i], ap > 0, below);
+		}
+
+		// GO BACK is always live - there is always something to go back from.
+		// LOCK IN only lights up once something has been staged, so a player
+		// who opened the popup by accident is not offered a confirmation for
+		// a decision they have not made.
+		button(panel_cancel_box(), "GO BACK", true, "");
+		button(panel_commit_box(),
+			pending_total() > 0
+				? "LOCK IN " + std::to_string(pending_total())
+				: std::string("LOCK IN"),
+			pending_total() > 0, "");
+	}
+
 	void UIStatsinfo::draw_panel_list() const
 	{
 		// NO PLATE. It was black at 0.45 over the whole sheet, which put a
@@ -446,40 +734,32 @@ namespace ms
 			panel_chip_text = Text(Text::Font::A11B, Text::Alignment::CENTER,
 				Color::Name::WHITE);
 
-		if (!hasap)
-			return;
+		// THE LEVEL UP BUTTON.
+		//
+		// Always drawn, and GREYED when there is nothing to spend, rather than
+		// appearing and disappearing. A control that comes and goes is one the
+		// player has to hunt for; a dull one still says where it will be when
+		// it matters.
+		Rectangle<int16_t> up = panel_levelup_box();
 
-		struct Spend { StatLabel row; };
+		GraphicsGL::get().drawrectangle(
+			position.x() + up.left(), position.y() + up.top(),
+			up.width(), up.height(),
+			hasap ? 0.86f : 0.18f, hasap ? 0.74f : 0.18f,
+			hasap ? 0.36f : 0.20f, hasap ? 0.92f : 0.45f);
 
-		static const StatLabel SPENDABLE[] = {
-			StatLabel::HP, StatLabel::MP, StatLabel::STR,
-			StatLabel::DEX, StatLabel::INT, StatLabel::LUK
-		};
+		int16_t ap = stats.get_stat(Maplestat::Id::AP);
 
-		auto chip = [&](Rectangle<int16_t> box, const char* label)
-		{
-			GraphicsGL::get().drawrectangle(
-				position.x() + box.left(), position.y() + box.top(),
-				box.width(), box.height(), 0.86f, 0.74f, 0.36f, 0.75f);
+		panel_chip_text.change_text(hasap
+			? ("LEVEL UP - " + std::to_string(ap) + " POINTS")
+			: "NOTHING TO SPEND");
 
-			panel_chip_text.change_text(label);
-			panel_chip_text.draw(Point<int16_t>(
-				position.x() + box.left() + box.width() / 2,
-				position.y() + box.top() - 2));
-		};
+		panel_chip_text.draw(Point<int16_t>(
+			position.x() + up.left() + up.width() / 2,
+			position.y() + up.top() + 6));
 
-		for (StatLabel want : SPENDABLE)
-		{
-			size_t row = 0;
-
-			for (size_t i = 0; i < PANEL_LEFT_COUNT; i++)
-				if (PANEL_LEFT[i] == want)
-					row = i;
-
-			chip(panel_chip_box(row), "+");
-		}
-
-		chip(panel_auto_box(), "AUTO");
+		if (spend_open)
+			draw_spend_popup();
 	}
 
 	bool UIStatsinfo::indragrange(Point<int16_t> cursorpos) const
@@ -645,64 +925,8 @@ namespace ms
 		case Buttons::BT_LUK:
 			send_apup(Maplestat::Id::LUK);
 			break;
-		case Buttons::BT_AUTO:
-		{
-			uint16_t autostr = 0;
-			uint16_t autodex = 0;
-			uint16_t autoint = 0;
-			uint16_t autoluk = 0;
-			uint16_t nowap = stats.get_stat(Maplestat::Id::AP);
-			Equipstat::Id id = player.get_stats().get_job().get_primary(player.get_weapontype());
-
-			switch (id)
-			{
-			case Equipstat::Id::STR:
-				autostr = nowap;
-				break;
-			case Equipstat::Id::DEX:
-				autodex = nowap;
-				break;
-			case Equipstat::Id::INT:
-				autoint = nowap;
-				break;
-			case Equipstat::Id::LUK:
-				autoluk = nowap;
-				break;
-			}
-
-			std::string message =
-				"Your AP will be distributed as follows:\\r"
-				"\\nSTR : +" + std::to_string(autostr) +
-				"\\nDEX : +" + std::to_string(autodex) +
-				"\\nINT : +" + std::to_string(autoint) +
-				"\\nLUK : +" + std::to_string(autoluk) +
-				"\\r\\n";
-
-			std::function<void(bool)> yesnohandler = [&, autostr, autodex, autoint, autoluk](bool yes)
-			{
-				if (yes)
-				{
-					if (autostr > 0)
-						for (size_t i = 0; i < autostr; i++)
-							send_apup(Maplestat::Id::STR);
-
-					if (autodex > 0)
-						for (size_t i = 0; i < autodex; i++)
-							send_apup(Maplestat::Id::DEX);
-
-					if (autoint > 0)
-						for (size_t i = 0; i < autoint; i++)
-							send_apup(Maplestat::Id::INT);
-
-					if (autoluk > 0)
-						for (size_t i = 0; i < autoluk; i++)
-							send_apup(Maplestat::Id::LUK);
-				}
-			};
-
-			UI::get().emplace<UIYesNo>(message, yesnohandler, Text::Alignment::LEFT);
-		}
-		break;
+		// BT_AUTO REMOVED. Auto-assign is gone entirely - see the note
+		// above panel_cancel_box. No button raises this id any more.
 		case Buttons::BT_HYPERSTATOPEN:
 			break;
 		case Buttons::BT_HYPERSTATCLOSE:
@@ -748,7 +972,27 @@ namespace ms
 		bool nowap = stats.get_stat(Maplestat::Id::AP) > 0;
 		Button::State newstate = nowap ? Button::State::NORMAL : Button::State::DISABLED;
 
-		for (int i = Buttons::BT_HP; i <= Buttons::BT_AUTO; i++)
+		// SPENT THE LAST ONE - PUT THE POPUP AWAY.
+		//
+		// Otherwise it stays open over the sheet with six dead buttons, and
+		// the one thing the player wants to see at that moment is what their
+		// stats have just become.
+		//
+		// Nothing staged can survive this. The AP total moving is either the
+		// commit landing, in which case the staging is already cleared, or a
+		// level-up handing out more - and a plan drawn against the old total
+		// must not be carried across into the new one.
+		if (!nowap)
+		{
+			discard_pending();
+
+			spend_open = false;
+		}
+
+		// STOPS SHORT OF BT_AUTO, which is no longer built. The loop used to
+		// include it, and reaching past the last live button would dereference
+		// a null unique_ptr on every AP change - which is every level-up.
+		for (int i = Buttons::BT_HP; i < Buttons::BT_AUTO; i++)
 			buttons[i]->set_state(newstate);
 
 		hasap = nowap;

@@ -58,6 +58,11 @@ namespace ms
 
 		bool panel = false;
 
+		// The room this page has been given - the panel's CONTENT box, not
+		// the screen, so the popup below can size itself to what is actually
+		// usable rather than to pixels that are under a gauge.
+		Point<int16_t> panel_screen = Point<int16_t>(344, 300);
+
 		static constexpr float PANEL_FADE = 0.6f;
 
 
@@ -85,7 +90,11 @@ namespace ms
 		// spent on the left, everything derived from it on the right. Nothing
 		// is behind a button - the Detail toggle is gone and all of it shows at
 		// once, which is the whole point of a screen that is always open.
-		static constexpr int16_t PANEL_ROW_H = 15;
+		// 13, not 15. Thirteen rows at 15 plus a 26px header is 221, and the
+		// panel's content box is about 236 tall - which left nothing for the
+		// LEVEL UP button underneath and put it over the HP numbers. At 13
+		// the sheet ends near 195 and the button has its own room.
+		static constexpr int16_t PANEL_ROW_H = 13;
 		static constexpr int16_t PANEL_TOP = 26;
 		static constexpr int16_t PANEL_COL_W = 166;
 		// Clear of the HP gauge down the left edge, which is drawn after the
@@ -109,15 +118,70 @@ namespace ms
 		// spend logic is duplicated or reimplemented.
 		static constexpr int16_t PANEL_CHIP_W = 26;
 		static constexpr int16_t PANEL_CHIP_H = 15;
-		static constexpr int16_t PANEL_AUTO_W = 74;
 
-		// Right after the VALUE, not out at PANEL_ARROW_X - that is 148, and
-		// the right-hand column starts at 176, so a 26-wide chip there ran
-		// into "CRIT RATE".
-		static constexpr int16_t PANEL_CHIP_X = 104;
+		// SPENDING IS ITS OWN ROW OF PROPER BUTTONS.
+		//
+		// It used to be a "+" chip beside each stat: 26 x 15, on a row pitch
+		// of 15 - which is to say the buttons TOUCHED, top to bottom, six of
+		// them in a column. Aiming at STR and hitting DEX twice was not bad
+		// luck, it was the only likely outcome. A point spent is also not
+		// undoable, which makes it the worst place in the game to put a
+		// target smaller than a fingertip.
+		//
+		// Six named buttons across the bottom instead. 52 x 34 with a gap:
+		// wider than a thumb, taller than a thumb, and each one says which
+		// stat it is rather than relying on which line it happens to be on.
+		static constexpr int16_t SPEND_W = 52;
+		static constexpr int16_t SPEND_H = 34;
+		static constexpr int16_t SPEND_GAP = 3;
+
+		// How many are in the row, and in which order. HP and MP last: they
+		// are the two nobody means to press.
+		static constexpr size_t SPEND_COUNT = 6;
+
+		// SPENDING LIVES IN A POPUP NOW.
+		//
+		// Six 52x34 buttons and an AUTO could not share a page with 24 rows
+		// of statistics inside the panel's content box - something had to be
+		// off the screen and it was always the buttons. A LEVEL UP button
+		// costs one row and opens the rest over the top, which also matches
+		// how it feels: spending points is a thing you do once, on purpose,
+		// not a permanent fixture of looking at your character.
+		bool spend_open = false;
+
+		// NOTHING IS SPENT UNTIL IT IS LOCKED IN.
+		//
+		// Every chip press used to go straight down the wire as an AP-up, and
+		// there is no undo for one of those - a mis-tap was permanent, on the
+		// one screen in the game where that is true. The presses are counted
+		// here instead and only sent when LOCK IN is pressed; GO BACK throws
+		// the lot away and nothing ever left the device.
+		//
+		// Indexed the same as SPEND[] and panel_chip_box: STR DEX INT LUK HP MP.
+		int16_t pending[SPEND_COUNT] = { 0, 0, 0, 0, 0, 0 };
+
+		// How many points are spoken for, and how many are still free.
+		int16_t pending_total() const;
+		int16_t ap_left() const;
+
+		// Send what was staged, then forget it. Called by LOCK IN.
+		void commit_pending();
+
+		// Forget it without sending. GO BACK, the X, and closing the page.
+		void discard_pending();
+
+		Rectangle<int16_t> panel_levelup_box() const;
+		Rectangle<int16_t> panel_popup_box() const;
+		Rectangle<int16_t> panel_popup_close() const;
+
+		void draw_spend_popup() const;
 
 		Rectangle<int16_t> panel_chip_box(size_t row) const;
-		Rectangle<int16_t> panel_auto_box() const;
+
+		// The two that end it. Where AUTO used to be - see the note on its
+		// removal in the .cpp.
+		Rectangle<int16_t> panel_commit_box() const;
+		Rectangle<int16_t> panel_cancel_box() const;
 
 		// True when the press was ours.
 		bool panel_pressed(Point<int16_t> at);

@@ -19,6 +19,7 @@
 
 #include "../Gameplay/Stage.h"
 
+#include "../Graphics/Geometry.h"
 #include "../Graphics/GraphicsGL.h"
 #include "../Graphics/Texture.h"
 
@@ -343,12 +344,25 @@ namespace ms
 					touch_x = t.x;
 					touch_y = t.y;
 
-					// While the keyboard is up it covers the panel, so a touch
-					// that lands on it is meant for the keyboard and nothing
-					// here.
-					if (UI::get().has_focused_textfield())
-						continue;
-
+					// EVERY TOUCH GOES TO THE PANEL.
+					//
+					// This used to drop the touch whenever a textfield had
+					// focus, on the reasoning that Android's own keyboard was
+					// covering the panel and the press belonged to it.
+					//
+					// That reasoning inverted the day the panel grew a
+					// keyboard of its own. A focused textfield is now the one
+					// state in which a press on this screen is CERTAIN to be
+					// meant for the panel - it is somebody typing - and this
+					// line threw exactly those presses away. With no field
+					// focused the keys reached the panel and had nowhere to
+					// deliver a character to; with one focused they never
+					// reached it at all. Either way nothing was ever typed,
+					// which is what "the keyboard does nothing" was.
+					//
+					// Android's keyboard no longer opens here at all - see
+					// Window_Android.cpp, which stops text input from starting
+					// on a device that has a second screen.
 					get_panel().send_touch(cursor(), layout_size(), t.down, t.up);
 				}
 			}
@@ -368,6 +382,130 @@ namespace ms
 				return;
 
 			panel_ptr->draw_top_tooltip();
+		}
+
+		// ---- the same panel, over the game, on a one-screen device --------
+
+		namespace
+		{
+			bool overlay = false;
+
+			// The space the overlay lays out in: the main screen's own design
+			// pixels, so it lands exactly over the game and needs no scaling
+			// of its own.
+			//
+			// NOT layout_size(). That halves the height deliberately, because
+			// the real panel is a separate screen looked at from further away
+			// and tapped with a thumb. This one is the screen the player is
+			// already looking at, at the size the rest of the interface is
+			// drawn at, and doubling it here would push the pages off the
+			// edges - the world map's frame alone is 654x537.
+			Point<int16_t> overlay_size()
+			{
+				return Point<int16_t>(
+					Constants::Constants::get().get_viewwidth(),
+					Constants::Constants::get().get_viewheight());
+			}
+		}
+
+		bool overlay_supported()
+		{
+			return !available();
+		}
+
+		bool overlay_showing()
+		{
+			return overlay && overlay_supported();
+		}
+
+		void toggle_overlay()
+		{
+			if (!overlay_supported())
+				return;
+
+			overlay = !overlay;
+		}
+
+		bool overlay_alert()
+		{
+			// panel_ptr, not get_panel(): asking whether there is post must
+			// not be the thing that builds the panel, and this is asked every
+			// frame the status bar draws.
+			if (!overlay_supported() || !panel_ptr)
+				return false;
+
+			return panel_ptr->any_alert();
+		}
+
+		bool open_overlay(Section section)
+		{
+			if (!overlay_supported())
+				return false;
+
+			SecondScreenPanel::Page page = SecondScreenPanel::HOME;
+
+			switch (section)
+			{
+			case Section::CHARACTER:  page = SecondScreenPanel::CHARACTER; break;
+			case Section::ADVENTURE:  page = SecondScreenPanel::ADVENTURE; break;
+			case Section::SOCIAL:     page = SecondScreenPanel::CHAT;      break;
+			case Section::SETTINGS:   page = SecondScreenPanel::SETTINGS;  break;
+			case Section::DAILY:      page = SecondScreenPanel::DAILY;     break;
+			case Section::HOME:       page = SecondScreenPanel::HOME;      break;
+			}
+
+			// FROM HOME, so the way out is the way in. Descending from
+			// wherever the panel happened to be left would build a trail that
+			// does not match how the player got here, and a back swipe would
+			// climb through pages they never opened.
+			get_panel().go_home();
+
+			if (page != SecondScreenPanel::HOME)
+				get_panel().go_to(page);
+
+			overlay = true;
+
+			return true;
+		}
+
+		void draw_overlay()
+		{
+			if (!overlay_showing())
+				return;
+
+			Point<int16_t> space = overlay_size();
+
+			// Dim the game behind it rather than clearing to black. The player
+			// is standing in a map with monsters in it, and blanking the
+			// screen to open a menu loses them the one thing they might need
+			// to see. Dark enough to read the panel over, light enough to
+			// notice something coming.
+			ColorBox(space.x(), space.y(), Color::Name::BLACK, 0.72f)
+				.draw(DrawArgument(Point<int16_t>(0, 0)));
+
+			get_panel().update();
+			get_panel().draw(space);
+		}
+
+		bool overlay_send_cursor(Point<int16_t> position, bool pressed, bool released)
+		{
+			if (!overlay_showing())
+				return false;
+
+			get_panel().send_touch(position, overlay_size(), pressed, released);
+
+			// Back from the top level puts it away. On the Thor's panel that
+			// gesture has nowhere to go and does nothing; here it is the way
+			// out, and the same swipe closes it that closed every page on the
+			// way in.
+			if (get_panel().take_back_at_root())
+				overlay = false;
+
+			// EVERY press while it is open belongs to it, whether or not it
+			// landed on a control. The overlay covers the game completely, so
+			// a press that falls between two buttons is a miss on the menu -
+			// not an instruction to the character standing behind it.
+			return true;
 		}
 
 		void scroll(double yoffset)
@@ -407,6 +545,12 @@ namespace ms
 			return panel_ptr->selected_mapping();
 		}
 
+		void clear_carried()
+		{
+			if (panel_ptr)
+				panel_ptr->clear_carried();
+		}
+
 		Keyboard::Mapping carried_mapping()
 		{
 			if (!panel_ptr)
@@ -419,6 +563,22 @@ namespace ms
 		{
 			if (panel_ptr)
 				panel_ptr->show_page(SecondScreenPanel::HOTKEYS);
+		}
+
+		UIElement* open_trade()
+		{
+			if (!available())
+				return nullptr;
+
+			return get_panel().open_trade();
+		}
+
+		UIElement* open_storage()
+		{
+			if (!available())
+				return nullptr;
+
+			return get_panel().open_storage();
 		}
 
 		bool show_shop(UIElement* shop, bool equipment)

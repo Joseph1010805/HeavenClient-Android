@@ -328,6 +328,17 @@ namespace ms
 			speak_icon.is_valid() ? "ok" : "MISSING",
 			Speech::get().available() ? "available" : "unavailable");
 
+		// WHERE OUR ONE MENU BUTTON GOES, at slot 0 where the game's own Menu
+		// button was - so on a one-screen device the thumb finds the menu
+		// where it already expected it. Worked out here because this is where
+		// the row's height is known.
+		panel_menu_pos = Point<int16_t>(
+			static_cast<int16_t>(MENU_RIGHT - PANEL_MENU_SIZE), buttonPos.y());
+
+		// The device's own say on the whole row. See apply_menu_policy - on
+		// Android this is what empties the top of the screen.
+		apply_menu_policy();
+
 		if (quickslot_active && VWIDTH > 800)
 		{
 			buttons[Buttons::BT_CASHSHOP]->set_active(false);
@@ -547,45 +558,59 @@ namespace ms
 		for (size_t i = 0; i <= Buttons::BT_EVENT; i++)
 			buttons.at(i)->draw(position);
 
-		hpmp_sprites[0].draw(position, alpha);
+		// THE GAUGES BELONG TO WHICHEVER SCREEN IS NOT THE GAME.
+		//
+		// The panel draws HP up its left edge, MP up its right and EXP along
+		// its foot, in a frame that is always on screen and never over
+		// anything. This cluster is the same three numbers a second time,
+		// sitting on top of the map - so on a handheld with a panel it is
+		// covering the game to say what the other screen already says.
+		//
+		// The whole block goes together, name and level included: they are
+		// one piece of artwork, and keeping the text without the frame it is
+		// printed on would leave two figures floating over the scenery.
+		if (!SecondScreen::available())
+		{
+			hpmp_sprites[0].draw(position, alpha);
 
-		expbar.draw(position + exp_pos);
-		hpbar.draw(position + hpmp_pos);
-		mpbar.draw(position + hpmp_pos);
+			expbar.draw(position + exp_pos);
+			hpbar.draw(position + hpmp_pos);
+			mpbar.draw(position + hpmp_pos);
 
-		hpmp_sprites[1].draw(position, alpha);
-		hpmp_sprites[2].draw(position, alpha);
+			hpmp_sprites[1].draw(position, alpha);
+			hpmp_sprites[2].draw(position, alpha);
 
-		int16_t level = stats.get_stat(Maplestat::Id::LEVEL);
-		int16_t hp = stats.get_stat(Maplestat::Id::HP);
-		int16_t mp = stats.get_stat(Maplestat::Id::MP);
-		int32_t maxhp = stats.get_total(Equipstat::Id::HP);
-		int32_t maxmp = stats.get_total(Equipstat::Id::MP);
-		int64_t exp = stats.get_exp();
+			int16_t level = stats.get_stat(Maplestat::Id::LEVEL);
+			int16_t hp = stats.get_stat(Maplestat::Id::HP);
+			int16_t mp = stats.get_stat(Maplestat::Id::MP);
+			int32_t maxhp = stats.get_total(Equipstat::Id::HP);
+			int32_t maxmp = stats.get_total(Equipstat::Id::MP);
+			int64_t exp = stats.get_exp();
 
-		std::string expstring = std::to_string(100 * getexppercent());
+			std::string expstring = std::to_string(100 * getexppercent());
 
-		statset.draw(
-			std::to_string(exp) + "[" + expstring.substr(0, expstring.find('.') + 3) + "%]",
-			position + statset_pos
-		);
+			statset.draw(
+				std::to_string(exp) + "[" + expstring.substr(0, expstring.find('.') + 3) + "%]",
+				position + statset_pos
+			);
 
-		hpmpset.draw(
-			"[" + std::to_string(hp) + "/" + std::to_string(maxhp) + "]",
-			position + hpset_pos
-		);
+			hpmpset.draw(
+				"[" + std::to_string(hp) + "/" + std::to_string(maxhp) + "]",
+				position + hpset_pos
+			);
 
-		hpmpset.draw(
-			"[" + std::to_string(mp) + "/" + std::to_string(maxmp) + "]",
-			position + mpset_pos
-		);
+			hpmpset.draw(
+				"[" + std::to_string(mp) + "/" + std::to_string(maxmp) + "]",
+				position + mpset_pos
+			);
 
-		levelset.draw(
-			std::to_string(level),
-			position + levelset_pos
-		);
+			levelset.draw(
+				std::to_string(level),
+				position + levelset_pos
+			);
 
-		namelabel.draw(position + namelabel_pos);
+			namelabel.draw(position + namelabel_pos);
+		}   // !SecondScreen::available() - the gauges
 
 		// LAST of the bar's own artwork, so nothing drawn afterwards can
 		// cover them - which is exactly what the HP/MP frame was doing.
@@ -610,10 +635,16 @@ namespace ms
 		// The megaphone is 29x31 and the balloon only 18x18 - authored for a
 		// corner of the chat bar - and at their own sizes they looked like
 		// leftovers rather than controls.
-		Point<int16_t> shout_at = position + shout_pos + shout_icon.get_origin();
+		// GATED ON THE BUTTON, like speak and party below. This one drew
+		// unconditionally, so retiring the megaphone would have left its
+		// picture on screen over a button that no longer answered.
+		if (buttons.at(Buttons::BT_SHOUT)->is_active())
+		{
+			Point<int16_t> shout_at = position + shout_pos + shout_icon.get_origin();
 
-		shout_icon.draw(DrawArgument(
-			shout_at, shout_at, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE), 1.0f, 1.0f, 1.0f, 0.0f));
+			shout_icon.draw(DrawArgument(
+				shout_at, shout_at, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE), 1.0f, 1.0f, 1.0f, 0.0f));
+		}
 
 		// The BUTTON's own state, not Speech::available() - that crosses into
 		// Java, and asking it sixty times a second to draw one small picture is
@@ -634,6 +665,8 @@ namespace ms
 				party_at, party_at, Point<int16_t>(EXTRA_ICON_SIZE, EXTRA_ICON_SIZE), 1.0f, 1.0f, 1.0f, 0.0f));
 		}
 
+
+		draw_panel_menu();
 
 		buttons.at(Buttons::BT_FOLD_QS)->draw(position + quickslot_adj);
 		buttons.at(Buttons::BT_EXTEND_QS)->draw(position + quickslot_adj - quickslot_qs_adj);
@@ -846,20 +879,43 @@ namespace ms
 			// Re-enable once the reply is read to the end.
 			OutPacket(OutPacket::Opcode::ENTER_CASHSHOP).dispatch();
 			break;
+		// THE BOTTOM ROW OPENS OUR PANEL, NOT THEIR ICON POPUPS.
+		//
+		// These five buttons are the game's own menus: a grid of small icons
+		// built for a mouse on a monitor, several of which lead to things that
+		// do not exist in this version at all (Union, Auction, Monster Life).
+		// On a handheld with one screen they were the ONLY way to reach
+		// anything, and they were the wrong way.
+		//
+		// Where there is a real second screen open_overlay answers false and
+		// every one of these falls through to exactly what it always did, so
+		// the Thor is untouched.
 		case Buttons::BT_MENU:
-			toggle_menu();
+			// HOME, not a section: this one icon replaces the entire row, so
+			// it opens the top of the menu rather than any one branch of it.
+			if (!SecondScreen::open_overlay(SecondScreen::Section::HOME))
+				toggle_menu();
+
 			break;
 		case Buttons::BT_OPTIONS:
-			toggle_setting();
+			if (!SecondScreen::open_overlay(SecondScreen::Section::SETTINGS))
+				toggle_setting();
+
 			break;
 		case Buttons::BT_CHARACTER:
-			toggle_character();
+			if (!SecondScreen::open_overlay(SecondScreen::Section::CHARACTER))
+				toggle_character();
+
 			break;
 		case Buttons::BT_COMMUNITY:
-			toggle_community();
+			if (!SecondScreen::open_overlay(SecondScreen::Section::SOCIAL))
+				toggle_community();
+
 			break;
 		case Buttons::BT_EVENT:
-			toggle_event();
+			if (!SecondScreen::open_overlay(SecondScreen::Section::DAILY))
+				toggle_event();
+
 			break;
 		case Buttons::BT_FOLD_QS:
 			toggle_qs(false);
@@ -1205,6 +1261,121 @@ namespace ms
 				!quickslot_active && Speech::get().available());
 			buttons[Buttons::BT_PARTY]->set_active(!quickslot_active);
 		}
+
+		// AND THEN THE DEVICE HAS THE LAST WORD. Folding the quickslot bar
+		// used to put the whole retired row back on screen - the same way it
+		// once resurrected Community and Event.
+		apply_menu_policy();
+	}
+
+	// THE TOP SCREEN'S MENU ROW BELONGS TO THE PANEL NOW.
+	//
+	// Seven controls sat across the top of the game: the game's own Menu,
+	// Settings, Character and Cash Shop popups, plus a megaphone, a
+	// voice-to-text button and a party button. Every one of them is in the
+	// panel's menu, most of them one press in - and all of them were designed
+	// for a mouse on a monitor, then scaled up here to be thumbable, which is
+	// why they take up so much of a handheld's screen.
+	//
+	//   Thor  - nothing at all. The panel is on the other screen permanently,
+	//           so a second way in is just clutter over the map.
+	//   RP5   - ONE button. The row is what was asked to be REPLACED, not
+	//           supplemented, and one target labelled Menu is easier to hit
+	//           than four unlabelled ones.
+	//
+	// Cash Shop is not lost with the rest: it moved onto the panel's Home
+	// menu, which is the only way in once this row is gone.
+	void UIStatusbar::draw_panel_menu() const
+	{
+		if (!SecondScreen::overlay_supported())
+			return;
+
+		if (!buttons.at(Buttons::BT_MENU)->is_active())
+			return;
+
+		if (!panel_menu_tried)
+		{
+			panel_menu_tried = true;
+
+			// The panel's own Home artwork, so the way in looks like where it
+			// goes. IconAlert is the same badge the panel puts on its own
+			// buttons - one picture, so a mark means the same thing wherever
+			// it appears.
+			panel_menu_icon = nl::nx::map001["Custom"]["IconHome"];
+			panel_menu_badge = nl::nx::map001["Custom"]["IconAlert"];
+
+			panel_menu_label = Text(Text::Font::A11M, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+		}
+
+		Point<int16_t> at = position + panel_menu_pos;
+
+		if (panel_menu_icon.is_valid())
+		{
+			// The word takes the bottom of the box, so the picture gets the
+			// rest - it is a labelled button, not an icon with a caption
+			// floating under it.
+			constexpr int16_t WORD = 14;
+			int16_t art = static_cast<int16_t>(PANEL_MENU_SIZE - WORD);
+
+			Point<int16_t> art_at = at + panel_menu_icon.get_origin();
+
+			panel_menu_icon.draw(DrawArgument(
+				art_at, art_at, Point<int16_t>(art, art), 1.0f, 1.0f, 1.0f, 0.0f));
+
+			panel_menu_label.change_text("MENU");
+			panel_menu_label.draw(Point<int16_t>(
+				static_cast<int16_t>(at.x() + PANEL_MENU_SIZE / 2),
+				static_cast<int16_t>(at.y() + art - 2)));
+
+			// THE BADGE THE THOR ALREADY HAD. With the row collapsed to one
+			// icon there is nowhere else for it to go, so this one carries
+			// everything inside: points to spend, post waiting, a daily left
+			// unclaimed.
+			if (panel_menu_badge.is_valid() && SecondScreen::overlay_alert())
+			{
+				constexpr int16_t BADGE = 16;
+
+				Point<int16_t> badge_at = Point<int16_t>(
+					static_cast<int16_t>(at.x() + PANEL_MENU_SIZE - BADGE),
+					at.y());
+
+				panel_menu_badge.draw(DrawArgument(
+					badge_at + panel_menu_badge.get_origin(),
+					badge_at + panel_menu_badge.get_origin(),
+					Point<int16_t>(BADGE, BADGE), 1.0f, 1.0f, 1.0f, 0.0f));
+			}
+		}
+	}
+
+	void UIStatusbar::apply_menu_policy()
+	{
+		// The one button that survives on a one-screen device, and only
+		// there - the Thor reaches all of this downstairs.
+		bool keep_menu = SecondScreen::overlay_supported();
+
+		if (keep_menu)
+		{
+			// OUR BUTTON, NOT THEIRS. A MapleButton draws its own artwork, so
+			// leaving the game's Menu sprite in place and putting our icon on
+			// top would show both. An AreaButton is a hit box with no picture
+			// - the same trick the megaphone and party buttons already use -
+			// and draw_panel_menu supplies the picture.
+			//
+			// panel_menu_pos is set in the constructor, where the row's y is
+			// worked out - this runs again whenever the quickslot bar folds,
+			// long after that is out of scope.
+			buttons[Buttons::BT_MENU] = std::make_unique<AreaButton>(
+				panel_menu_pos,
+				Point<int16_t>(PANEL_MENU_SIZE, PANEL_MENU_SIZE));
+		}
+
+		buttons[Buttons::BT_MENU]->set_active(keep_menu);
+
+		for (uint16_t id : { Buttons::BT_CASHSHOP, Buttons::BT_OPTIONS,
+			Buttons::BT_CHARACTER, Buttons::BT_COMMUNITY, Buttons::BT_EVENT,
+			Buttons::BT_SHOUT, Buttons::BT_SPEAK, Buttons::BT_PARTY })
+			buttons[id]->set_active(false);
 	}
 
 	void UIStatusbar::toggle_menu()

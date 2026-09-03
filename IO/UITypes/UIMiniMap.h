@@ -45,6 +45,10 @@ namespace ms
 		void remove_cursor() override;
 		Cursor::State send_cursor(bool clicked, Point<int16_t> pos) override;
 		void send_scroll(double yoffset) override;
+
+		// Panning, on a screen with no mouse button to hold. See
+		// UIElement::send_drag.
+		bool send_drag(Point<int16_t> from, Point<int16_t> to) override;
 		void send_key(int32_t keycode, bool pressed, bool escape) override;
 
 		UIElement::Type get_type() const override;
@@ -80,7 +84,15 @@ namespace ms
 		// before the map is clamped to its own edges, so it can never pull the
 		// view off the map - at the top or bottom of a map it simply stops
 		// mattering.
-		static constexpr int16_t PANEL_LIFT = 34;
+		// The button says CENTRE, so centring is what it has to do.
+		//
+		// This used to be 34: the player rode a little above the middle,
+		// which shows more of the ground ahead and was a deliberate choice.
+		// It is also the reason pressing CENTRE left the dot visibly off
+		// centre, and a control that does not do what it says is worse than
+		// a view that shows slightly less floor. Put it back to 34 if the
+		// lift is wanted more than the honesty.
+		static constexpr int16_t PANEL_LIFT = 0;
 		static constexpr int16_t M_START = 36;
 		static constexpr int16_t LISTNPC_ITEM_HEIGHT = 17;
 		static constexpr int16_t LISTNPC_ITEM_WIDTH = 140;
@@ -102,6 +114,32 @@ namespace ms
 		// Where the map sits so the player is in the middle, clamped to
 		// its edges. Changes as the player walks.
 		Point<int16_t> panel_view() const;
+
+		// DRAGGING THE MAP ABOUT.
+		//
+		// The panel view normally keeps the player in the middle and moves
+		// the map under them, which is right while you are walking and wrong
+		// the moment you want to LOOK at somewhere else. A drag adds an
+		// offset to that; the CENTRE button throws the offset away.
+		//
+		// Panning is remembered until you ask to be centred again, rather
+		// than springing back on its own: a map that pulls itself out from
+		// under your thumb cannot be read.
+		Point<int16_t> panel_pan;
+		Point<int16_t> pan_from;
+		bool panning = false;
+
+		// Whether the view is currently anywhere other than on the player,
+		// so the button can say something useful and hide when it is not
+		// needed.
+		bool panel_panned() const
+		{
+			return panel_pan.x() != 0 || panel_pan.y() != 0;
+		}
+
+		Rectangle<int16_t> panel_centre_box() const;
+
+		mutable Text centre_label;
 		void update_static_markers();
 		void set_npclist_active(bool active);
 		void update_dimensions();

@@ -78,6 +78,11 @@ namespace ms
 		void remove_menus();
 		bool is_menu_active();
 
+		// Switch the game's own menu row on or off to suit the device - see
+		// the note where it is defined. Called when the bar is built and again
+		// whenever the quickslot bar folds, which used to put the row back.
+		void apply_menu_policy();
+
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
 
@@ -242,6 +247,21 @@ namespace ms
 		//
 		// Right-aligned to the screen edge and walked leftwards, so the row
 		// keeps its shape whatever the scale is set to.
+		// THE ONE BUTTON THAT REPLACES THE ROW on a one-screen device. Bigger
+		// than the four it stands in for, because it is now the only way into
+		// half the client and there is nothing beside it to crowd.
+		static constexpr int16_t PANEL_MENU_SIZE = 52;
+
+		Point<int16_t> panel_menu_pos;
+		mutable Texture panel_menu_icon;
+		mutable Texture panel_menu_badge;
+		mutable bool panel_menu_tried = false;
+		mutable Text panel_menu_label;
+
+		// Draws it. Nothing happens where the button is inactive, which is
+		// every device that has a real second screen.
+		void draw_panel_menu() const;
+
 		static constexpr int16_t MENU_RIGHT = 798;
 		static constexpr int16_t MENU_PITCH = 45;
 

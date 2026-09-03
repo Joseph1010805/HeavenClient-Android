@@ -45,8 +45,18 @@ namespace ms
 		UIHotkeys();
 
 		void draw(float inter) const override;
+		void update() override;
 
 		Cursor::State send_cursor(bool clicked, Point<int16_t> cursorpos) override;
+
+		// EMPTY THE SLOT UNDER THE FINGER. Returns false if there was no slot
+		// there, or it was already empty.
+		//
+		// A short tap USES what is in a slot, so there was no gesture left for
+		// taking something out again: a bound potion could be replaced but
+		// never removed, and a skill bound by accident stayed for good. A hold
+		// is the usual answer on a handheld and cannot be done by accident.
+		bool clear_at(Point<int16_t> cursorpos);
 
 		UIElement::Type get_type() const override;
 
@@ -94,6 +104,18 @@ namespace ms
 		static constexpr int16_t TOP = 30;
 
 		Slot slots[COUNT];
+
+		// FRAMES SINCE THE LAST THING WAS USED.
+		//
+		// A tap on a filled slot uses what is in it, and a potion drunk twice
+		// by accident is a potion gone. Touch events arrive in bursts - a
+		// press, a few tiny movements, a release - and anything that turns
+		// more than one of them into a press empties the stack. A short
+		// refusal window costs nothing a player would notice and makes that
+		// impossible whatever the input layer does.
+		int16_t since_fire = COOLDOWN;
+
+		static constexpr int16_t COOLDOWN = 12;
 
 		Texture cell_bg;
 

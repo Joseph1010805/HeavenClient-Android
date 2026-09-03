@@ -57,11 +57,24 @@ namespace ms
 		emplace<UIStatusMessenger>();
 		emplace<UIStatusbar>(stats);
 		emplace<UIChatbar>();
-		emplace<UIMiniMap>(stats);
+		// THE MINIMAP LIVES ON THE PANEL WHERE THERE IS ONE.
+		//
+		// Same reasoning as the quest helper below: the panel has a Minimap
+		// page of its own, so a second copy pinned over the top screen is
+		// covering the game with something already on the other screen. The
+		// one-screen build still gets it - there is nowhere else for it to be.
+		if (!SecondScreen::available())
+			emplace<UIMiniMap>(stats);
 		emplace<UIBuffList>();
 		// Draws nothing until there is a party to draw.
 		emplace<UIPartyHUD>();
-		emplace<UIQuestHelper>();
+		// THE QUEST HELPER LIVES ON THE TOP SCREEN, so on a handheld with a
+		// lower panel it is not built at all - the quest log is a page down
+		// there, and this would be a second copy of it permanently over the
+		// game. On a single-screen build it is still made, and carries a
+		// close box now so it can be got rid of.
+		if (!SecondScreen::available())
+			emplace<UIQuestHelper>();
 		emplace<UIShop>(look, inventory);
 
 		VWIDTH = Constants::Constants::get().get_viewwidth();
@@ -294,6 +307,20 @@ namespace ms
 							);
 						break;
 					case KeyAction::Id::MENU:
+						// OUR MENU, NOT THEIRS, on a device with one screen.
+						//
+						// The game's own icon row is built for a mouse on a
+						// monitor; the panel is built for a thumb. Where there
+						// is a second screen the panel is already downstairs
+						// and this key keeps its old job, so the Thor is
+						// unchanged.
+						if (SecondScreen::overlay_supported())
+						{
+							SecondScreen::toggle_overlay();
+
+							break;
+						}
+
 						if (auto statusbar = UI::get().get_element<UIStatusbar>())
 							statusbar->toggle_menu();
 
