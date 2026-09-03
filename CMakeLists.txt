@@ -345,6 +345,8 @@ set(HEAVEN_SOURCES
         IO/UITypes/UIGender.cpp
         IO/UITypes/UIGender.h
         IO/UITypes/UIHotkeys.cpp
+        IO/UITypes/UITrade.cpp
+        IO/UITypes/UIStorage.cpp
         IO/UITypes/UIHotkeys.h
         IO/UITypes/UIItemInventory.cpp
         IO/UITypes/UIItemInventory.h
@@ -432,6 +434,7 @@ set(HEAVEN_SOURCES
         Net/Handlers/Helpers/MovementParser.cpp
         Net/Handlers/Helpers/MovementParser.h
         Net/Handlers/AttackHandlers.cpp
+        Net/Handlers/DueyHandlers.cpp
         Net/Handlers/AttackHandlers.h
         Net/Handlers/CashShopHandlers.cpp
         Net/Handlers/CashShopHandlers.h
@@ -458,6 +461,8 @@ set(HEAVEN_SOURCES
         Net/Handlers/SetfieldHandlers.cpp
         Net/Handlers/SetfieldHandlers.h
         Net/Handlers/TestingHandlers.cpp
+        Net/Handlers/TradeHandlers.cpp
+        Net/Handlers/StorageHandlers.cpp
         Net/Handlers/TestingHandlers.h
         Net/Packets/AttackAndSkillPackets.h
         Net/Packets/CharCreationPackets.h
@@ -503,6 +508,13 @@ set(HEAVEN_SOURCES
         Template/Singleton.h
         Template/TimedQueue.h
         Template/TypeMap.h
+        Util/Carry.cpp
+        Util/Carry.h
+        Util/Http.cpp
+        Util/Http.h
+        Util/GiftBox.cpp
+        Util/PostBox.cpp
+        Util/PostBox.h
         Util/HardwareInfo.h
         Util/HashUtility.cpp
         Util/HashUtility.h
@@ -524,6 +536,7 @@ set(HEAVEN_SOURCES
         Configuration.cpp
 
         Speech.cpp
+        Gameplay/QuestTracker.cpp
         Voice.cpp
         Configuration.h
         Console.h

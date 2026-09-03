@@ -46,7 +46,31 @@ public final class LocalServer {
     private static final int RUN_PERMISSION_REQUEST = 4711;
 
     private static final String BIN = "/data/data/com.termux/files/usr/bin/bash";
-    private static final String SCRIPT = "/data/data/com.termux/files/home/cosmic/run.sh";
+
+    /**
+     * WHAT HOST ACTUALLY RUNS.
+     *
+     * <p>Not {@code run.sh} directly. {@code bootstrap.sh} installs whatever
+     * tools/stage_server.sh has left in /sdcard/Download/cosmic and then execs
+     * run.sh, so pressing HOST always starts the newest build that has been
+     * sent to the device.
+     *
+     * <p>This is not a convenience. Staged builds were silently never
+     * installed for days - the push said "ok", the file was on the device, the
+     * server restarted cleanly, and it restarted the jar from the original
+     * setup every time. Making the start path do the install is the only
+     * arrangement where that cannot happen again.
+     *
+     * <p>It lives on /sdcard rather than in Termux's home for the same reason:
+     * a script in Termux's home can only be updated from inside Termux, which
+     * is exactly the manual step this removes. Termux can read /sdcard once
+     * termux-setup-storage has been run, which the setup does.
+     */
+    private static final String SCRIPT = "/sdcard/Download/cosmic/bootstrap.sh";
+
+    /** Where the old, non-updating start script lives, as a fallback. */
+    private static final String LEGACY_SCRIPT =
+            "/data/data/com.termux/files/home/cosmic/run.sh";
 
     /**
      * Whether the server is answering, cached.
@@ -65,6 +89,9 @@ public final class LocalServer {
     private static final int LOGIN_PORT = 8484;
 
     private static boolean serverUp = false;
+
+    /** Whether THIS app asked for the server that is running. */
+    private static boolean startedHere = false;
     private static long lastProbe = 0;
     private static Thread probing = null;
 
@@ -105,6 +132,75 @@ public final class LocalServer {
         }
 
         return flags;
+    }
+
+    /**
+     * STOP THE SERVER THIS DEVICE STARTED.
+     *
+     * <p>Hosting had a start and no stop. Closing the game left Cosmic
+     * running in Termux for ever - burning battery on a handheld, holding the
+     * database open, and still answering on the network, so another device
+     * could sit playing on a world whose host had walked away. The person
+     * hosting has no way to tell: the game is gone from their screen and
+     * nothing says the server is still up.
+     *
+     * <p>Only ever kills OUR server. {@code pkill -f Cosmic.jar} matches the
+     * jar this project starts and nothing else Termux might be running.
+     *
+     * <p>This is deliberately not called when the game merely goes to the
+     * background. Tabbing out to look something up must not throw everybody
+     * off; only actually closing the game does.
+     *
+     * @return true if Termux was asked. It cannot know whether the server
+     *         had already stopped, and does not pretend to.
+     */
+    public static boolean stop(Context context) {
+        if (!isAvailable(context) || !hasPermission(context)) {
+            return false;
+        }
+
+        // NO GUARD. This used to refuse unless `startedHere` or `serverUp`,
+        // and that is exactly why closing the game on the host left the
+        // server running and another handheld still playing on it:
+        //
+        //   * `startedHere` is false whenever the server was started by an
+        //     EARLIER run of the app - which is the normal case, because
+        //     reinstalling the game does not restart the server.
+        //   * `serverUp` is only refreshed by readiness(), which the login
+        //     screen calls. Once somebody is in the world nothing probes
+        //     again, so by the time the game closes the flag is stale.
+        //
+        // Both false, so stop() returned without doing anything, silently.
+        // The guard was protecting against a cost that does not exist:
+        // `pkill -f Cosmic.jar` on a device that is not hosting matches
+        // nothing and does nothing. Attempting it always is both simpler and
+        // the only version that cannot leave a server running behind you.
+
+        Intent intent = new Intent(RUN_ACTION);
+        intent.setComponent(new ComponentName(TERMUX, RUN_SERVICE));
+        intent.putExtra("com.termux.RUN_COMMAND_PATH", BIN);
+        intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS",
+                new String[] { "-c", "pkill -f Cosmic.jar" });
+        intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+        intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent);
+            } else {
+                context.startService(intent);
+            }
+
+            Log.i(TAG, "local server: asked Termux to stop it");
+            startedHere = false;
+            serverUp = false;
+            lastProbe = 0;
+
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "local server: could not ask Termux to stop - " + e);
+            return false;
+        }
     }
 
     /** Whether Termux is even installed. */
@@ -192,7 +288,14 @@ public final class LocalServer {
         Intent intent = new Intent(RUN_ACTION);
         intent.setComponent(new ComponentName(TERMUX, RUN_SERVICE));
         intent.putExtra("com.termux.RUN_COMMAND_PATH", BIN);
-        intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[] { SCRIPT });
+        // The bootstrap if it has been staged, the old start script if not.
+        // A device that has never had stage_server.sh run against it since
+        // this change should still be able to start its server.
+        String script = new java.io.File(SCRIPT).exists() ? SCRIPT : LEGACY_SCRIPT;
+
+        Log.i(TAG, "starting the server with " + script);
+
+        intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[] { script });
         intent.putExtra("com.termux.RUN_COMMAND_WORKDIR",
                 "/data/data/com.termux/files/home/cosmic");
 
@@ -210,6 +313,8 @@ public final class LocalServer {
             }
 
             Log.i(TAG, "local server: asked Termux to start it");
+            startedHere = true;
+
             return true;
         } catch (Exception e) {
             // The usual cause is `allow-external-apps` not being set, and

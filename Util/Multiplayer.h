@@ -14,6 +14,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -41,15 +42,39 @@ namespace ms
 	namespace Multiplayer
 	{
 		// A game somebody is hosting, as it should appear in a list: a name
-		// a child recognises, and the address that is nobody's business.
+		// a child recognises, the address that is nobody's business, and the
+		// scrambled form of the six-digit code needed to get in.
 		struct Game
 		{
 			std::string name;
 			std::string address;
+
+			// Zero means the host set no code - an older build, or one
+			// started before codes existed. Joining is then open, as it was.
+			uint32_t code = 0;
 		};
 
-		// Announce that a game is running here, under this device's name.
-		bool start_hosting(const std::string& name);
+		// WHAT THE SIX-DIGIT CODE IS AND IS NOT.
+		//
+		// It is the thing that makes joining DELIBERATE. Three handhelds on
+		// one house wifi all see each other, and "which of these two identical
+		// entries is Dad's" is a question a child should not have to answer by
+		// trial and error. The host says a number out loud and that settles
+		// it.
+		//
+		// It is NOT a password, and nothing here pretends otherwise. The
+		// scrambled form travels in the announcement where anybody already on
+		// the network can see it, and six digits is a million guesses, which
+		// is no work at all for a computer. Anyone who can read the
+		// announcement is already inside the house and on the wifi; the code
+		// stops mistakes, not intruders. Do not build anything on it that
+		// needs to be secret.
+		uint32_t code_hash(const std::string& six_digits);
+
+		// Announce that a game is running here, under this device's name, and
+		// with the scrambled form of its code so joiners can check what they
+		// type without the number itself being announced in the clear.
+		bool start_hosting(const std::string& name, uint32_t code);
 		void stop_hosting();
 
 		// Start and stop listening for games. Browsing costs battery, so it

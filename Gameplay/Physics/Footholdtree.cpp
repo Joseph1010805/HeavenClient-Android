@@ -275,38 +275,49 @@ namespace ms
 
 	double Footholdtree::get_edge(uint16_t curid, bool left) const
 	{
-		const Foothold& fh = get_fh(curid);
+		// WHERE THE GROUND ACTUALLY RUNS OUT.
+		//
+		// This is what TURNATEDGES is measured against: the far end of the
+		// connected run of footholds the object is standing on. A monster
+		// walks until it reaches this and is clamped there.
+		//
+		// ⚠ IT USED TO LOOK EXACTLY TWO FOOTHOLDS AHEAD. One link, then
+		// another, and if the ground still carried on it gave up and returned
+		// the MAP'S OUTER WALL - which is not an edge at all, it is the far
+		// side of the world. So a platform built from three or more footholds
+		// reported no edge, the clamp never fired, and anything standing on it
+		// walked calmly off the end.
+		//
+		// Most platforms in the early maps are one or two footholds, which is
+		// why this looked like it worked and why the monsters that fell were
+		// only ever SOME of them. It has nothing to do with jumping: a Jr.
+		// Sentinel, which cannot jump at all, walks off a long platform just
+		// as readily.
+		//
+		// So the chain is walked to its end. The guard is against malformed
+		// data looping back on itself - a cycle here would hang the game, and
+		// no honest map has a run anywhere near this long.
+		constexpr uint16_t LIMIT = 1000;
 
-		if (left)
+		const Foothold* fh = &get_fh(curid);
+
+		for (uint16_t step = 0; step < LIMIT; step++)
 		{
-			uint16_t previd = fh.prev();
-
-			if (!previd)
-				return fh.l();
-
-			const Foothold& prev = get_fh(previd);
-			uint16_t prev_previd = prev.prev();
-
-			if (!prev_previd)
-				return prev.l();
-
-			return walls.first();
-		}
-		else
-		{
-			uint16_t nextid = fh.next();
+			uint16_t nextid = left ? fh->prev() : fh->next();
 
 			if (!nextid)
-				return fh.r();
+				break;
 
-			const Foothold& next = get_fh(nextid);
-			uint16_t next_nextid = next.next();
+			const Foothold& along = get_fh(nextid);
 
-			if (!next_nextid)
-				return next.r();
+			// A wall is not more floor to walk along; the run ends here.
+			if (along.is_wall())
+				break;
 
-			return walls.second();
+			fh = &along;
 		}
+
+		return left ? fh->l() : fh->r();
 	}
 
 	uint16_t Footholdtree::get_fhid_below(double fx, double fy) const

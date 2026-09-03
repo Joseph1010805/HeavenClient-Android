@@ -237,15 +237,20 @@ namespace ms
 		panel = true;
 		panel_screen = screen;
 
-		// The tabs move to the left so the row has room for a button. They are
-		// placed rather than left where the artwork puts them, which spread
-		// them across the whole width.
+		// THE TAB STRIP GOES. The panel carries these three as buttons of its
+		// own now - Character > Equipment > Worn / Cosmetic / Pet - exactly
+		// as the bag's five sections are carried. A row of tabs inside the
+		// window would be the same choice offered twice, in two shapes, on
+		// one screen.
+		//
+		// The window still KNOWS its tabs: show_section sets one, and the
+		// paper doll, the cash boxes and the pet slots all still work off it.
+		// Only the strip is gone.
 		Buttons tabs[] = { Buttons::BT_TAB0, Buttons::BT_TAB1,
 			Buttons::BT_TAB2, Buttons::BT_TAB3 };
 
-		for (int i = 0; i < 4; i++)
-			buttons[tabs[i]]->set_position(Point<int16_t>(
-				PANEL_TAB_LEFT + i * PANEL_TAB_STEP, PANEL_TAB_TOP));
+		for (Buttons id : tabs)
+			buttons[id]->set_active(false);
 
 		// The window's own furniture goes: a close box, the cash-shop and salon
 		// buttons, the slot-expansion button. What is left is the doll and its
@@ -288,13 +293,15 @@ namespace ms
 		// cursor measured from the screen's, and never matched. That is why
 		// the button did nothing.
 		//
-		// It sits in the tab row, to the right of the four tabs, which is the
-		// only band of this window with nothing already in it.
+		// It sits in the top row, which the tab strip used to share. With the
+		// tabs gone to the panel's own menu the whole band is free, so this
+		// starts at the left edge rather than four tab-widths in - where it
+		// would now be floating in the middle of nothing.
 		constexpr int16_t W = 86;
 		constexpr int16_t H = 18;
 
 		Point<int16_t> at = position + Point<int16_t>(
-			PANEL_TAB_LEFT + 4 * PANEL_TAB_STEP + 6, PANEL_TAB_TOP);
+			PANEL_TAB_LEFT, PANEL_TAB_TOP);
 
 		return Rectangle<int16_t>(at, at + Point<int16_t>(W, H));
 	}
@@ -393,13 +400,26 @@ namespace ms
 				slot.draw(position);
 		}
 
-		if (tab == Buttons::BT_TAB0)
+		// THE CASH TAB DREW ITS BOXES AND NOTHING IN THEM.
+		//
+		// This whole block was gated on `tab == BT_TAB0` - the ORDINARY tab -
+		// while the loop inside it politely chose between `cash_icons` and
+		// `icons` depending on which tab you were on. On the cash tab the
+		// condition was false, so the chooser never ran and the page was a
+		// grid of empty squares.
+		//
+		// The item was never in the wrong place: the log shows the client
+		// sending a cash hat to slot 101 and the server accepting it. It was
+		// worn, on the cosmetic slot, and simply never drawn.
+		if (tab == Buttons::BT_TAB0 || on_cash_tab())
 		{
-			if (!hasPendantSlot)
+			// The two "you do not have this slot" crosses belong to the real
+			// equipment page only - there is no cash pendant slot to lack.
+			if (!on_cash_tab() && !hasPendantSlot)
 				disabled.draw(DrawArgument(position + iconpositions[Equipslot::Id::PENDANT2],
 					panel ? PANEL_FADE : 1.0f));
 
-			if (!hasPocketSlot)
+			if (!on_cash_tab() && !hasPocketSlot)
 				disabled.draw(DrawArgument(position + iconpositions[Equipslot::Id::POCKET],
 					panel ? PANEL_FADE : 1.0f));
 
@@ -674,7 +694,17 @@ namespace ms
 
 	void UIEquipInventory::show_equip(Equipslot::Id slot)
 	{
-		UI::get().show_equip(Tooltip::Parent::EQUIPINVENTORY, slot);
+		// THE SLOT THAT IS ACTUALLY BEING LOOKED AT.
+		//
+		// On the cash tab a box shows the cosmetic in slot 101, 102, 103 -
+		// not the real item in slot 1, 2, 3 underneath it. Asking about the
+		// base slot described the wrong item when there was one there, and
+		// asked about nothing at all when there was not.
+		//
+		// worn_slot is the same translation unequipping already uses, so the
+		// box, the tooltip and the UNEQUIP button all now agree about which
+		// item they are dealing with.
+		UI::get().show_equip(Tooltip::Parent::EQUIPINVENTORY, worn_slot(slot));
 	}
 
 	void UIEquipInventory::clear_tooltip()
@@ -701,6 +731,14 @@ namespace ms
 		}
 
 		return Equipslot::Id::NONE;
+	}
+
+	void UIEquipInventory::show_section(Section which)
+	{
+		change_tab(
+			which == Section::GEAR ? Buttons::BT_TAB0 :
+			which == Section::COSMETIC ? Buttons::BT_TAB1 :
+			Buttons::BT_TAB2);
 	}
 
 	void UIEquipInventory::change_tab(uint16_t tabid)

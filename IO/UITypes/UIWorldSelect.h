@@ -41,6 +41,15 @@ namespace ms
 		UIElement::Type get_type() const override;
 
 		void draw_world();
+
+		// ONE WORLD, ONE CHANNEL, NO SCREEN.
+		//
+		// True when the server offered exactly one world. See the caller in
+		// ServerlistHandler for why this is decided there and not stored as a
+		// setting: a build that grows a second world puts the screen back on
+		// its own, with nothing to remember to change.
+		bool only_one_world() const;
+		void enter_only_world();
 		void add_world(World world);
 		void add_recommended_world(RecommendedWorld world);
 		void change_world(World selectedWorld);

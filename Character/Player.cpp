@@ -24,6 +24,7 @@
 #include "../Data/QuestData.h"
 #include "../Data/WeaponData.h"
 #include "../IO/UI.h"
+#include "../Util/Silent.h"
 #include "../IO/SecondScreen.h"
 
 #include "../IO/UITypes/UIStatsinfo.h"
@@ -304,10 +305,64 @@ namespace ms
 	void Player::use_item(int32_t itemid)
 	{
 		InventoryType::Id type = InventoryType::by_item_id(itemid);
+		int16_t slot = inventory.find_item(type, itemid);
 
-		if (int16_t slot = inventory.find_item(type, itemid))
-			if (type == InventoryType::Id::USE)
-				UseItemPacket(slot, itemid).dispatch();
+		if (!slot)
+			return;
+
+		// EVERY KIND OF ITEM A HOTKEY CAN HOLD, not just a potion.
+		//
+		// This sent the packet only for a USE item and returned in silence
+		// for anything else. A chair - a SETUP item - was found, recognised,
+		// and then dropped: the key did nothing at all, with nothing in any
+		// log, which is exactly what a hotkey that was never bound looks
+		// like.
+		switch (type)
+		{
+		case InventoryType::Id::USE:
+			UseItemPacket(slot, itemid).dispatch();
+			break;
+
+		case InventoryType::Id::SETUP:
+			// Chairs are the only setup item you can invoke. They have their
+			// own opcode rather than going through USE_ITEM.
+			// The same range Cosmic checks (ItemId.CHAIR_MIN..CHAIR_MAX),
+			// which is the whole 301xxxx block.
+			if (itemid / 10000 == 301)
+				UseChairPacket(itemid).dispatch();
+			else
+				Silent::report("Player::use_item",
+					"setup item " + std::to_string(itemid)
+					+ " is not a chair - nothing to do with it");
+			break;
+
+		case InventoryType::Id::CASH:
+			// A PET IS NOT USED, IT IS CALLED. Same bag, different request:
+			// Cosmic has its own SpawnPetHandler, so sending a pet down
+			// USE_CASH_ITEM reaches a handler that has no case for it and
+			// returns without a word. That is why a bought pet sat in the bag
+			// doing nothing however many times it was tapped.
+			//
+			// 500xxxx is the whole pet block, the same range Cosmic treats as
+			// a pet (ItemId.isPet).
+			// lead = false: that flag shuffles the other pets along to put
+			// this one at the front, and only means anything to somebody
+			// carrying three. Without the Follow the Lead skill the server
+			// puts the previous pet away anyway, so one at a time is the
+			// normal case and asking to reorder an empty row is noise.
+			if (itemid / 10000 == 500)
+				SpawnPetPacket(slot, false).dispatch();
+			else
+				UseCashItemPacket(slot, itemid).dispatch();
+			break;
+
+		default:
+			Silent::report("Player::use_item",
+				"item " + std::to_string(itemid) + " is in inventory "
+				+ std::to_string(static_cast<int32_t>(type))
+				+ " and cannot be used from a key");
+			break;
+		}
 	}
 
 	void Player::draw(Layer::Id layer, double viewx, double viewy, float alpha) const

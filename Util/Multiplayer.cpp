@@ -14,6 +14,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "Multiplayer.h"
 
+#include <cstdio>
+#include <cstdlib>
+
 #ifdef PLATFORM_ANDROID
 #include <jni.h>
 
@@ -129,8 +132,38 @@ namespace ms
 		}
 #endif
 
-		bool start_hosting(const std::string& name)
+		uint32_t code_hash(const std::string& six_digits)
 		{
+			// FNV-1a with a fixed seed. Not chosen for strength - see the
+			// header - but because it is four lines, needs no library, and
+			// gives the same answer on every device in the house, which is
+			// the only property actually required of it.
+			uint32_t h = 0x9e3779b9u;
+
+			for (char c : six_digits)
+			{
+				h ^= static_cast<uint8_t>(c);
+				h *= 16777619u;
+			}
+
+			// Zero is reserved for "no code set", so never return it.
+			return h ? h : 1u;
+		}
+
+		bool start_hosting(const std::string& name, uint32_t code)
+		{
+			// THE CODE RIDES IN THE SERVICE NAME.
+			//
+			// NsdManager will announce any string as a name, and a game's
+			// name is already free text, so this needs nothing added to the
+			// Java side and nothing added to the protocol. Everything after
+			// the '#' is the scrambled code; games() cuts it back off before
+			// anyone sees the name.
+			char tail[16];
+			std::snprintf(tail, sizeof(tail), "#%08x", code);
+
+			const std::string announced = name + tail;
+
 #ifdef PLATFORM_ANDROID
 			Env e;
 
@@ -147,7 +180,7 @@ namespace ms
 
 				if (id)
 				{
-					jstring jname = e.env->NewStringUTF(name.c_str());
+					jstring jname = e.env->NewStringUTF(announced.c_str());
 
 					// 8484 is the login port, which is the one a joining
 					// client actually dials.
@@ -164,7 +197,7 @@ namespace ms
 
 			return result;
 #else
-			(void)name;
+			(void)announced;
 			return false;
 #endif
 		}
@@ -234,14 +267,29 @@ namespace ms
 							{
 								std::string name = line.substr(0, split);
 
+								// Cut the scrambled code back off the name -
+								// see start_hosting. A host from before codes
+								// existed has no '#' and lands on 0, which
+								// means "no code needed" and keeps working.
+								uint32_t code = 0;
+								size_t hash = name.rfind('#');
+
+								if (hash != std::string::npos)
+								{
+									code = static_cast<uint32_t>(
+										std::strtoul(name.c_str() + hash + 1, nullptr, 16));
+
+									name.erase(hash);
+								}
+
 								// Never list ourselves. Tapping JOIN stops the
 								// announcement, but Android's own cache keeps
 								// the entry for a few seconds longer - so this
 								// device turned up in its own list of games to
 								// join, which is nonsense: joining yourself is
-								// what HOST already is.
+								// what hosting already is.
 								if (name != suggested_name())
-									out.push_back({ name, line.substr(split + 1) });
+									out.push_back({ name, line.substr(split + 1), code });
 							}
 
 							e.env->DeleteLocalRef(item);

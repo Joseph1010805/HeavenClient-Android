@@ -57,9 +57,18 @@ namespace ms
 
 	int16_t UICharacterPage::column_height() const
 	{
+		// PLUS A TAIL.
+		//
+		// The column stopped at the last pixel either window claimed, which
+		// put the skill page's SPEND row hard against the bottom edge of the
+		// panel - underneath the EXP gauge and the TO HOTKEYS button, both of
+		// which are drawn after the page. Scrolling could reach it and still
+		// not show it. The tail is the room those two need.
+		constexpr int16_t TAIL = 56;
+
 		return static_cast<int16_t>(
 			stats_window->get_dimension().y() + GAP + LABEL_H
-			+ skill_window->get_dimension().y());
+			+ skill_window->get_dimension().y() + TAIL);
 	}
 
 	void UICharacterPage::update()

@@ -25,6 +25,9 @@
 #include "../../Speech.h"
 #include "../../Audio/Audio.h"
 
+#include "../../Util/PostBox.h"
+
+#include "../Net/Packets/InventoryPackets.h"
 #include "../Net/Packets/MessagingPackets.h"
 #include "../Net/Packets/GameplayPackets.h"
 
@@ -36,6 +39,15 @@
 
 namespace ms
 {
+	namespace
+	{
+		// THE WORLD BANNER. A super megaphone (5072000), which Cosmic shows as
+		// a scrolling line across every screen in the world - the same item the
+		// megaphone window sends for its WORLD scope. Named here so L3 and that
+		// window cannot drift onto different items.
+		constexpr int32_t WORLD_BANNER = 5072000;
+	}
+
 	namespace
 	{
 		std::string lowercase(std::string s)
@@ -504,7 +516,35 @@ namespace ms
 					if (said[0] >= 'a' && said[0] <= 'z')
 						said[0] = static_cast<char>(said[0] - 'a' + 'A');
 
-					GeneralChatPacket(said, true).dispatch();
+					// WHERE THE SENTENCE GOES. The capture above is
+					// identical in all three cases - the live balloon, the
+					// pause that decides you have finished - and only the
+					// destination differs.
+					if (!dictate_to.empty())
+					{
+						// ONE PERSON, WHEREVER THEY ARE. Queued rather than
+						// sent: PostBox hands it on the moment anything can
+						// be reached, and holds it when nothing can - which
+						// is the whole point of writing one in a car.
+						PostBox::get().send(dictate_to, said);
+					}
+					else if (dictate_to_world)
+					{
+						// L3 - a banner across every screen in the world.
+						MegaphonePacket(WORLD_BANNER, said, false).dispatch();
+
+						// AND ONWARD TO ANYONE NOT CONNECTED. The banner
+						// reaches whoever is logged in at that moment and
+						// nobody else, so the same words also go into the
+						// post box for everybody this device has played with.
+						for (const std::string& who : PostBox::get().known())
+							PostBox::get().send(who, said);
+					}
+					else
+					{
+						// R3 - the map you are standing on.
+						GeneralChatPacket(said, true).dispatch();
+					}
 				}
 
 				Speech::get().stop();
@@ -513,6 +553,8 @@ namespace ms
 				Music::duck(false);
 
 				listening = false;
+				dictate_to_world = false;
+				dictate_to.clear();
 				dictated.clear();
 				dictation_quiet = 0;
 			}
@@ -705,8 +747,25 @@ namespace ms
 		last_whisperer = name;
 	}
 
+	namespace
+	{
+		// The conversation, kept apart from the window that usually shows it.
+		// See UIChatbar::history.
+		std::deque<UIChatbar::Line> chat_history;
+	}
+
+	const std::deque<UIChatbar::Line>& UIChatbar::history()
+	{
+		return chat_history;
+	}
+
 	void UIChatbar::send_chatline(const std::string& line, LineType type)
 	{
+		chat_history.push_back(Line { line, type });
+
+		while (chat_history.size() > HISTORY_MAX)
+			chat_history.pop_front();
+
 		rowmax++;
 		rowpos = rowmax;
 
@@ -814,7 +873,30 @@ namespace ms
 		}
 	}
 
-	void UIChatbar::start_dictation()
+	void UIChatbar::say(std::string line)
+	{
+		// Trailing spaces come free with a soft keyboard - the space bar is
+		// the biggest key on it and the last thing a thumb rests on.
+		size_t last = line.find_last_not_of(' ');
+
+		if (last == std::string::npos)
+			return;
+
+		line.erase(last + 1);
+
+		size_t first = line.find_first_not_of(' ');
+
+		if (first > 0)
+			line.erase(0, first);
+
+		if (line.empty())
+			return;
+
+		if (!handle_command(line))
+			GeneralChatPacket(line, true).dispatch();
+	}
+
+	void UIChatbar::start_dictation(bool to_world)
 	{
 		if (listening)
 		{
@@ -824,10 +906,37 @@ namespace ms
 			return;
 		}
 
+		// Set BEFORE the recogniser starts, so a sentence cannot finish
+		// against the previous destination.
+		dictate_to_world = to_world;
+		dictate_to.clear();
+
 		listening = Speech::get().start();
 
 		// The speaker is an inch from the microphone on these machines, so the
 		// recogniser hears the soundtrack too and does noticeably worse for it.
+		if (listening)
+			Music::duck(true);
+	}
+
+	void UIChatbar::start_dictation_post(const std::string& to)
+	{
+		if (listening)
+		{
+			Speech::get().stop();
+			Music::duck(false);
+			listening = false;
+			return;
+		}
+
+		// Set BEFORE the recogniser starts, for the same reason the world
+		// flag is: a sentence must not be able to finish against the previous
+		// destination.
+		dictate_to_world = false;
+		dictate_to = to;
+
+		listening = Speech::get().start();
+
 		if (listening)
 			Music::duck(true);
 	}

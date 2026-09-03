@@ -98,6 +98,10 @@ public class HeavenClientActivity extends SDLActivity
     {
         super.onCreate(state);
 
+        // Alive only so that swiping the game away reaches onTaskRemoved and
+        // the local server can be stopped. It does no work otherwise.
+        startService(new android.content.Intent(this, ShutdownWatcher.class));
+
         takeWholeScreen();
 
         // Do not let the screen sleep while the game is up.
@@ -147,6 +151,27 @@ public class HeavenClientActivity extends SDLActivity
         {
             secondscreen.dismiss();
             secondscreen = null;
+        }
+
+        // TAKE THE SERVER DOWN WITH THE GAME.
+        //
+        // Hosting used to have a start and no stop, so closing the game left
+        // Cosmic running in Termux indefinitely: draining a handheld's
+        // battery, holding the database open, and - worst - still answering
+        // on the network, so somebody else could carry on playing in a world
+        // whose host had put their device in a pocket. Nothing on either
+        // screen said so.
+        //
+        // onDestroy, not onPause: tabbing out of the game must not throw
+        // everyone off. On a device that is not hosting, the kill matches no
+        // process and does nothing.
+        //
+        // This covers BACKING OUT of the game. It does not cover swiping it
+        // off the recents screen, where Android may kill the process without
+        // calling this at all - ShutdownWatcher exists for that.
+        if (isFinishing())
+        {
+            LocalServer.stop(this);
         }
 
         super.onDestroy();

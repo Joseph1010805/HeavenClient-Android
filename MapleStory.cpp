@@ -23,6 +23,9 @@
 #include "Audio/Audio.h"
 #include "Character/Char.h"
 #include "Gameplay/Stage.h"
+#include "Util/Carry.h"
+#include "Util/PostBox.h"
+#include "IO/UITypes/UIChatbar.h"
 #include "IO/UI.h"
 #include "IO/Window.h"
 #include "Net/Session.h"
@@ -112,6 +115,26 @@ namespace ms
 		Window::get().update();
 		Stage::get().update();
 		UI::get().update();
+
+		// Keep this device's memory card current while playing at home. Does
+		// nothing while visiting somebody else's world, and nothing at all
+		// between refreshes - see Util/Carry.h.
+		Carry::get().update();
+
+		// Flush anything written offline and ask what has arrived. Slow
+		// timer, off the frame - see Util/PostBox.h.
+		PostBox::get().update();
+
+		// A MESSAGE THAT ARRIVED SAYS SO, on every device.
+		//
+		// Mail has a page of its own only where there is a second screen. On
+		// a one-screen handheld it was written to disk in silence, which is
+		// indistinguishable from it never arriving.
+		for (const std::string& said : PostBox::get().take_announcements())
+		{
+			if (auto chat = UI::get().get_element<UIChatbar>())
+				chat->send_chatline(said, UIChatbar::LineType::YELLOW);
+		}
 		Session::get().read();
 		Music::update_context();
 	}
@@ -127,6 +150,12 @@ namespace ms
 		// room to read it. Inside the main screen's pass, or it would be drawn
 		// after the frame had already been sent.
 		SecondScreen::draw_top_tooltip();
+
+		// THE PANEL ITSELF, on a handheld with only one screen. Last in the
+		// main pass so it sits over the game and over the interface - it is
+		// standing in for the game's own menu, which is the frontmost thing
+		// on the screen when it is open.
+		SecondScreen::draw_overlay();
 #endif
 
 		Window::get().end();

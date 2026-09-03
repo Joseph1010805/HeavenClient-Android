@@ -16,6 +16,8 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIWorldMap.h"
+#include "../../Graphics/GraphicsGL.h"
+#include "../../Gameplay/QuestTracker.h"
 
 #include "../UI.h"
 
@@ -299,6 +301,37 @@ namespace ms
 
 		for (auto spot : map_spots)
 			spot.second.marker.draw(map_point(spot.first));
+
+		// WHERE THE TRACKED QUEST WANTS YOU.
+		//
+		// Drawn before the "you are here" marker so that one stays on top: if
+		// they are the same place, the answer is "you are already there" and
+		// the current-position marker is the one that says so.
+		//
+		// A ring rather than an icon, because every spot on this map already
+		// carries its own artwork and a second picture on top of one of them
+		// reads as a different KIND of place rather than as a destination.
+		if (int32_t want = QuestTracker::get().target_map())
+		{
+			for (auto spot : map_spots)
+			{
+				bool here = false;
+
+				for (auto map_id : spot.second.map_ids)
+					if (map_id == want)
+						here = true;
+
+				if (!here)
+					continue;
+
+				Point<int16_t> at = map_point(spot.first);
+
+				GraphicsGL::get().drawrectangle(
+					at.x() - 9, at.y() - 9, 18, 18, 1.0f, 0.86f, 0.26f, 0.80f);
+
+				break;
+			}
+		}
 
 		bool found = false;
 

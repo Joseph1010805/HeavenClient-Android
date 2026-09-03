@@ -105,6 +105,17 @@ namespace ms
 
 		void draw_panel(float alpha) const;
 
+	public:
+		// WHAT IS PICKED, AS SOMETHING A HOTKEY CAN HOLD.
+		//
+		// This did not exist, so the panel asked the skill page what was
+		// selected, got NONE, and carried nothing to the hotkeys. The item
+		// inventory has had one all along, which is why potions ALMOST
+		// worked and skills did not work at all.
+		Keyboard::Mapping selected_mapping() const override;
+
+	private:
+
 		// Hit tests, in panel coordinates. -1 for nothing.
 		int16_t panel_tab_at(Point<int16_t> at) const;
 		int16_t panel_cell_at(Point<int16_t> at) const;

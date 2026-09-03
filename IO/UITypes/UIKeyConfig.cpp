@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIKeyConfig.h"
 
+#include <map>
+
 #include "../Console.h"
 #include "../UI.h"
 
@@ -1224,6 +1226,50 @@ namespace ms
 	bool UIKeyConfig::is_action_mapping(Keyboard::Mapping mapping) const
 	{
 		return std::find(action_mappings.begin(), action_mappings.end(), mapping) != action_mappings.end();
+	}
+
+	Texture UIKeyConfig::action_icon(KeyAction::Id action)
+	{
+		// The same indices load_action_icons uses. Kept as a table rather
+		// than a switch because that is what it is - and because the numbers
+		// are not guessable: Jump is 53, the faces start at 100, and the
+		// gaps in between belong to features this version does not have.
+		static const std::map<KeyAction::Id, int32_t> WHICH = {
+			{ KeyAction::Id::EQUIPMENT, 0 }, { KeyAction::Id::ITEMS, 1 },
+			{ KeyAction::Id::STATS, 2 },     { KeyAction::Id::SKILLS, 3 },
+			{ KeyAction::Id::FRIENDS, 4 },   { KeyAction::Id::WORLDMAP, 5 },
+			{ KeyAction::Id::MAPLECHAT, 6 }, { KeyAction::Id::MINIMAP, 7 },
+			{ KeyAction::Id::QUESTLOG, 8 },  { KeyAction::Id::KEYBINDINGS, 9 },
+			{ KeyAction::Id::SAY, 10 },      { KeyAction::Id::WHISPER, 11 },
+			{ KeyAction::Id::PARTYCHAT, 12 },{ KeyAction::Id::FRIENDSCHAT, 13 },
+			{ KeyAction::Id::MENU, 14 },     { KeyAction::Id::QUICKSLOTS, 15 },
+			{ KeyAction::Id::TOGGLECHAT, 16 },{ KeyAction::Id::GUILD, 17 },
+			{ KeyAction::Id::GUILDCHAT, 18 },{ KeyAction::Id::PARTY, 19 },
+			{ KeyAction::Id::NOTIFIER, 20 }, { KeyAction::Id::MAPLENEWS, 21 },
+			{ KeyAction::Id::CASHSHOP, 22 }, { KeyAction::Id::ALLIANCECHAT, 23 },
+			{ KeyAction::Id::MEDALS, 26 },   { KeyAction::Id::BOSSPARTY, 27 },
+			{ KeyAction::Id::ITEMPOT, 30 },  { KeyAction::Id::EVENT, 31 },
+			{ KeyAction::Id::BITS, 34 },     { KeyAction::Id::GUIDE, 39 },
+			{ KeyAction::Id::CHARINFO, 44 }, { KeyAction::Id::CHANGECHANNEL, 45 },
+			{ KeyAction::Id::MAINMENU, 46 }, { KeyAction::Id::SCREENSHOT, 47 },
+			{ KeyAction::Id::PICKUP, 50 },   { KeyAction::Id::SIT, 51 },
+			{ KeyAction::Id::ATTACK, 52 },   { KeyAction::Id::JUMP, 53 },
+			{ KeyAction::Id::INTERACT_HARVEST, 54 },
+			{ KeyAction::Id::FACE1, 100 },   { KeyAction::Id::FACE2, 101 },
+			{ KeyAction::Id::FACE3, 102 },   { KeyAction::Id::FACE4, 103 },
+			{ KeyAction::Id::FACE5, 104 },   { KeyAction::Id::FACE6, 105 },
+			{ KeyAction::Id::FACE7, 106 },
+			{ KeyAction::Id::MAPLESTORAGE, 200 },
+			{ KeyAction::Id::MONSTERBOOK, 1000 },
+		};
+
+		auto found = WHICH.find(action);
+
+		if (found == WHICH.end())
+			return Texture();
+
+		return Texture(nl::nx::ui["StatusBar3.img"]["KeyConfig"]["icon"]
+			[std::to_string(found->second)]);
 	}
 
 	KeyType::Id UIKeyConfig::get_keytype(KeyAction::Id action)

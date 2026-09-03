@@ -21,6 +21,10 @@
 
 #include "../Session.h"
 
+#include "../../Util/Silent.h"
+#include "../../Util/Carry.h"
+#include "../../Util/PostBox.h"
+
 #include "../Packets/LoginPackets.h"
 
 #include "../../Gameplay/Stage.h"
@@ -87,6 +91,17 @@ namespace ms
 				// Login successfull. The packet contains information on the account, so we initialise the account with it.
 				Account account = LoginParser::parse_account(recv);
 
+				// WHOSE CHARACTERS THESE ARE. The card is written per account,
+				// and this is the first moment the server has confirmed the
+				// name rather than the login box merely holding one.
+				Carry::get().set_account(account.name);
+
+				// A NAME TO BE GOING ON WITH, replaced by the character's own
+				// as soon as one is in the world - see PostBox::update. The
+				// account name is not visible to anybody else, so it cannot
+				// be what messages are addressed to.
+				PostBox::get().set_account(account.name);
+
 				if (account.female == 10)
 				{
 					UI::get().emplace<UIGender>(okhandler);
@@ -127,6 +142,24 @@ namespace ms
 			{
 				// Remove previous UIs.
 				UI::get().remove(UIElement::Type::LOGIN);
+
+				// ONE WORLD IS NOT A CHOICE.
+				//
+				// This build runs one world with one channel, on somebody's
+				// handheld in their own house. Asking which of the one worlds
+				// they would like, and then which of its one channels, is two
+				// screens that can only be answered one way - and both of them
+				// stand between a child and the game.
+				//
+				// Skipped only when there really IS just one. If a second ever
+				// appears the screen comes back by itself, with no flag to
+				// remember to turn off.
+				if (worldselect->only_one_world())
+				{
+					worldselect->enter_only_world();
+
+					return;
+				}
 
 				// Add the world selection screen to the ui.
 				worldselect->draw_world();
@@ -260,8 +293,40 @@ namespace ms
 
 		int32_t cid = recv.read_int();
 
-		// Attempt to reconnect to the server and if successfull, login to the game.
-		Session::get().reconnect(addrstr.c_str(), portstr.c_str());
+		// PRESSING START AND NOTHING HAPPENING.
+		//
+		// The address here is not the one the player typed - it is whatever
+		// the SERVER says its channel lives at, from `HOST` in its config.
+		// On a handheld host that value goes stale every time the router
+		// hands out a new address, and then everyone except the host itself
+		// is sent somewhere with nothing on it.
+		//
+		// This used to reconnect, ignore the answer, and dispatch the login
+		// packet into a dead socket. No message, no log line, no way to tell
+		// it apart from a button that does not work - which is exactly what
+		// it was reported as.
+		if (!Session::get().reconnect(addrstr.c_str(), portstr.c_str()))
+		{
+			std::string where = addrstr + ":" + portstr;
+
+			Silent::report("ServerIPHandler",
+				"could not reach the game world at " + where);
+
+			// ON THE SCREEN, not just in a log. The person who meets this is
+			// holding the handheld and cannot read a log. The exact address
+			// is the diagnosis and it goes to playlog.txt above, where it can
+			// be read back afterwards.
+			UI::get().emplace<UILoginNotice>(
+				UILoginNotice::Message::UNABLE_TO_CONNECT);
+
+			// BACK TO A SCREEN THAT WORKS. Without this the character select
+			// sits there disabled behind the notice, because the click that
+			// started all this called UI::disable().
+			UI::get().enable();
+
+			return;
+		}
+
 		PlayerLoginPacket(cid).dispatch();
 	}
 
@@ -283,11 +348,43 @@ namespace ms
 		std::string portstr = std::to_string(recv.read_short());
 
 		// No character id is sent - the server takes it that we still know
-		// who we are, and we do: the player survives Stage::clear(), which
-		// is the only thing the cash shop transition did to it.
+		// who we are, and we do: the player survives Stage::clear().
 		int32_t cid = Stage::get().get_player().get_oid();
 
-		Session::get().reconnect(addrstr.c_str(), portstr.c_str());
+		// THE WORLD WE WERE LOOKING AT IS GONE.
+		//
+		// A channel change is how the cash shop is left, and this handler
+		// never cleared the map - so Amherst's NPCs came back out of the shop
+		// with the player and stood about in whatever map they landed in.
+		// Pio and Rain exist in exactly one map in the whole game, and they
+		// were on screen in Dangerous Forest.
+		//
+		// The comment here already said the player "survives Stage::clear()",
+		// which is only worth saying if a clear was meant to be happening.
+		// It was not.
+		//
+		// Before the reconnect, so the tidy-up packet it sends still has a
+		// connection to go out on.
+		Stage::get().clear();
+
+		if (!Session::get().reconnect(addrstr.c_str(), portstr.c_str()))
+		{
+			std::string where = addrstr + ":" + portstr;
+
+			// Same fault as ServerIPHandler had: the answer was thrown away
+			// and the login packet sent into a dead socket, leaving the
+			// player on a blank screen with nothing said.
+			Silent::report("ChangeChannelHandler",
+				"could not reach the world again at " + where);
+
+			UI::get().emplace<UILoginNotice>(
+				UILoginNotice::Message::UNABLE_TO_CONNECT);
+
+			UI::get().enable();
+
+			return;
+		}
+
 		PlayerLoginPacket(cid).dispatch();
 	}
 }

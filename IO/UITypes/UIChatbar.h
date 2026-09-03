@@ -18,6 +18,8 @@
 #pragma once
 
 #include "../UIDragElement.h"
+
+#include <deque>
 #include "../Messages.h"
 
 #include "../Components/Textfield.h"
@@ -57,6 +59,25 @@ namespace ms
 
 		void send_chatline(const std::string& line, LineType type);
 
+		// THE LAST THINGS SAID, for anything that is not this window.
+		//
+		// The panel's Messages page needs the conversation, and cannot get it
+		// from rowtexts: those are laid out against the chat window's own
+		// artwork, keyed by a row number that only means something inside its
+		// scroll. This is the plain text, newest last, capped.
+		//
+		// Static because the panel reads it whether or not a chat bar has been
+		// built - at the login screen there is no UI element to ask.
+		struct Line
+		{
+			std::string text;
+			LineType type;
+		};
+
+		static const std::deque<Line>& history();
+
+		static constexpr size_t HISTORY_MAX = 80;
+
 		// Who last whispered us, so /r can answer without retyping a name.
 		// Typing an exact character name on a handheld is the whole reason
 		// whisper would otherwise go unused.
@@ -73,7 +94,40 @@ namespace ms
 		// Public so the SPEAK button on the status bar can start it: that button
 		// is on the main screen and always visible, where the chat bar's own
 		// microphone only exists while the chat is open.
-		void start_dictation();
+		// LISTEN, AND SEND WHAT WAS HEARD.
+		//
+		// `to_world` picks WHERE it lands, not how it is captured - the
+		// capture, the live balloon and the end-of-sentence detection are
+		// identical either way:
+		//
+		//   false - map chat. A bubble over the speaker's head, and a line in
+		//           the running chat, which is what R3 does.
+		//   true  - a super megaphone. A banner across every screen in the
+		//           world, which is what L3 does.
+		//
+		// A handheld has no keyboard, so voice is the only way either of these
+		// gets used in practice - the difference between them is REACH.
+		void start_dictation(bool to_world = false);
+
+		// THE SAME CAPTURE, ADDRESSED TO ONE PERSON WHO IS NOT HERE.
+		//
+		// What the Messages page does. The words go into the post box rather
+		// than onto the map: if they are online it reaches them in moments,
+		// and if they are not it waits in the outbox and lands in their chat
+		// whenever they next connect - from another state, if a relay is set.
+		void start_dictation_post(const std::string& to);
+
+		// SAY A LINE THAT WAS TYPED SOMEWHERE ELSE.
+		//
+		// The lower panel has its own keyboard and its own chat page, and it
+		// must not reach in and drive this window's textfield to speak - that
+		// would mean opening the chat box on the top screen, focusing it,
+		// filling it and pressing enter, four steps of pantomime to send one
+		// sentence.
+		//
+		// This is the same road the enter key takes: slash commands are
+		// handled, everything else goes out as ordinary chat.
+		void say(std::string line);
 
 		bool is_chatopen();
 		bool is_chatfieldopen();
@@ -152,6 +206,14 @@ namespace ms
 		// pushed to, because Vosk finishes on its own thread and a
 		// Textfield is not something to touch from there.
 		bool listening;
+
+		// Where the sentence being dictated is bound for - map chat, or a
+		// world banner. See start_dictation.
+		bool dictate_to_world = false;
+
+		// Who the sentence is addressed to. Empty means the map, which is
+		// every case except the Messages page.
+		std::string dictate_to;
 
 		// The spoken sentence as it currently stands, and how long it has gone
 		// WITHOUT CHANGING. A pause is what ends a spoken line - see update().

@@ -20,12 +20,14 @@
 #include "../../Graphics/GraphicsGL.h"
 #include "../../Util/LocalServer.h"
 #include "../../Util/Silent.h"
+#include "../../Util/Carry.h"
 #include "../../Net/Session.h"
 #include "UILoginwait.h"
 #include "UILoginNotice.h"
 #include "UINotice.h"
 
 #include "../UI.h"
+#include "../SecondScreen.h"
 
 #include "../../Constants.h"
 
@@ -59,6 +61,31 @@ namespace ms
 		// Top right, inside the frame's inner edge (about x 769). The sign is
 		// 240 wide, and this clears the version text at y 1.
 		constexpr Point<int16_t> LOGO_POS = Point<int16_t>(530, 16);
+
+		// THE KEYPAD, not a text field.
+		//
+		// The code is six digits and nothing else, and a numeric pad drawn in
+		// the popup can be pressed where the popup is - on the top screen -
+		// without depending on the panel keyboard being up, being reached, or
+		// existing at all on a device with one display.
+		const char* PAD_LABELS[12] =
+		{
+			"1", "2", "3",
+			"4", "5", "6",
+			"7", "8", "9",
+			"DEL", "0", "CLR"
+		};
+
+		// Measured down from the popup: title, hint, the six boxes, then this.
+		constexpr int16_t PAD_TOP = 168;
+	}
+
+	std::string UILogin::spaced(const std::string& code)
+	{
+		if (code.size() != 6)
+			return code;
+
+		return code.substr(0, 3) + "  " + code.substr(3);
 	}
 
 	UILogin::UILogin() : UIElement(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight()))
@@ -70,6 +97,15 @@ namespace ms
 		mode_hint = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::LIGHTGREY);
 		game_name = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE);
 		check_line = Text(Text::Font::A11M, Text::Alignment::LEFT, Color::Name::WHITE);
+		code_display = Text(Text::Font::A18M, Text::Alignment::CENTER, Color::Name::WHITE);
+
+		// LOOK FOR GAMES FROM THE MOMENT THE SCREEN OPENS.
+		//
+		// Browsing is passive - it announces nothing, starts nothing and
+		// takes no radio - so there is no reason to make somebody press a
+		// button before the search that they were always going to want.
+		// Announcing is the thing that has to be asked for, and still is.
+		Multiplayer::start_browsing();
 
 		// NOTHING happens at launch. Not hosting, not announcing, not making
 		// a network. See UILogin.h for why that matters rather than being a
@@ -96,12 +132,46 @@ namespace ms
 
 		if (custom["LoginBg"])
 		{
-			sprites.emplace_back(custom["LoginBg"], DrawArgument(Point<int16_t>(0, 0), Point<int16_t>(Constants::Constants::get().get_viewwidth(), Constants::Constants::get().get_viewheight())));
+			// INSIDE THE FRAME, NOT UNDER IT.
+			//
+			// Stretched corner to corner was right for a video - it had no
+			// edges of its own, and the frame's border finished it. This is a
+			// still with a painted border already in it, so full-bleed put two
+			// borders on the screen and hid the outer 30px of the good one.
+			//
+			// It fills the frame's opening exactly now. Nothing of it is drawn
+			// where it cannot be seen.
+			sprites.emplace_back(custom["LoginBg"], DrawArgument(
+				Point<int16_t>(FRAME_L, FRAME_T),
+				Point<int16_t>(FRAME_R - FRAME_L, FRAME_B - FRAME_T)));
 
-			// The logo is deliberately NOT drawn. The HOST / JOIN section
-			// lives here now, and it needs the room more: it is the first
-			// thing a person setting up a handheld has to understand, and
-			// the game says its own name on the sign already.
+			// THE WORDMARK, BOTTOM LEFT.
+			//
+			// It went missing when the login video did - the video had the
+			// name painted into it, so nothing ever drew the logo here. Down
+			// in the corner rather than across the middle: the HOST / JOIN
+			// panel is what somebody setting up a handheld needs to see
+			// first, and a name is not an instruction.
+			if (custom["Logo"])
+			{
+				Texture mark = custom["Logo"];
+				Point<int16_t> size = mark.get_dimensions();
+
+				// Half size. It is drawn for a splash screen and at full size
+				// it is a third of the width of the form beside it.
+				Point<int16_t> to(
+					static_cast<int16_t>(size.x() / 2),
+					static_cast<int16_t>(size.y() / 2));
+
+				// Measured from the frame's bottom edge, not the screen's -
+				// off the screen's it sat 13px into the Nexon bar, which is
+				// opaque, so the bottom of the name was simply gone.
+				Point<int16_t> at(
+					static_cast<int16_t>(FRAME_L + 12),
+					static_cast<int16_t>(FRAME_B - 12 - to.y()));
+
+				sprites.emplace_back(custom["Logo"], DrawArgument(at, to));
+			}
 		}
 		else
 		{
@@ -204,47 +274,128 @@ namespace ms
 	{
 		UIElement::draw(alpha);
 
-		version.draw(position + Point<int16_t>(707, 1));
+		// Bottom right of the OPENING. At y 1 it was above the frame's top
+		// edge entirely - drawn every frame, visible in none of them.
+		version.draw(position + Point<int16_t>(FRAME_R - 70, FRAME_B - 22));
 
-		// The HOST / JOIN section, where the logo used to be.
+		// THE LIST OF GAMES, where the logo used to be.
 		GraphicsGL::get().drawrectangle(
 			position.x() + SECTION_X, position.y() + SECTION_Y,
-			SECTION_W, SECTION_H, 0.0f, 0.0f, 0.0f, 0.82f);
-
-		for (Panel p : { Panel::HOST, Panel::JOIN })
-		{
-			Rectangle<int16_t> at = section_button(p);
-
-			// Neither is "selected". They are things to do, not a setting -
-			// only what has actually been committed shows, underneath.
-			GraphicsGL::get().drawrectangle(
-				at.left(), at.top(), at.width(), at.height(),
-				0.13f, 0.15f, 0.19f, 1.0f);
-
-			mode_label.change_text(p == Panel::HOST ? "HOST" : "JOIN");
-			mode_label.draw(Point<int16_t>(
-				at.left() + at.width() / 2, at.top() + (at.height() - 14) / 2));
-		}
+			SECTION_W, section_height(), 0.0f, 0.0f, 0.0f, 0.82f);
 
 		int16_t left = position.x() + SECTION_X + PAD;
-		int16_t y = position.y() + SECTION_Y + PAD + BUTTON_H + 10;
+		int16_t mid = position.x() + SECTION_X + SECTION_W / 2;
 
-		// What is actually true right now, in one line.
+		mode_label.change_text(hosting ? "YOUR GAME IS OPEN" : "GAMES NEARBY");
+		mode_label.draw(Point<int16_t>(mid, position.y() + SECTION_Y + PAD));
+
 		if (hosting)
-			mode_hint.change_text("Hosting as " + Multiplayer::suggested_name());
-		else if (!LocalServer::is_offline())
-			mode_hint.change_text("Joining " + Setting<ServerIP>::get().load());
+		{
+			// THE CODE, LARGE, AND IT STAYS THERE.
+			//
+			// The host has to read it out to everybody else, possibly more
+			// than once and possibly an hour later when somebody's handheld
+			// runs flat. A number shown once at creation and then thrown away
+			// would have them restarting the game to see it again.
+			code_display.change_text(spaced(my_code));
+			code_display.draw(Point<int16_t>(mid, position.y() + SECTION_Y + 46));
+
+			mode_hint.change_text("Tell the others this code.");
+			mode_hint.draw(Point<int16_t>(left, position.y() + SECTION_Y + 92));
+
+			mode_hint.change_text("They pick your name and type it in.");
+			mode_hint.draw(Point<int16_t>(left, position.y() + SECTION_Y + 92 + LINE_H));
+
+			Rectangle<int16_t> stop = list_row(0);
+
+			GraphicsGL::get().drawrectangle(
+				stop.left(), stop.top() + 78, stop.width(), stop.height(),
+				0.30f, 0.13f, 0.13f, 1.0f);
+
+			mode_label.change_text("CLOSE THE GAME");
+			mode_label.draw(Point<int16_t>(mid, stop.top() + 78 + 7));
+
+			if (panel != Panel::NONE)
+				draw_panel_over(alpha);
+
+			account.draw(position);
+			password.draw(position);
+
+			if (account.get_state() == Textfield::State::NORMAL && account.empty())
+				accountbg.draw(DrawArgument(position + Point<int16_t>(291, 279) + PANEL));
+
+			if (password.get_state() == Textfield::State::NORMAL && password.empty())
+				passwordbg.draw(DrawArgument(position + Point<int16_t>(291, 305) + PANEL));
+
+			checkbox[saveid].draw(DrawArgument(position + Point<int16_t>(291, 335) + PANEL));
+
+			if (waiting_for_server)
+				draw_server_wait(Point<int16_t>(800, 600));
+
+			return;
+		}
+
+		int16_t shown = static_cast<int16_t>(
+			found.size() < MAX_GAMES ? found.size() : MAX_GAMES);
+
+		for (int16_t i = 0; i < shown; i++)
+		{
+			Rectangle<int16_t> at = list_row(i);
+
+			GraphicsGL::get().drawrectangle(
+				at.left(), at.top(), at.width(), at.height(),
+				0.11f, 0.13f, 0.16f, 1.0f);
+
+			game_name.change_text(found[i].name);
+			game_name.draw(Point<int16_t>(at.left() + 10, at.top() + 5));
+
+			// A game with no code is one an older build is hosting. Say so
+			// rather than silently letting anybody walk in, which is the sort
+			// of difference that only shows up when it matters.
+			mode_hint.change_text(found[i].code ? "needs a code" : "open");
+			mode_hint.draw(Point<int16_t>(at.right() - 84, at.top() + 6));
+		}
+
+		// CREATE IS ALWAYS THE LAST ROW.
+		//
+		// Not a separate button somewhere else on the screen: it is the
+		// answer to "my game is not in this list", so it belongs at the
+		// bottom of the list where that thought happens.
+		Rectangle<int16_t> make = list_row(create_row());
+
+		GraphicsGL::get().drawrectangle(
+			make.left(), make.top(), make.width(), make.height(),
+			0.16f, 0.30f, 0.20f, 1.0f);
+
+		mode_label.change_text("+  CREATE A GAME");
+		mode_label.draw(Point<int16_t>(mid, make.top() + 7));
+
+		// Always say it is still looking. Discovery is slower than a person,
+		// and a list that looks settled a second before the other handheld
+		// appears reads as a failure.
+		int16_t after = make.bottom() + 8;
+
+		if (!found.empty())
+			mode_hint.change_text("Still looking...");
+		else if (!Multiplayer::wifi_radio_on())
+			mode_hint.change_text("Turn WIFI ON - it needs the radio.");
+		else if (tried_wifi_direct)
+			mode_hint.change_text("No network - looking for a device...");
 		else
-			mode_hint.change_text("Not hosting or joined yet");
+			mode_hint.change_text("Looking for games...");
 
-		mode_hint.draw(Point<int16_t>(left, y));
-		y += LINE_H;
+		mode_hint.draw(Point<int16_t>(left, after));
 
-		check_line.change_text(hosting
-			? "Tap HOST again to stop."
-			: "Pick one to play together.");
-
-		check_line.draw(Point<int16_t>(left, y));
+		if (!notice.empty())
+		{
+			mode_hint.change_text(notice);
+			mode_hint.draw(Point<int16_t>(left, after + LINE_H));
+		}
+		else if (found.empty())
+		{
+			mode_hint.change_text("Or create one and let them join you.");
+			mode_hint.draw(Point<int16_t>(left, after + LINE_H));
+		}
 
 		if (panel != Panel::NONE)
 			draw_panel_over(alpha);
@@ -259,15 +410,60 @@ namespace ms
 			passwordbg.draw(DrawArgument(position + Point<int16_t>(291, 305) + PANEL));
 
 		checkbox[saveid].draw(DrawArgument(position + Point<int16_t>(291, 335) + PANEL));
+
+		if (waiting_for_server)
+			draw_server_wait(Point<int16_t>(800, 600));
 	}
 
-	Rectangle<int16_t> UILogin::section_button(Panel which) const
+	int16_t UILogin::section_height() const
 	{
-		int16_t x = SECTION_X + PAD + (which == Panel::JOIN ? BUTTON_W + 10 : 0);
+		// Hosting shows the code, two lines about it, and the way to stop -
+		// a fixed shape, because none of it comes and goes.
+		// 30 for the title, 78 down to the CLOSE row - the gap the code and
+		// its two lines sit in - then the row itself and a margin.
+		if (hosting)
+			return static_cast<int16_t>(30 + 78 + (ROW_H - 4) + PAD);
 
-		Point<int16_t> at = position + Point<int16_t>(x, SECTION_Y + PAD);
+		// Otherwise: the title, a row per game, the CREATE row, and one or
+		// two lines of what the search is doing.
+		int16_t rows = static_cast<int16_t>(create_row() + 1);
+		int16_t said = static_cast<int16_t>(found.empty() ? LINE_H * 2 : LINE_H);
 
-		return Rectangle<int16_t>(at, at + Point<int16_t>(BUTTON_W, BUTTON_H));
+		return static_cast<int16_t>(30 + rows * ROW_H + 8 + said + PAD);
+	}
+
+	int16_t UILogin::create_row() const
+	{
+		int16_t shown = static_cast<int16_t>(
+			found.size() < MAX_GAMES ? found.size() : MAX_GAMES);
+
+		return shown;
+	}
+
+	Rectangle<int16_t> UILogin::list_row(int16_t row) const
+	{
+		Point<int16_t> at = position + Point<int16_t>(
+			SECTION_X + PAD,
+			static_cast<int16_t>(SECTION_Y + 30 + row * ROW_H));
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(
+			static_cast<int16_t>(SECTION_W - PAD * 2), ROW_H - 4));
+	}
+
+	Rectangle<int16_t> UILogin::pad_key(int16_t which) const
+	{
+		constexpr int16_t KEY_W = 114;
+		constexpr int16_t KEY_H = 42;
+		constexpr int16_t GAP = 8;
+
+		int16_t col = which % 3;
+		int16_t row = which / 3;
+
+		Point<int16_t> at = position + Point<int16_t>(
+			static_cast<int16_t>(POP_X + PAD + col * (KEY_W + GAP)),
+			static_cast<int16_t>(PAD_TOP + row * (KEY_H + GAP)));
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(KEY_W, KEY_H));
 	}
 
 	Rectangle<int16_t> UILogin::choice_bounds(int16_t which) const
@@ -297,12 +493,54 @@ namespace ms
 		return Rectangle<int16_t>(at, at + Point<int16_t>(110, BUTTON_H));
 	}
 
-	Rectangle<int16_t> UILogin::game_bounds(int16_t row) const
+	void UILogin::draw_keypad(int16_t top) const
 	{
-		Point<int16_t> at = position + Point<int16_t>(
-			POP_X + PAD, POP_Y + 62 + row * ROW_H);
+		(void)top;
 
-		return Rectangle<int16_t>(at, at + Point<int16_t>(POP_W - 2 * PAD, ROW_H));
+		for (int16_t i = 0; i < 12; i++)
+		{
+			Rectangle<int16_t> at = pad_key(i);
+			bool plain = i < 9 || i == 10;
+
+			GraphicsGL::get().drawrectangle(
+				at.left(), at.top(), at.width(), at.height(),
+				plain ? 0.16f : 0.13f,
+				plain ? 0.18f : 0.13f,
+				plain ? 0.22f : 0.16f, 1.0f);
+
+			mode_label.change_text(PAD_LABELS[i]);
+			mode_label.draw(Point<int16_t>(
+				at.left() + at.width() / 2, at.top() + (at.height() - 14) / 2));
+		}
+	}
+
+	bool UILogin::keypad_pressed(Point<int16_t> at)
+	{
+		for (int16_t i = 0; i < 12; i++)
+		{
+			if (!pad_key(i).contains(at))
+				continue;
+
+			code_refused = false;
+
+			if (i == 9)
+			{
+				if (!typed.empty())
+					typed.pop_back();
+			}
+			else if (i == 11)
+			{
+				typed.clear();
+			}
+			else if (static_cast<int16_t>(typed.size()) < CODE_LEN)
+			{
+				typed.push_back(i == 10 ? '0' : static_cast<char>('1' + i));
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 
 	void UILogin::draw_panel_over(float alpha) const
@@ -319,20 +557,18 @@ namespace ms
 			0.04f, 0.05f, 0.07f, 0.97f);
 
 		int16_t left = position.x() + POP_X + PAD;
+		int16_t mid = position.x() + POP_X + POP_W / 2;
 		int16_t y = position.y() + POP_Y + PAD;
-
-		mode_label.change_text(
-			panel == Panel::HOST ? "HOST A GAME"
-			: (panel == Panel::HOST_NETWORK ? "HOW DO THEY REACH YOU?"
-				: "JOIN A GAME"));
-		mode_label.draw(Point<int16_t>(position.x() + POP_X + POP_W / 2, y));
-		y += 24;
 
 		bool can_commit = false;
 
 		if (panel == Panel::HOST_NETWORK)
 		{
-			mode_hint.change_text("How should the others reach you?");
+			mode_label.change_text("HOW DO THEY REACH YOU?");
+			mode_label.draw(Point<int16_t>(mid, y));
+			y += 24;
+
+			mode_hint.change_text("Everyone plays in YOUR world.");
 			mode_hint.draw(Point<int16_t>(left, y));
 
 			bool on_wifi = Multiplayer::on_network();
@@ -376,110 +612,9 @@ namespace ms
 				check_line.change_text(choice.line2);
 				check_line.draw(Point<int16_t>(at.left(), at.bottom() + 3 + LINE_H));
 			}
-		}
-		else if (panel == Panel::HOST)
-		{
-			mode_hint.change_text("Play solo, or let others join you.");
-			mode_hint.draw(Point<int16_t>(left, y));
-			y += LINE_H + 8;
 
-			struct { bool ok; const char* label; const char* fix; } lines[] =
-			{
-				{ readiness.termux,     "Termux installed",     "install it - see docs_OFFLINE.md" },
-				{ readiness.permission, "May start the server", "press HOST below and allow it" },
-				{ readiness.server,     "Server running here",  "not started yet - press HOST below" },
-				{ readiness.wifi_direct && Multiplayer::wifi_radio_on(),
-					"Can make its own network",
-					Multiplayer::wifi_direct_supported()
-						? "turn WIFI ON - it needs the radio, not a network"
-						: "this device cannot do Wi-Fi Direct" }
-			};
-
-			for (const auto& line : lines)
-			{
-				check_line.change_text(std::string(line.ok ? "[+] " : "[X] ") + line.label);
-				check_line.draw(Point<int16_t>(left, y));
-				y += LINE_H;
-
-				if (!line.ok)
-				{
-					check_line.change_text(std::string("     ") + line.fix);
-					check_line.draw(Point<int16_t>(left, y));
-					y += LINE_H;
-				}
-			}
-
-			y += 8;
-
-			check_line.change_text("Everyone plays in YOUR world -");
-			check_line.draw(Point<int16_t>(left, y));
-			y += LINE_H;
-
-			check_line.change_text("their characters must live here.");
-			check_line.draw(Point<int16_t>(left, y));
-
-			can_commit = readiness.can_try();
-		}
-		else
-		{
-			mode_hint.change_text("Pick the game you want to join.");
-			mode_hint.draw(Point<int16_t>(left, y));
-
-			for (size_t i = 0; i < found.size() && i < 6; i++)
-			{
-				Rectangle<int16_t> at = game_bounds(static_cast<int16_t>(i));
-				bool chosen = (static_cast<int16_t>(i) == picked);
-
-				GraphicsGL::get().drawrectangle(
-					at.left(), at.top(), at.width(), at.height() - 3,
-					chosen ? 0.20f : 0.10f,
-					chosen ? 0.36f : 0.11f,
-					chosen ? 0.26f : 0.14f, 1.0f);
-
-				game_name.change_text(found[i].name);
-				game_name.draw(Point<int16_t>(at.left() + 8, at.top() + 4));
-			}
-
-			int16_t shown = static_cast<int16_t>(found.size() < 6 ? found.size() : 6);
-			int16_t after = position.y() + POP_Y + 62 + shown * ROW_H;
-
-			// Always say it is still looking. Discovery is slower than a
-			// person, and a list that looks settled a second before the other
-			// handheld appears reads as a failure.
-			check_line.change_text(!found.empty()
-				? "Still looking..."
-				: (tried_wifi_direct
-					? "No network - looking for a nearby device..."
-					: "Looking for games..."));
-
-			check_line.draw(Point<int16_t>(left, after + 6));
-
-			if (found.empty())
-			{
-				bool radio = Multiplayer::wifi_radio_on();
-
-				check_line.change_text(radio
-					? "They must have pressed HOST, and be on"
-					: "Turn WIFI ON. It needs no network -");
-
-				check_line.draw(Point<int16_t>(left, after + 6 + LINE_H + 6));
-
-				check_line.change_text(radio
-					? "the same wifi - a phone hotspot will do."
-					: "just the radio, to reach the other device.");
-
-				check_line.draw(Point<int16_t>(left, after + 6 + LINE_H * 2 + 6));
-			}
-
-			// Nothing to join until one is picked, which is the whole point
-			// of the second button.
-			can_commit = picked >= 0 && picked < static_cast<int16_t>(found.size());
-		}
-
-		// The choice screen has no single commit - each row IS one - so only
-		// BACK is drawn under it.
-		if (panel == Panel::HOST_NETWORK)
-		{
+			// The choice screen has no single commit - each row IS one - so
+			// only BACK is drawn under it.
 			Rectangle<int16_t> only_back = cancel_bounds();
 
 			GraphicsGL::get().drawrectangle(
@@ -495,6 +630,98 @@ namespace ms
 			return;
 		}
 
+		bool joining = panel == Panel::CODE;
+
+		mode_label.change_text(joining ? "ENTER THE CODE" : "CHOOSE A CODE");
+		mode_label.draw(Point<int16_t>(mid, y));
+		y += 24;
+
+		if (joining && picked)
+			mode_hint.change_text("Ask whoever is hosting " + target.name + ".");
+		else if (joining)
+			mode_hint.change_text("Ask whoever is hosting.");
+		else
+			mode_hint.change_text("Six digits. You will read it out to them.");
+
+		mode_hint.draw(Point<int16_t>(left, y));
+
+		// THE SIX BOXES.
+		//
+		// Six separate boxes rather than one field, because the length is the
+		// instruction: nobody has to be told how many digits when they can
+		// see four empty squares left.
+		constexpr int16_t BOX_W = 54;
+		constexpr int16_t BOX_H = 40;
+		constexpr int16_t BOX_GAP = 6;
+
+		int16_t used = CODE_LEN * BOX_W + (CODE_LEN - 1) * BOX_GAP;
+		int16_t box_x = mid - used / 2;
+		int16_t box_y = position.y() + POP_Y + 56;
+
+		for (int16_t i = 0; i < CODE_LEN; i++)
+		{
+			int16_t at = box_x + i * (BOX_W + BOX_GAP);
+			bool filled = i < static_cast<int16_t>(typed.size());
+
+			GraphicsGL::get().drawrectangle(
+				at, box_y, BOX_W, BOX_H,
+				code_refused ? 0.34f : (filled ? 0.18f : 0.11f),
+				code_refused ? 0.12f : (filled ? 0.21f : 0.12f),
+				code_refused ? 0.12f : (filled ? 0.26f : 0.15f), 1.0f);
+
+			if (filled)
+			{
+				code_display.change_text(std::string(1, typed[i]));
+				code_display.draw(Point<int16_t>(at + BOX_W / 2, box_y + 4));
+			}
+		}
+
+		draw_keypad(PAD_TOP);
+
+		int16_t said = position.y() + PAD_TOP + 4 * 50 + 4;
+
+		if (code_refused)
+		{
+			check_line.change_text("That code does not match. Try again.");
+			check_line.draw(Point<int16_t>(left, said));
+		}
+		else if (!joining)
+		{
+			// Only what is WRONG, and only while creating. A green tick list
+			// is reassurance for whoever built the thing; a person starting a
+			// game wants to be told when something is in the way and left
+			// alone when nothing is.
+			//
+			// The two are not the same kind of thing and must not be drawn as
+			// if they were. Termux missing is a WALL - there is no server to
+			// start and nothing the button can do about it. Permission not
+			// granted yet is a STEP: pressing on is what makes Termux ask.
+			int16_t at = said;
+
+			if (!readiness.termux)
+			{
+				check_line.change_text("[X] Termux is not installed - see docs_OFFLINE.md");
+				check_line.draw(Point<int16_t>(left, at));
+				at += LINE_H;
+			}
+			else if (!readiness.permission)
+			{
+				check_line.change_text("Termux will ask to allow this. Say yes,");
+				check_line.draw(Point<int16_t>(left, at));
+				at += LINE_H;
+
+				check_line.change_text("then press CREATE again.");
+				check_line.draw(Point<int16_t>(left, at));
+				at += LINE_H;
+			}
+		}
+
+		bool full = static_cast<int16_t>(typed.size()) == CODE_LEN;
+
+		can_commit = joining
+			? (full && picked)
+			: (full && readiness.can_try());
+
 		Rectangle<int16_t> go = commit_bounds();
 
 		GraphicsGL::get().drawrectangle(
@@ -503,7 +730,7 @@ namespace ms
 			can_commit ? 0.34f : 0.11f,
 			can_commit ? 0.22f : 0.13f, 1.0f);
 
-		mode_label.change_text(panel == Panel::HOST ? "HOST" : "JOIN");
+		mode_label.change_text(joining ? "JOIN" : "NEXT");
 		mode_label.draw(Point<int16_t>(
 			go.left() + go.width() / 2, go.top() + (go.height() - 14) / 2));
 
@@ -521,40 +748,40 @@ namespace ms
 	void UILogin::open_panel(Panel which)
 	{
 		panel = which;
+		code_refused = false;
 
 		if (which == Panel::HOST_NETWORK)
 			return;
 
-		picked = -1;
+		typed.clear();
 
-		if (which == Panel::HOST)
+		// The list stops moving while a code is being typed. Nothing here
+		// reads it any more - target holds the game - but a list shuffling
+		// itself behind a popup is a thing people notice and mistrust.
+		Multiplayer::stop_browsing();
+
+		if (which == Panel::CREATE)
 		{
-			// Only LOOK. Nothing is started until the second HOST is pressed.
+			// Only LOOK. Nothing is started until a network is chosen.
 			readiness = LocalServer::check();
 
-			return;
+			// Creating a game means not looking for one. Browsing while about
+			// to host is where two handhelds used to deadlock, each being a
+			// network at the other.
+			Multiplayer::stop_browsing();
 		}
-
-		// Looking for somebody to join means not being a host - and not being
-		// a NETWORK either, because a Wi-Fi Direct group owner cannot join
-		// another group. This is where the two handhelds used to deadlock,
-		// each being a network at the other.
-		stop_hosting();
-
-		found.clear();
-		until_refresh = 1;
-		looking_for = 0;
-		tried_wifi_direct = false;
-
-		Multiplayer::start_browsing();
 	}
 
 	void UILogin::close_panel()
 	{
-		if (panel == Panel::JOIN)
-			Multiplayer::stop_browsing();
-
 		panel = Panel::NONE;
+		typed.clear();
+		code_refused = false;
+		picked = false;
+
+		// Back to watching for games, unless this device is now one.
+		if (!hosting)
+			Multiplayer::start_browsing();
 	}
 
 	void UILogin::stop_hosting()
@@ -563,6 +790,9 @@ namespace ms
 		Multiplayer::remove_group();
 
 		hosting = false;
+		my_code.clear();
+
+		Multiplayer::start_browsing();
 	}
 
 	void UILogin::commit_host(bool own_network)
@@ -576,9 +806,33 @@ namespace ms
 			return;
 		}
 
+		// NO PERMISSION YET IS NOT A REFUSAL. Going on is what makes Termux
+		// ask for it - see LocalServer::Readiness::can_try. The attempt below
+		// will not start anything this time; it puts the dialog on screen,
+		// and the second press is the one that works.
+		if (!readiness.permission)
+		{
+			LocalServer::start();
+
+			notice = "Say yes to Termux, then press CREATE again.";
+
+			panel = Panel::NONE;
+			typed.clear();
+
+			return;
+		}
+
 		// Point at ourselves and start the server.
 		LocalServer::set_offline(true);
 		LocalServer::start();
+
+		// HOME. Hosting our own world means these characters live here again,
+		// so the card is ours to keep current - see Carry::update.
+		Carry::get().set_visiting(false, "");
+
+		// And do not let anybody try to log in until it answers.
+		waiting_for_server = true;
+		waited = 0;
 
 		// Then become the network, if that is what was chosen.
 		if (own_network
@@ -586,32 +840,132 @@ namespace ms
 			&& Multiplayer::wifi_radio_on())
 			Multiplayer::create_group();
 
-		Multiplayer::start_hosting(Multiplayer::suggested_name());
+		my_code = typed;
+
+		Multiplayer::stop_browsing();
+		Multiplayer::start_hosting(
+			Multiplayer::suggested_name(), Multiplayer::code_hash(my_code));
 
 		hosting = true;
-		close_panel();
+
+		panel = Panel::NONE;
+		typed.clear();
+		picked = false;
 	}
 
 	void UILogin::commit_join()
 	{
-		if (picked < 0 || picked >= static_cast<int16_t>(found.size()))
+		if (!picked)
 			return;
 
-		Setting<ServerIP>::get().save(found[picked].address);
+		// A host announcing no code at all is an older build; there is
+		// nothing to check against, so the digits are simply ignored rather
+		// than refused, which would be refusing an empty test.
+		if (target.code && Multiplayer::code_hash(typed) != target.code)
+		{
+			code_refused = true;
+
+			return;
+		}
+
+		Setting<ServerIP>::get().save(target.address);
 		Configuration::get().save();
+
+		// SEND THE CHARACTERS AHEAD.
+		//
+		// This is the moment a device commits to somebody else's world, and
+		// it has to happen BEFORE logging in: the account does not exist over
+		// there yet, so the character list would come back empty and the
+		// person would conclude their characters were gone.
+		//
+		// Failure is not fatal and must not block the join. A host on an
+		// older build has no carry port at all, and joining it to play a
+		// fresh character is a perfectly reasonable thing to want. Silent has
+		// the reason either way.
+		Carry::get().set_visiting(true, target.address);
+
+		if (Carry::get().has_card())
+		{
+			if (!Carry::get().deliver(target.address))
+			{
+				Silent::report("UILogin",
+					"joined " + target.address + " without the card: "
+					+ Carry::get().trouble());
+			}
+		}
 
 		close_panel();
 	}
 
 	void UILogin::update()
 	{
+		// THE SERVER WAIT IS CHECKED FIRST, BEFORE ANY EARLY RETURN.
+		//
+		// This used to live at the bottom, and the very first thing below is
+		// an early return that is ALWAYS taken once hosting has been
+		// committed - so the one piece of code that could close the wait
+		// screen sat behind a return that was always taken. The screen was
+		// not stuck for want of an answer; nothing was asking the question.
+		//
+		// LocalServer::check knocks on the login port at most every two
+		// seconds, on its own thread, so calling it every frame is cheap.
+		if (waiting_for_server)
+		{
+			waited++;
+
+			readiness = LocalServer::check();
+
+			if (readiness.server)
+				waiting_for_server = false;
+		}
+
 		UIElement::update();
 
 		account.update(position);
 		password.update(position);
 
-		if (panel == Panel::NONE)
+		// SOMETHING MUST HAVE FOCUS, OR THERE IS NOWHERE TO TYPE -
+		// BUT ONLY WHERE THE KEYBOARD IS ON THE OTHER SCREEN.
+		//
+		// On a two-screen handheld the box is behind glass at the top of the
+		// device and the keys are on the panel below, so nothing can ever be
+		// tapped to give it focus: a key press arrived with no destination
+		// and did nothing, which is most of what "the keyboard does not work"
+		// was.
+		//
+		// ON A ONE-SCREEN DEVICE THIS IS WRONG, and doing it there was a
+		// regression found the first time the installer was run on an RP5.
+		// A focused field makes SDL start text input, which makes ANDROID's
+		// own keyboard open - so the login screen came up with half of itself
+		// already covered, including the list of games to join, before the
+		// player had asked to type anything. Tapping the box is the right way
+		// in when there is a box you can reach.
+		if (SecondScreen::available()
+			&& !UI::get().has_focused_textfield()
+			&& account.get_state() != Textfield::State::DISABLED
+			&& password.get_state() != Textfield::State::DISABLED)
+		{
+			// Whichever is still empty. With a saved account name that is the
+			// password, which is where somebody would have tapped anyway.
+			if (account.empty())
+				account.set_state(Textfield::State::FOCUSED);
+			else
+				password.set_state(Textfield::State::FOCUSED);
+		}
+
+		if (panel == Panel::CREATE || panel == Panel::HOST_NETWORK)
+		{
+			// Finishing the setup in Termux turns the warnings off while the
+			// popup is still open, rather than needing a restart to notice.
+			// Nothing is STARTED by this - only looked at.
+			if (--until_refresh <= 0)
+			{
+				until_refresh = 30;
+				readiness = LocalServer::check();
+			}
+
 			return;
+		}
 
 		// Reach for Wi-Fi Direct only when there is genuinely nothing else.
 		//
@@ -619,10 +973,7 @@ namespace ms
 		// sitting on the house wifi with a host two feet away that had simply
 		// not resolved yet. Making a network of our own in that situation is
 		// wrong. No network AT ALL is the trigger; a slow one is not.
-		if (panel == Panel::HOST_NETWORK)
-			return;
-
-		if (panel == Panel::JOIN && found.empty() && !tried_wifi_direct)
+		if (!hosting && found.empty() && !tried_wifi_direct)
 		{
 			if (++looking_for > PATIENCE && !Multiplayer::on_network())
 			{
@@ -641,35 +992,40 @@ namespace ms
 
 		until_refresh = 30;
 
-		if (panel == Panel::JOIN)
-		{
-			found = Multiplayer::games();
-
-			Multiplayer::refresh_role();
-
-			// Once we are a client in somebody's Wi-Fi Direct group the host
-			// is at a KNOWN address - a group owner is always 192.168.49.1.
-			// Offer it by hand if discovery has not managed to name it: mDNS
-			// does not reliably cross a p2p link, and a game you cannot see
-			// is worse than one without a pretty name.
-			if (found.empty() && Multiplayer::role() == Multiplayer::Role::CLIENT)
-				found.push_back({ "Nearby game", Multiplayer::GROUP_OWNER });
-
-			// A name that disappears must not leave a stale choice behind.
-			if (picked >= static_cast<int16_t>(found.size()))
-				picked = -1;
-
+		if (hosting)
 			return;
-		}
 
-		// Finishing the setup in Termux turns the list green while the popup
-		// is still open, rather than needing a restart to notice. Nothing is
-		// STARTED by this - only looked at.
-		readiness = LocalServer::check();
+		found = Multiplayer::games();
+
+		Multiplayer::refresh_role();
+
+		// Once we are a client in somebody's Wi-Fi Direct group the host is
+		// at a KNOWN address - a group owner is always 192.168.49.1. Offer it
+		// by hand if discovery has not managed to name it: mDNS does not
+		// reliably cross a p2p link, and a game you cannot see is worse than
+		// one without a pretty name.
+		//
+		// It carries no code, because we never heard the announcement that
+		// would have had one in it - so it joins openly, like an older host.
+		if (found.empty() && Multiplayer::role() == Multiplayer::Role::CLIENT)
+			found.push_back({ "Nearby game", Multiplayer::GROUP_OWNER, 0 });
+
 	}
 
 	Cursor::State UILogin::send_cursor(bool clicked, Point<int16_t> cursorpos)
 	{
+		// The server wait owns the screen above everything, including the
+		// other popups - it is drawn last, so it must be tested first.
+		if (waiting_for_server)
+		{
+			// Only pressable once it is on screen - see draw_server_wait.
+			if (clicked && waited > 2500
+				&& wait_dismiss_bounds().contains(cursorpos))
+				waiting_for_server = false;
+
+			return Cursor::State::IDLE;
+		}
+
 		// While a popup is up it owns the screen. Letting taps through to the
 		// login fields behind it is how somebody ends up typing into a box
 		// they cannot see.
@@ -677,13 +1033,13 @@ namespace ms
 		{
 			if (cancel_bounds().contains(cursorpos))
 			{
-				// BACK from the network choice returns to the checks rather
+				// BACK from the network choice returns to the code rather
 				// than closing everything - it is one step of a flow, not a
-				// separate errand.
+				// separate errand, and the code typed is not thrown away.
 				if (clicked)
 				{
 					if (panel == Panel::HOST_NETWORK)
-						open_panel(Panel::HOST);
+						panel = Panel::CREATE;
 					else
 						close_panel();
 				}
@@ -718,33 +1074,25 @@ namespace ms
 
 			if (commit_bounds().contains(cursorpos))
 			{
-				// HOST does not host yet - it asks HOW first.
-				if (clicked)
+				if (clicked && static_cast<int16_t>(typed.size()) == CODE_LEN)
 				{
-					if (panel == Panel::HOST)
-						open_panel(Panel::HOST_NETWORK);
+					// CREATE does not host yet - it asks HOW first.
+					if (panel == Panel::CREATE)
+					{
+						if (readiness.can_try())
+							panel = Panel::HOST_NETWORK;
+					}
 					else
+					{
 						commit_join();
+					}
 				}
 
 				return Cursor::State::CANCLICK;
 			}
 
-			if (panel == Panel::JOIN)
-			{
-				for (size_t i = 0; i < found.size() && i < 6; i++)
-				{
-					if (!game_bounds(static_cast<int16_t>(i)).contains(cursorpos))
-						continue;
-
-					// Picking only PICKS. Joining is the second button, so a
-					// stray tap on a name cannot commit anybody to anything.
-					if (clicked)
-						picked = static_cast<int16_t>(i);
-
-					return Cursor::State::CANCLICK;
-				}
-			}
+			if (clicked && keypad_pressed(cursorpos))
+				return Cursor::State::CANCLICK;
 
 			return Cursor::State::IDLE;
 		}
@@ -755,22 +1103,59 @@ namespace ms
 		if (Cursor::State new_state = password.send_cursor(cursorpos, clicked))
 			return new_state;
 
-		for (Panel p : { Panel::HOST, Panel::JOIN })
+		if (hosting)
 		{
-			if (!section_button(p).contains(cursorpos))
+			Rectangle<int16_t> stop = list_row(0);
+			Rectangle<int16_t> at(
+				Point<int16_t>(stop.left(), stop.top() + 78),
+				Point<int16_t>(stop.right(), stop.bottom() + 78));
+
+			if (at.contains(cursorpos))
+			{
+				// There has to be a way back, or a device that hosted once
+				// can never join anybody - which is the deadlock this whole
+				// screen was rebuilt to prevent.
+				if (clicked)
+					stop_hosting();
+
+				return Cursor::State::CANCLICK;
+			}
+
+			return UIElement::send_cursor(clicked, cursorpos);
+		}
+
+		int16_t shown = create_row();
+
+		for (int16_t i = 0; i < shown; i++)
+		{
+			if (!list_row(i).contains(cursorpos))
 				continue;
 
 			if (clicked)
 			{
-				// HOST while already hosting means stop. There has to be a
-				// way back, or a device that hosted once can never join
-				// anybody - which is the deadlock this whole screen was
-				// rebuilt to prevent.
-				if (p == Panel::HOST && hosting)
-					stop_hosting();
+				target = found[i];
+				picked = true;
+
+				// A host with no code has nothing to check, so there is
+				// nothing to ask and the game opens straight away.
+				if (target.code)
+				{
+					open_panel(Panel::CODE);
+				}
 				else
-					open_panel(p);
+				{
+					typed.clear();
+					commit_join();
+				}
 			}
+
+			return Cursor::State::CANCLICK;
+		}
+
+		if (list_row(shown).contains(cursorpos))
+		{
+			if (clicked)
+				open_panel(Panel::CREATE);
 
 			return Cursor::State::CANCLICK;
 		}
@@ -893,11 +1278,109 @@ namespace ms
 		//ShellExecute(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
 	}
 
+	Rectangle<int16_t> UILogin::wait_dismiss_bounds() const
+	{
+		// Measured from the same numbers draw_server_wait uses, so the button
+		// cannot drift away from the box it is drawn in.
+		constexpr int16_t W = 150;
+		constexpr int16_t H = 28;
+
+		int16_t mid = 800 / 2;
+		int16_t top = 600 / 2 - 60;
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(mid - W / 2, top + 128),
+			Point<int16_t>(mid + W / 2, top + 128 + H));
+	}
+
+	void UILogin::draw_server_wait(Point<int16_t> screen) const
+	{
+		if (wait_title.get_text().empty())
+		{
+			wait_title = Text(Text::Font::A13M, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+			wait_line = Text(Text::Font::A12M, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+		}
+
+		// THE WHOLE SCREEN, and dark enough that nothing behind it invites a
+		// press. A wait you can see past is a wait people try to work around.
+		GraphicsGL::get().drawrectangle(0, 0, screen.x(), screen.y(),
+			0.0f, 0.0f, 0.0f, 0.80f);
+
+		int16_t mid = static_cast<int16_t>(screen.x() / 2);
+		int16_t top = static_cast<int16_t>(screen.y() / 2 - 60);
+
+		GraphicsGL::get().drawrectangle(mid - 190, top, 380, 124,
+			0.10f, 0.11f, 0.14f, 0.96f);
+
+		wait_title.change_text("Starting the game server");
+		wait_title.draw(Point<int16_t>(mid, top + 16));
+
+		// SOMETHING MOVING. A still box for ten seconds reads as a hang, and
+		// the one thing this screen must not look like is a crash.
+		int16_t dots = static_cast<int16_t>((waited / 30) % 4);
+		std::string ellipsis(dots, '.');
+
+		wait_line.change_text("Please wait" + ellipsis);
+		wait_line.draw(Point<int16_t>(mid, top + 46));
+
+		// WAIT. The screen closes ITSELF the moment the server answers -
+		// it is asking every two seconds, not counting down - so there is
+		// nothing to press and nothing to decide.
+		if (waited > 2500)
+		{
+			wait_line.change_text("The server is not starting.");
+			wait_line.draw(Point<int16_t>(mid, top + 74));
+		}
+		else if (waited > 900)
+		{
+			wait_line.change_text("The database takes a moment on a cold start.");
+			wait_line.draw(Point<int16_t>(mid, top + 74));
+		}
+		else
+		{
+			wait_line.change_text("This takes a few seconds.");
+			wait_line.draw(Point<int16_t>(mid, top + 74));
+		}
+
+		wait_line.change_text("Log in will work the moment it answers.");
+		wait_line.draw(Point<int16_t>(mid, top + 96));
+
+		// NO "CARRY ON" BUTTON.
+		//
+		// It was a shrug: it let somebody past the screen into a login that
+		// could not work, which is the very thing this exists to prevent.
+		//
+		// A way out appears ONLY once the wait has clearly failed - twenty
+		// seconds, well past any real start - and then it says what is wrong
+		// rather than inviting you to ignore it. Waiting is not a decision
+		// the player should be asked to make; giving up is.
+		if (waited > 2500)
+		{
+			Rectangle<int16_t> out = wait_dismiss_bounds();
+
+			GraphicsGL::get().drawrectangle(
+				out.left(), out.top(), out.width(), out.height(),
+				0.48f, 0.18f, 0.18f, 0.95f);
+
+			wait_line.change_text("Give up and go back");
+			wait_line.draw(Point<int16_t>(mid, out.top() + 5));
+		}
+	}
+
 	Button::State UILogin::button_pressed(uint16_t id)
 	{
 		switch (id)
 		{
 		case Buttons::BT_LOGIN:
+			// Not while the server we just started is still coming up. The
+			// wait screen is over the top of this anyway; refusing here means
+			// a stray tap that lands before it draws cannot get through
+			// either.
+			if (waiting_for_server)
+				return Button::State::NORMAL;
+
 			login();
 
 			return Button::State::NORMAL;

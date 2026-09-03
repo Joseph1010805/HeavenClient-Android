@@ -58,6 +58,28 @@
 
 namespace ms
 {
+	// CATCHING THE NEXT CONTROLLER BUTTON.
+	//
+	// The pad is a keyboard in disguise: every button is a Joystick_* setting
+	// holding a key code, and the game never learns a controller was
+	// involved. That is a good arrangement and this does not disturb it - it
+	// only lets one press be intercepted and WRITTEN to that map instead of
+	// acted upon.
+	//
+	// Needed because the panel's key page cannot see SDL events: they are
+	// read in Window_Android's loop, several layers below the UI.
+	namespace PadBind
+	{
+		// Catch the next button press and bind it to this key code.
+		void arm(int32_t keycode);
+		void cancel();
+		bool armed();
+
+		// True while a binding is waiting to be reported to the player.
+		bool just_bound();
+		void clear_bound();
+	}
+
 	class Window : public Singleton<Window>
 	{
 	public:

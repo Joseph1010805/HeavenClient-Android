@@ -75,6 +75,8 @@ namespace ms
 			KEYCONFIG,
 			OPTIONMENU,
 			MEGAPHONE,
+			TRADE,
+			STORAGE,
 			QUIT,
 			NUM_TYPES
 		};
@@ -99,6 +101,22 @@ namespace ms
 		virtual void remove_cursor();
 		virtual Cursor::State send_cursor(bool clicked, Point<int16_t> cursorpos);
 		virtual void send_scroll(double yoffset) {}
+
+		// A POINTER TRAVELLING WITH THE BUTTON HELD DOWN.
+		//
+		// Not a hover and not a click. The lower panel turns a finger or a
+		// stylus into a pointer, and a pointer that is moving reads as a
+		// HOVER there - send_cursor(false) - because that is what makes
+		// places on a map light up as a finger passes over them.
+		//
+		// Which is right for reading and useless for dragging: a page that
+		// wanted to be dragged saw a stream of hovers and never once heard
+		// that the button was down. Anything that pans, scrolls or drags
+		// implements this instead.
+		//
+		// Returns whether the drag was used. Unused drags fall through to the
+		// hover, so a page that does not implement this behaves as before.
+		virtual bool send_drag(Point<int16_t> from, Point<int16_t> to) { return false; }
 		virtual void send_key(int32_t keycode, bool pressed, bool escape) {}
 
 		// What a gamepad's face buttons mean to an open window.

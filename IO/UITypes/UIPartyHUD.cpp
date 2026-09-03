@@ -71,6 +71,27 @@ namespace ms
 		const auto& members = party.get_members();
 		int16_t rows = static_cast<int16_t>(members.size());
 
+		// A PARTY OF ONE IS NOT A PARTY TO LOOK AT.
+		//
+		// The server will happily hold you in a party by yourself - inviting
+		// somebody creates one before they answer, and leaving the last other
+		// member leaves you in it. That is correct server-side and it is why
+		// "JosephGrey's Party" was on screen for somebody who had never made
+		// one on purpose.
+		//
+		// Nothing is changed about the party itself: the Party page still
+		// shows it and still offers to leave. This is only about not putting
+		// a roster of one person on top of the game.
+		// ...UNLESS THE INVITE LIST IS OPEN.
+		//
+		// Hiding a roster of one is right; hiding the thing that BUILDS the
+		// roster is not. With no party there are no rows, so this returned
+		// before drawing anything at all - and the invite list, the only way
+		// to start a party, was drawn by the code below. Opening it did
+		// nothing visible whatsoever.
+		if (rows < 2 && !show_invites)
+			return;
+
 		// The invite half adds a heading, a row per nearby player and the
 		// leave row, and the frame has to be sized for all of it BEFORE it is
 		// drawn - so this is counted up here rather than as we go.
@@ -273,9 +294,51 @@ namespace ms
 		}
 		else
 		{
-			// Not in a party, so there is nothing to invite anyone to.
-			show_invites = false;
+			// NOT IN A PARTY IS EXACTLY WHEN YOU NEED THIS LIST.
+			//
+			// This used to clear the list and force the panel shut whenever
+			// you had no party - "there is nothing to invite anyone to" -
+			// which made starting one impossible: the only way into a party
+			// was to already be in one. Two people standing on the same map
+			// simply could not see each other.
+			//
+			// The server has never needed a party to exist first. Cosmic's
+			// PartyOperationHandler case 4 creates one for the inviter on the
+			// spot when they have none, so a bare invite is the whole
+			// interaction - unlike a TRADE, which really does need its room
+			// opening first.
 			nearby.clear();
+
+			if (show_invites)
+			{
+				int32_t my_cid = player.get_oid();
+
+				for (auto& entry : *chars.get_chars())
+				{
+					auto* obj = entry.second.get();
+
+					if (obj == nullptr || obj->get_oid() == my_cid)
+						continue;
+
+					std::string name = static_cast<Char*>(obj)->get_name();
+
+					if (!name.empty())
+						nearby.emplace_back(obj->get_oid(), name);
+				}
+
+				std::sort(nearby.begin(), nearby.end(),
+					[](const auto& a, const auto& b) { return a.second < b.second; });
+			}
+
+			// No member rows, but the invite list still needs room, and
+			// "Leave party" still takes its line - tapping it with no party
+			// is harmless and the server ignores it.
+			int16_t extra = show_invites
+				? static_cast<int16_t>(INVITE_HEAD_H + (nearby.size() + 1) * INVITE_ROW_H)
+				: 0;
+
+			dimension = Point<int16_t>(WIDTH,
+				static_cast<int16_t>(TITLE_H + extra + 14));
 		}
 
 		for (int32_t cid : stamped_cids)

@@ -120,12 +120,26 @@ namespace ms
 
 	void FacialExpressionHandler::handle(InPacket& recv) const
 	{
-		int from = recv.read_int();
-		int expression = recv.read_int();
+		int32_t from = recv.read_int();
+		int32_t expression = recv.read_int();
 
-		// TODO: Show expression?
+		// PUT IT ON THEIR FACE.
+		//
+		// This printed a line and did nothing else, so nobody in the game
+		// ever saw anyone else pull a face - the whole feature existed only
+		// on the machine that sent it.
+		//
+		// NO byaction() HERE. That knocks 98 off, which belongs to the KEY
+		// BINDING ids (FACE1 is 100), not to the wire: the server sends the
+		// expression number itself, 1-7 free and 8+ for owned emote items.
+		if (expression < 0 || expression >= Expression::Id::LENGTH)
+			return;
 
-		std::cout << "[FacialExpressionHandler]: Expression (" << expression << ") expressed from (" << from << ")" << std::endl;
+		Optional<Char> character = Stage::get().get_character(from);
+
+		if (character)
+			character->get_look().set_expression(
+				static_cast<Expression::Id>(expression));
 	}
 
 	void GiveForeignBuffHandler::handle(InPacket& recv) const
@@ -179,13 +193,6 @@ namespace ms
 		int code = recv.read_byte();
 
 		std::cout << "[ConfirmShopTransactionHandler]: Code: " << code << std::endl;
-	}
-
-	void PlayerInteractionHandler::handle(InPacket& recv) const
-	{
-		int item = recv.read_byte();
-
-		std::cout << "[PlayerInteractionHandler]: Item: " << item << std::endl;
 	}
 
 	void AutoHpPotHandler::handle(InPacket& recv) const

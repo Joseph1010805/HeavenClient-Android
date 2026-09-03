@@ -36,6 +36,24 @@ namespace ms
 	class UIKeyConfig : public UIDragElement<PosKEYCONFIG>
 	{
 	public:
+		// PUBLIC, because it is the only place in the client that knows
+		// which KIND of thing an action is - MENU, ACTION, FACE - and the
+		// panel's key page needs the same answer. Left private, the panel
+		// guessed MENU for everything and bound Jump as a menu that does not
+		// exist.
+		static KeyType::Id get_keytype(KeyAction::Id action);
+
+		// THE PICTURE FOR AN ACTION, from the key config's own icon strip.
+		//
+		// StatusBar3.img/KeyConfig/icon holds every one of them - the sword
+		// for Attack, the arrow for Jump, the seven faces - and until now
+		// only this window could reach them, so the hotkey slots and the
+		// emotions page had to make do with words and coloured boxes.
+		//
+		// Returns an invalid Texture for an action with no artwork, which the
+		// caller should treat as "draw the name instead".
+		static Texture action_icon(KeyAction::Id action);
+
 		static constexpr Type TYPE = UIElement::Type::KEYCONFIG;
 		static constexpr bool FOCUSED = false;
 		static constexpr bool TOGGLED = true;
@@ -91,7 +109,6 @@ namespace ms
 		KeyAction::Id unbound_action_by_position(Point<int16_t> position) const;
 		Keyboard::Mapping get_staged_mapping(int32_t keycode) const;
 		bool is_action_mapping(Keyboard::Mapping mapping) const;
-		static KeyType::Id get_keytype(KeyAction::Id action);
 
 		enum Buttons : uint16_t
 		{

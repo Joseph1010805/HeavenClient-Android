@@ -22,6 +22,7 @@
 #include "Handlers/SetfieldHandlers.h"
 #include "Handlers/PlayerHandlers.h"
 #include "Handlers/AttackHandlers.h"
+#include "Handlers/DueyHandlers.h"
 #include "Handlers/MapObjectHandlers.h"
 #include "Handlers/InventoryHandlers.h"
 #include "Handlers/MessagingHandlers.h"
@@ -29,6 +30,8 @@
 #include "Handlers/SocialHandlers.h"
 #include "Handlers/CashShopHandlers.h"
 #include "Handlers/TestingHandlers.h"
+#include "Handlers/TradeHandlers.h"
+#include "Handlers/StorageHandlers.h"
 
 #include "../Console.h"
 #include "../Configuration.h"
@@ -131,6 +134,10 @@ namespace ms
 
 		// Mapobject
 		SPAWN_PET = 168,
+
+		// GIFTS. Duey's counter, and every word it says about a send - see
+		// Net/Handlers/DueyHandlers.h.
+		PARCEL = 322,
 		CHAR_MOVED = 185,
 
 		// Attack
@@ -174,6 +181,7 @@ namespace ms
 		OPEN_NPC_SHOP = 305,
 		CONFIRM_SHOP_TRANSACTION = 306,
 		PLAYER_INTERACTION = 314,
+		STORAGE = 309,
 		KEYMAP = 335,
 		AUTO_HP_POT = 336,
 		AUTO_MP_POT = 337
@@ -205,6 +213,7 @@ namespace ms
 		emplace<SHOW_FOREIGN_EFFECT, ShowForeignEffectHandler>();
 		emplace<REMOVE_CHAR, RemoveCharHandler>();
 		emplace<SPAWN_PET, SpawnPetHandler>();
+		emplace<PARCEL, ParcelHandler>();
 		emplace<SPAWN_NPC, SpawnNpcHandler>();
 		emplace<SPAWN_NPC_C, SpawnNpcControllerHandler>();
 		emplace<SPAWN_MOB, SpawnMobHandler>();
@@ -305,7 +314,10 @@ namespace ms
 		emplace<LOCK_UI, LockUiHandler>();
 		emplace<TOGGLE_UI, ToggleUiHandler>();
 		emplace<CONFIRM_SHOP_TRANSACTION, ConfirmShopTransactionHandler>();
+		// The real one now - Net/Handlers/TradeHandlers.cpp. The stub in
+		// TestingHandlers printed an item id and dropped everything else.
 		emplace<PLAYER_INTERACTION, PlayerInteractionHandler>();
+		emplace<STORAGE, StorageHandler>();
 		emplace<AUTO_HP_POT, AutoHpPotHandler>();
 		emplace<AUTO_MP_POT, AutoMpPotHandler>();
 	}

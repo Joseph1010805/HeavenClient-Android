@@ -330,6 +330,23 @@ namespace ms
 		return -1;
 	}
 
+	Keyboard::Mapping UISkillbook::selected_mapping() const
+	{
+		if (panel_selected < 0
+			|| panel_selected >= static_cast<int16_t>(skills.size()))
+			return Keyboard::Mapping();
+
+		// Only a skill you actually HAVE. A hotkey pointing at something
+		// unlearnt is a button that does nothing, and the grid shows the
+		// whole tree whether or not points have been spent in it.
+		int32_t id = skills[panel_selected].get_id();
+
+		if (skillbook.get_level(id) == 0)
+			return Keyboard::Mapping();
+
+		return Keyboard::Mapping(KeyType::Id::SKILL, id);
+	}
+
 	void UISkillbook::draw_panel(float alpha) const
 	{
 		if (panel_tab_text.get_text().empty())

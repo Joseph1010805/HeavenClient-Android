@@ -87,11 +87,12 @@ namespace ms
 		void handle(InPacket& recv) const override;
 	};
 
-	// TODO: Comment
-	class PlayerInteractionHandler : public PacketHandler
-	{
-		void handle(InPacket& recv) const override;
-	};
+	// PlayerInteractionHandler MOVED to Handlers/TradeHandlers.h.
+	//
+	// The version that lived here read one int, printed it, and dropped the
+	// rest - which for trades, player shops, merchants and both minigames
+	// meant the client saw the packet and did nothing, indistinguishable
+	// from never receiving it.
 
 	// TODO: Comment
 	class AutoHpPotHandler : public PacketHandler

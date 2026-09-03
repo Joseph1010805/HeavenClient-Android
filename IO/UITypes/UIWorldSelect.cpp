@@ -413,6 +413,26 @@ namespace ms
 		}
 	}
 
+	bool UIWorldSelect::only_one_world() const
+	{
+		return worldcount == 1;
+	}
+
+	void UIWorldSelect::enter_only_world()
+	{
+		if (worlds.empty())
+			return;
+
+		worldid = worlds[0].wid;
+
+		// CHANNEL 1, which is index 0. A one-world server in a house has one
+		// channel; if it ever has more, only_one_world() is false and this is
+		// never reached.
+		channelid = 0;
+
+		enter_world();
+	}
+
 	void UIWorldSelect::add_world(World world)
 	{
 		worlds.emplace_back(std::move(world));

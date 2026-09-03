@@ -294,6 +294,25 @@ namespace ms
 		HomeServerIP() : StringEntry("HomeServerIP", "192.168.1.71") {}
 	};
 
+	// WHERE MESSAGES GO WHEN THE PERSON IS NOT ON THIS NETWORK.
+	//
+	// Empty by default, and empty is the NORMAL state - the game works
+	// completely without it. Messages already reach anybody on the same
+	// world through the server's own post box, with no internet at all,
+	// which is the case that must survive a power cut.
+	//
+	// A relay only widens who can be reached: a message written in a car
+	// with no signal waits in the outbox, goes out when a network appears,
+	// and is collected by somebody in another state whenever they next
+	// connect. See tools/relay/worker.js.
+	//
+	// ⚠ It is an https:// address, and this build has no TLS - the relay leg
+	// runs through the Java layer, not through Util/Http.
+	struct RelayURL : public Configuration::StringEntry
+	{
+		RelayURL() : StringEntry("RelayURL", "") {}
+	};
+
 	// Whether to start in fullscreen mode.
 	struct Fullscreen : public Configuration::BoolEntry
 	{

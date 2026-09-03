@@ -69,6 +69,11 @@ namespace ms
 			// Messaging
 			GENERAL_CHAT = 49,
 
+			// Pulling a face. Cosmic calls this FACE_EXPRESSION(0x33) and
+			// reads a single int, which it validates - so there is nothing to
+			// gain by sending an id the server will only throw away.
+			FACE_EXPRESSION = 0x33,
+
 			// Npc Interaction
 			TALK_TO_NPC = 58,
 			NPC_TALK_MORE = 60,
@@ -79,6 +84,17 @@ namespace ms
 			SORT_ITEMS = 70,
 			MOVE_ITEM = 71,
 			USE_ITEM = 72,
+
+			// SITTING DOWN. A chair is a SETUP item and does not go through
+			// USE_ITEM at all - the server has a handler of its own that
+			// takes the item id and nothing else (UseChairHandler), and a
+			// second one to stand up again from a fixed seat on the map.
+			//
+			// Neither had a packet here, so a chair on a hotkey did nothing
+			// whatever: Player::use_item found it, saw it was not a USE item,
+			// and dropped it without a word.
+			CANCEL_CHAIR = 42,
+			USE_CHAIR = 43,
 			SCROLL_EQUIP = 86,
 
 			// Cash items are not used through USE_ITEM. Teleport rocks,
@@ -87,6 +103,19 @@ namespace ms
 			// this existed the entire Cash tab of the bag did nothing when
 			// tapped.
 			USE_CASH_ITEM = 79,
+
+			// PUTTING A PET ON THE GROUND. Not a "use" either, even though a
+			// pet lives in the cash bag and every other cash item goes down
+			// USE_CASH_ITEM. Cosmic has a separate SpawnPetHandler, and this
+			// client had every INBOUND pet opcode - it draws a pet, walks it,
+			// gives it stances - while never once being able to ask for one.
+			// So pets looked implemented and were unreachable.
+			SPAWN_PET = 98,
+
+			// GIFTS. Duey's counter - one opcode, with a leading byte saying
+			// which of open / send / claim / discard is meant. See
+			// Net/Packets/DueyPackets.h.
+			DUEY_ACTION = 65,
 
 			// Quests. In this version the CLIENT decides which quest an NPC
 			// is offering and asks for it; the server only validates. Nothing
@@ -104,6 +133,15 @@ namespace ms
 			SPEND_AP = 87,
 			SPEND_SP = 90,
 			CHANGE_KEYMAP = 135,
+
+			// Everything two players do to each other in a room - trades,
+			// player shops, merchants, minigames - on one opcode, told apart
+			// by its first byte. See Net/Packets/TradePackets.h.
+			PLAYER_INTERACTION = 123,
+
+			// The account's bank. Opened by a storage keeper's script, never
+			// by us - see Net/Packets/StoragePackets.h.
+			STORAGE = 62,
 
 			// Skill
 			USE_SKILL = 91,

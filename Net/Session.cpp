@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "Session.h"
 
+#include "../Util/Carry.h"
+
 #include "../Gameplay/Stage.h"
 
 #include <chrono>
@@ -96,16 +98,23 @@ namespace ms
 		return init(HOST.c_str(), PORT.c_str());
 	}
 
-	void Session::reconnect(const char* address, const char* port)
+	bool Session::reconnect(const char* address, const char* port)
 	{
-	    printf("called reconnect\n");
-		// Close the current connection and open a new one.
-		bool success = socket.close();
-
-		if (success)
-			init(address, port);
-		else
+		// WHETHER THIS WORKED IS THE WHOLE POINT.
+		//
+		// This returned void and threw the answer away, so a channel server
+		// that could not be reached looked exactly like one that could: the
+		// caller sent its login packet into a dead socket and the player sat
+		// on the character screen for ever, with nothing on screen and
+		// nothing in any log. See ServerIPHandler.
+		if (!socket.close())
+		{
 			connected = false;
+
+			return false;
+		}
+
+		return init(address, port);
 	}
 
 	void Session::process(const int8_t* bytes, size_t available)
@@ -188,6 +197,22 @@ namespace ms
 		connected = false;
 
 		printf("[!] connection to the server was lost\n");
+
+		// BRING THE CHARACTERS HOME.
+		//
+		// Every way a session ends arrives here - quitting to the login
+		// screen, the host closing their game, walking out of range - so this
+		// is the one place the return trip can be hooked without having to
+		// enumerate them.
+		//
+		// AFTER the connection has gone, not before: Cosmic writes a
+		// character out when it disconnects, so asking any earlier collects
+		// the last autosave and loses up to a minute of play. The carry port
+		// is a different socket on a different port and is still answering.
+		//
+		// Returns immediately - the fetching happens on its own thread, and
+		// does nothing at all if this was our own world.
+		Carry::get().come_home();
 
 		// Back to the login screen, NOT out of the game.
 		//

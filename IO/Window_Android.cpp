@@ -41,6 +41,7 @@
 
 #include "Window.h"
 #include "UI.h"
+#include "UITypes/UIChatbar.h"
 #include "SecondScreen.h"
 
 #include "../Console.h"
@@ -498,6 +499,43 @@ namespace ms
 		// The gamepad is a keyboard in disguise: each button is configured to a
 		// key, and the game never learns a controller was involved. This is the
 		// same contract the Switch port implements inside its patched GLFW.
+		// See PadBind in Window.h.
+		int32_t bind_to = 0;
+		bool bind_armed = false;
+		bool bind_done = false;
+
+		// Which setting each button lives in. Only the ones a person would
+		// ever rebind: the d-pad is movement and Back is quit, and offering
+		// those would let somebody map away their only way out.
+		bool save_pad_binding(int button, int32_t keycode)
+		{
+			switch (button)
+			{
+			case SDL_CONTROLLER_BUTTON_A:
+				Setting<Joystick_A>::get().save(keycode); break;
+			case SDL_CONTROLLER_BUTTON_B:
+				Setting<Joystick_B>::get().save(keycode); break;
+			case SDL_CONTROLLER_BUTTON_X:
+				Setting<Joystick_X>::get().save(keycode); break;
+			case SDL_CONTROLLER_BUTTON_Y:
+				Setting<Joystick_Y>::get().save(keycode); break;
+			case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+				Setting<Joystick_LB>::get().save(keycode); break;
+			case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+				Setting<Joystick_RB>::get().save(keycode); break;
+			case SDL_CONTROLLER_BUTTON_LEFTSTICK:
+				Setting<Joystick_L3>::get().save(keycode); break;
+			case SDL_CONTROLLER_BUTTON_RIGHTSTICK:
+				Setting<Joystick_R3>::get().save(keycode); break;
+			case SDL_CONTROLLER_BUTTON_START:
+				Setting<Joystick_START>::get().save(keycode); break;
+			default:
+				return false;
+			}
+
+			return true;
+		}
+
 		void load_padmap()
 		{
 			for (int i = 0; i < SDL_CONTROLLER_BUTTON_MAX; ++i)
@@ -895,7 +933,22 @@ namespace ms
 		// active. Tie it to whether the UI actually has a field focused: the
 		// keyboard then appears for the login fields and character naming, and
 		// stays out of the way the rest of the time.
-		bool wants_text = UI::get().has_focused_textfield();
+		// ANDROID'S OWN KEYBOARD STAYS SHUT.
+		//
+		// The lower screen IS the keyboard now - see
+		// SecondScreenPanel::draw_keyboard. Android's slid up over the top of
+		// it, covering the thing it was meant to help with and hiding the
+		// panel's own keys behind a second set that did not match them.
+		//
+		// SDL only raises the IME while text input is ACTIVE, so simply never
+		// starting it is the whole of the fix. Nothing else changes: the
+		// SDL_TEXTINPUT path still exists for a real keyboard over USB, and
+		// send_text is what the panel's keys go through anyway.
+		//
+		// On a device with NO second screen there would be nothing to type
+		// with, so the IME is still offered there.
+		bool wants_text = UI::get().has_focused_textfield()
+			&& !SecondScreen::available();
 
 		if (wants_text && !SDL_IsTextInputActive())
 			SDL_StartTextInput();
@@ -1023,6 +1076,50 @@ namespace ms
 					break;
 				}
 
+				// THE TWO STICK CLICKS ARE TALKING, AND ARE NOT REBINDABLE.
+				//
+				// A handheld has no keyboard, so the only way to say anything
+				// is to speak it. Both clicks start the SAME capture - the
+				// live balloon over your head, the pause that decides you have
+				// finished - and differ only in how far what you said travels:
+				//
+				//   R3  the map you are standing on. A bubble over your head
+				//       and a line in the running chat.
+				//   L3  the whole world, as a banner across every screen.
+				//
+				// Taken before the rebinder, like Back above: these are what
+				// the sticks mean, and a player who rebound them would have no
+				// way left to speak at all.
+				if (button == SDL_CONTROLLER_BUTTON_RIGHTSTICK
+					|| button == SDL_CONTROLLER_BUTTON_LEFTSTICK)
+				{
+					if (ev.type == SDL_CONTROLLERBUTTONDOWN)
+						if (auto chatbar = UI::get().get_element<UIChatbar>())
+							chatbar->start_dictation(
+								button == SDL_CONTROLLER_BUTTON_LEFTSTICK);
+
+					break;
+				}
+
+				// BINDING? THEN THIS PRESS IS THE ANSWER, NOT AN ACTION.
+				//
+				// Taken before anything else looks at it, so arming the
+				// capture and then pressing A binds A rather than jumping.
+				if (bind_armed && ev.type == SDL_CONTROLLERBUTTONDOWN)
+				{
+					if (save_pad_binding(button, bind_to))
+					{
+						load_padmap();
+
+						bind_armed = false;
+						bind_done = true;
+					}
+
+					// A button that cannot be rebound - the d-pad, Back -
+					// simply is not taken, and the player can press another.
+					break;
+				}
+
 				if (button < SDL_CONTROLLER_BUTTON_MAX)
 				{
 					int16_t key = padmap[button];
@@ -1111,20 +1208,77 @@ namespace ms
 			}
 
 			case SDL_CONTROLLERDEVICEADDED:
-				if (!gamepad)
-					open_gamepad();
+			{
+				// EVERY PAD THAT ARRIVES, not only the first.
+				//
+				// This opened one ONLY when none was open yet - so a second
+				// controller paired after the game had started was seen,
+				// reported by SDL, and then ignored. That is exactly the case
+				// that matters here: somebody joining on the couch and pairing
+				// a Bluetooth pad while the game is already running had a pad
+				// that lit up and did nothing.
+				//
+				// Opened by the index the event carries rather than by
+				// rescanning, so the ones already open are not opened twice.
+				int which = ev.cdevice.which;
 
-				break;
-
-			case SDL_CONTROLLERDEVICEREMOVED:
-				if (gamepad)
+				if (SDL_IsGameController(which))
 				{
-					SDL_GameControllerClose(gamepad);
-					gamepad = nullptr;
-					LOGI("gamepad disconnected");
+					if (SDL_GameController* pad = SDL_GameControllerOpen(which))
+					{
+						pads.push_back(pad);
+
+						if (!gamepad)
+							gamepad = pad;
+
+						LOGI("gamepad connected: %s",
+							SDL_GameControllerName(pad));
+					}
 				}
 
 				break;
+			}
+
+			case SDL_CONTROLLERDEVICEREMOVED:
+			{
+				// CLOSE THE ONE THAT LEFT, not whichever is first.
+				//
+				// This closed `gamepad` whatever had actually been unplugged,
+				// so a guest's pad running out of battery took the HOST's
+				// controller down with it - and left the closed handle in
+				// `pads`, which is a dangling pointer the next time anything
+				// walks that list.
+				//
+				// `which` is an INSTANCE id here, not a device index. They are
+				// different numbers and the two events disagree about which
+				// they carry, which is the usual way this gets written wrong.
+				SDL_JoystickID gone = ev.cdevice.which;
+
+				for (size_t i = 0; i < pads.size(); i++)
+				{
+					SDL_Joystick* stick =
+						SDL_GameControllerGetJoystick(pads[i]);
+
+					if (!stick || SDL_JoystickInstanceID(stick) != gone)
+						continue;
+
+					if (gamepad == pads[i])
+						gamepad = nullptr;
+
+					SDL_GameControllerClose(pads[i]);
+					pads.erase(pads.begin() + i);
+
+					LOGI("gamepad disconnected");
+
+					break;
+				}
+
+				// Somebody else may still be holding one.
+				if (!gamepad && !pads.empty())
+					gamepad = pads.front();
+
+				break;
+			}
 
 			case SDL_FINGERDOWN:
 			case SDL_FINGERMOTION:
@@ -1151,17 +1305,33 @@ namespace ms
 				//
 				// fit_x/fit_w are written by the blit, which is the only place
 				// that knows where the picture landed.
-				UI::get().send_cursor(scene_point(ev.tfinger.x, ev.tfinger.y));
+			{
+				Point<int16_t> at = scene_point(ev.tfinger.x, ev.tfinger.y);
+
+				// THE ONE-SCREEN PANEL EATS THE TOUCH. It is drawn over
+				// everything, so a press on it must not also reach the game
+				// underneath - tapping a menu button would otherwise walk the
+				// character at the same time. Returns false when it is not
+				// open, which is every device that has a real second screen.
+				if (SecondScreen::overlay_send_cursor(at, ev.type == SDL_FINGERDOWN, false))
+					break;
+
+				UI::get().send_cursor(at);
 
 				if (ev.type == SDL_FINGERDOWN)
 					UI::get().send_cursor(true);
 
 				break;
+			}
 
 			case SDL_FINGERUP:
 			{
 				auto diff_ms = ContinuousTimer::get().stop(click_start) / 1000;
 				click_start = ContinuousTimer::get().start();
+
+				if (SecondScreen::overlay_send_cursor(
+					scene_point(ev.tfinger.x, ev.tfinger.y), false, true))
+					break;
 
 				if (diff_ms > 10 && diff_ms < 200)
 					UI::get().doubleclick();
@@ -1259,6 +1429,36 @@ namespace ms
 
 		return std::string(buff);
 	}
+	namespace PadBind
+	{
+		void arm(int32_t keycode)
+		{
+			bind_to = keycode;
+			bind_armed = true;
+			bind_done = false;
+		}
+
+		void cancel()
+		{
+			bind_armed = false;
+		}
+
+		bool armed()
+		{
+			return bind_armed;
+		}
+
+		bool just_bound()
+		{
+			return bind_done;
+		}
+
+		void clear_bound()
+		{
+			bind_done = false;
+		}
+	}
+
 }
 
 #endif // PLATFORM_ANDROID

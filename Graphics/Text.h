@@ -70,7 +70,33 @@ namespace ms
 				Point<int16_t> position;
 			};
 
-			Layout(const std::vector<Line>& lines, const std::vector<int16_t>& advances, int16_t width, int16_t height, int16_t endx, int16_t endy);
+			// AN INLINE PICTURE, where a `#X<id>#` macro was.
+			//
+			// Quest text is written with the picture in the sentence -
+			// "#v2010000# 3 #t2010000#" is an apple icon, the number three
+			// and the word Apple. The layout cannot draw the bitmap itself
+			// (it knows about glyphs, not about Item.nx), so it reserves a
+			// square of `size` at `pos` and records what belongs there. The
+			// caller paints it - see UINpcTalk::draw_inline_icons.
+			//
+			// Ported from OpenStory, which solved this first.
+			enum class ImageKind : int8_t
+			{
+				ITEM = 0,   // #v<id># or #i<id># - Item.nx
+				QUEST = 1,  // #q<id># - UI.nx/UIWindow.img/QuestIcon
+				SKILL = 2,  // #s<id># - Skill.nx/<job>.img/skill/<id>/icon
+				FACE = 3    // #f<id># - Character.nx/Face/<id>.img
+			};
+
+			struct Image
+			{
+				Point<int16_t> pos;
+				int32_t item_id = 0;
+				int16_t size = 0;
+				ImageKind kind = ImageKind::ITEM;
+			};
+
+			Layout(const std::vector<Line>& lines, const std::vector<int16_t>& advances, const std::vector<Image>& images, int16_t width, int16_t height, int16_t endx, int16_t endy);
 			Layout();
 
 			int16_t width() const;
@@ -78,6 +104,7 @@ namespace ms
 			int16_t advance(size_t index) const;
 			Point<int16_t> get_dimensions() const;
 			Point<int16_t> get_endoffset() const;
+			const std::vector<Image>& get_images() const;
 
 			using iterator = std::vector<Line>::const_iterator;
 			iterator begin() const;
@@ -86,6 +113,7 @@ namespace ms
 		private:
 			std::vector<Line> lines;
 			std::vector<int16_t> advances;
+			std::vector<Image> images;
 			Point<int16_t> dimensions;
 			Point<int16_t> endoffset;
 		};
@@ -108,6 +136,11 @@ namespace ms
 		uint16_t advance(size_t pos) const;
 		Point<int16_t> dimensions() const;
 		Point<int16_t> endoffset() const;
+
+		// The inline pictures this text asked for, with their positions
+		// already resolved against the laid-out lines. Empty when there are
+		// none, which is almost all text.
+		const std::vector<Layout::Image>& images() const;
 		const std::string& get_text() const;
 
 	private:

@@ -16,6 +16,10 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "Stage.h"
+#include "../Constants.h"
+#include <cmath>
+#include "../Graphics/GraphicsGL.h"
+#include "QuestTracker.h"
 
 #include "../Audio/Audio.h"
 #include "../Character/SkillId.h"
@@ -50,6 +54,40 @@ namespace ms
 			respawn(portalid);
 			break;
 		case State::TRANSITION:
+			respawn(portalid);
+			break;
+		default:
+			// ALREADY ACTIVE - AND THIS CASE DID NOT EXIST.
+			//
+			// A SET_FIELD arriving while the stage is active matched no case
+			// at all, so the new map was never built: the tiles, footholds and
+			// portals stayed those of the map before it, and every monster
+			// standing on the old one stayed too. That is "it brought the
+			// enemies over", and it is also why the cash shop trapped you -
+			// you came back into geometry belonging to somewhere else, where
+			// the portal you were standing on does not exist.
+			//
+			// Coming back to the SAME map is a respawn and must not rebuild
+			// anything, or a portal within one map would flush the whole
+			// place and re-download it.
+			if (mapid != Stage::mapid)
+			{
+				// Not clear(): that dispatches a map-transfer packet and
+				// tells the server something is happening. Nothing is - the
+				// server already knows, it is the one that sent us here. Only
+				// the objects of the old map go.
+				chars.clear();
+				npcs.clear();
+				mobs.clear();
+				drops.clear();
+				reactors.clear();
+				doors.clear();
+				mists.clear();
+				summons.clear();
+
+				load_map(mapid);
+			}
+
 			respawn(portalid);
 			break;
 		}
@@ -150,6 +188,114 @@ namespace ms
 		portals.draw(viewpos, alpha);
 		backgrounds.drawforegrounds(viewx, viewy, alpha);
 		effect.draw();
+
+		// GO HERE.
+		//
+		// A marker bobbing over whoever the tracked quest wants, drawn after
+		// the map so nothing in front of them hides it, and before the
+		// foreground-independent UI so it still belongs to the world.
+		//
+		// The bob is not decoration: the NPCs on a Maple map stand in a row
+		// of near-identical sprites, and a still marker reads as part of the
+		// scenery. Movement is what the eye picks out.
+		{
+			Point<int16_t> target;
+			bool found = QuestTracker::get().find_target(target);
+
+			// AN ARROW OVER YOUR OWN HEAD, POINTING THE WAY.
+			//
+			// The marker over the NPC only helps once they are on screen, and
+			// the whole problem is finding somebody who is not. This says
+			// which way to walk from wherever you are standing.
+			//
+			// Only while they are OFF screen: once the chevron over their head
+			// is visible, a second arrow telling you to look at it is noise.
+			if (found)
+			{
+				Point<int16_t> me = player.get_position();
+
+				int16_t dx = static_cast<int16_t>(target.x() - me.x());
+				int16_t dy = static_cast<int16_t>(target.y() - me.y());
+
+				int16_t adx = dx < 0 ? -dx : dx;
+				int16_t ady = dy < 0 ? -dy : dy;
+
+				int16_t half_w = static_cast<int16_t>(
+					Constants::Constants::get().get_viewwidth() / 2);
+				int16_t half_h = static_cast<int16_t>(
+					Constants::Constants::get().get_viewheight() / 2);
+
+				bool onscreen = adx < half_w - 40 && ady < half_h - 40;
+
+				if (!onscreen)
+				{
+					static uint32_t swing = 0;
+					double lean = std::sin(++swing * 0.06) * 3.0;
+
+					Point<int16_t> at(
+						static_cast<int16_t>(me.x() + viewpos.x()),
+						static_cast<int16_t>(me.y() + viewpos.y() - 78 + lean));
+
+					// FOUR WAYS, not an angle. This is a side-scroller: the
+					// answer is nearly always "left" or "right", and a rotated
+					// sprite at 22 degrees tells you less than a chevron that
+					// unambiguously points one way. Up and down are kept for
+					// the ladder and rope maps, where they are the answer.
+					auto bar = [&](int16_t x, int16_t y, int16_t w, int16_t h)
+					{
+						GraphicsGL::get().drawrectangle(
+							at.x() + x, at.y() + y, w, h,
+							1.0f, 0.86f, 0.26f, 0.95f);
+					};
+
+					if (adx >= ady)
+					{
+						// Pointing sideways: a stack of bars stepping out to
+						// the side you should walk.
+						int16_t s = dx < 0 ? -1 : 1;
+
+						bar(s < 0 ? -14 : 2, 6, 12, 4);
+						bar(s < 0 ? -10 : 2, 2, 8, 4);
+						bar(s < 0 ? -6 : 2, 10, 8, 4);
+					}
+					else if (dy < 0)
+					{
+						bar(-9, 8, 18, 4);
+						bar(-5, 4, 10, 4);
+						bar(-2, 0, 4, 4);
+					}
+					else
+					{
+						bar(-9, 0, 18, 4);
+						bar(-5, 4, 10, 4);
+						bar(-2, 8, 4, 4);
+					}
+				}
+			}
+
+			if (found)
+			{
+				// Counted in FRAMES rather than read off a clock - Stage has
+				// no timer of its own and adding one for a bobbing arrow
+				// would be a lot of machinery for five pixels.
+				static uint32_t tick = 0;
+				double bob = std::sin(++tick * 0.055) * 5.0;
+
+				Point<int16_t> at(
+					static_cast<int16_t>(target.x() + viewpos.x()),
+					static_cast<int16_t>(target.y() + viewpos.y() - 74 + bob));
+
+				// Drawn rather than taken from artwork: a downward chevron in
+				// two bars, which is legible at any zoom and needs no node
+				// that might not be in every version of the data.
+				GraphicsGL::get().drawrectangle(at.x() - 9, at.y(), 18, 5,
+					1.0f, 0.86f, 0.26f, 0.95f);
+				GraphicsGL::get().drawrectangle(at.x() - 5, at.y() + 5, 10, 5,
+					1.0f, 0.86f, 0.26f, 0.95f);
+				GraphicsGL::get().drawrectangle(at.x() - 2, at.y() + 10, 4, 5,
+					1.0f, 0.86f, 0.26f, 0.95f);
+			}
+		}
 	}
 
 	void Stage::update()
@@ -346,6 +492,16 @@ namespace ms
 			combat.use_move(action);
 			break;
 		case KeyType::Id::ITEM:
+		case KeyType::Id::CASH:
+			// CASH FELL THROUGH THIS SWITCH ENTIRELY.
+			//
+			// UIItemInventory tags a hotkey from the cash tab as CASH so the
+			// quickslot bar and the server can tell the two inventories
+			// apart - and then nothing here handled it, so a pet, a chair or
+			// a megaphone on a key did nothing and said nothing.
+			//
+			// use_item looks the item up by its own id and picks the right
+			// packet, so both kinds arrive in the same place.
 			player.use_item(action);
 			break;
 		case KeyType::Id::FACE:

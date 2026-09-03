@@ -165,7 +165,15 @@ namespace ms
 		flydirection = STRAIGHT;
 		counter = 0;
 
-		namelabel = Text(Text::Font::A13M, Text::Alignment::CENTER, Color::Name::WHITE, Text::Background::NAMETAG, name);
+		// THE LEVEL, ON THE NAME TAG.
+		//
+		// It decides everything about a fight - the hit chance, the damage
+		// both ways, and now whether the kill counts toward the daily hunt,
+		// which only takes monsters within five levels of you. Leaving it to
+		// be guessed from how hard something hits is a lot to ask.
+		namelabel = Text(Text::Font::A13M, Text::Alignment::CENTER,
+			Color::Name::WHITE, Text::Background::NAMETAG,
+			"Lv." + std::to_string(level) + " " + name);
 
 		if (newspawn)
 		{
@@ -178,8 +186,13 @@ namespace ms
 			opacity.set(1.0f);
 		}
 
-		if (control && stance == Stance::STAND)
-			next_move();
+		// NO FIRST MOVE FROM THE CONSTRUCTOR.
+		//
+		// It used to pick one here, but choosing a direction now means asking
+		// whether there is floor that way, and the physics for this map is not
+		// something a mob has at the moment it is built. The first update is a
+		// few milliseconds away and calls next_move itself, so nothing is lost
+		// but the guess.
 	}
 
 	void Mob::set_stance(uint8_t stancebyte)
@@ -200,6 +213,13 @@ namespace ms
 		if (stance != newstance)
 		{
 			stance = newstance;
+
+			// Arm the take-off. The JUMP case in update() consumes this on
+			// the next frame the mob has ground under it, and then the jump
+			// is under way - it cannot fire again until something chooses to
+			// jump afresh.
+			if (stance == Stance::JUMP)
+				jump_launch = true;
 
 			animations.at(stance).reset();
 		}
@@ -311,15 +331,102 @@ namespace ms
 
 		if (!dying)
 		{
-			if (!canfly)
+			// TURNING AT AN EDGE IS FOR WANDERING, NOT FOR HUNTING.
+			//
+			// The physics clears TURNATEDGES when something reaches the lip
+			// of a foothold, and this turns it round. That is right for a
+			// monster mooching about, and wrong for one that is chasing you:
+			// standing at the edge NEAREST you is exactly where it wants to
+			// be, and being spun to face away every frame is how it ended up
+			// jumping away from the player it was hunting.
+			//
+			// A chasing mob keeps its own facing - see the steering below,
+			// which aims it at the target every frame - and the flag is still
+			// re-armed so the physics goes on holding it at the edge.
+			bool hunting = (aggro || provoked > 0) && has_target && canmove;
+
+			// AND NOT WHILE IT IS IN THE AIR.
+			//
+			// TURNATEDGES does not merely turn things round - Footholdtree::
+			// limit_movement CLAMPS anything carrying it to the edge of its
+			// foothold, and a jumping mob keeps the foothold it took off from
+			// for the whole flight. Re-arming the flag every frame, which is
+			// what the hunting change above did, therefore pinned the mob to
+			// the platform edge IN MID-AIR: it launched with the right speed
+			// in the right direction and was held at the same x until it came
+			// down. The trace showed it exactly - dx stuck at -57 through
+			// take-off, apex and landing.
+			//
+			// A JUMP IS OVER THE MOMENT THERE IS GROUND UNDERFOOT.
+			//
+			// Not when the mob next thinks. `crossing` used to be read off
+			// the stance, and the stance stays JUMP after landing until the
+			// decision timer comes round - a window in which the mob was on
+			// the ground with the ledge released and walked straight off it.
+			//
+			// Cleared here, before the flag is re-armed below, so the mob
+			// retakes its platform on the very frame it lands.
+			if (phobj.onground && !jump_launch)
+				crossing = false;
+
+			// AND WHENEVER THE STANCE IS NOT A JUMP AT ALL.
+			//
+			// `jump_launch` is armed when JUMP is chosen and disarmed when
+			// the launch fires. If anything moves the stance off JUMP in
+			// between - and the SERVER can, every relayed monster movement
+			// calls set_stance - the launch never fires, the flag is never
+			// disarmed, and `crossing` above can never be cleared. From that
+			// moment the mob has no TURNATEDGES and walks off every ledge it
+			// meets, which is the exact behaviour this was written to stop.
+			//
+			// Deriving both from the stance closes it: not jumping, not
+			// crossing, and nothing pending.
+			if (stance != Stance::JUMP)
+			{
+				jump_launch = false;
+				crossing = false;
+			}
+
+			// So the flag is only let go for a jump that is DELIBERATELY
+			// crossing - see Mob.h. A wandering hop keeps it and is held on
+			// its own foothold; only a hunting mob may leave.
+			if (!canfly && phobj.onground && !crossing)
 			{
 				if (phobj.is_flag_not_set(PhysicsObject::Flag::TURNATEDGES))
 				{
-					flip = !flip;
+					if (!hunting)
+						flip = !flip;
+
 					phobj.set_flag(PhysicsObject::Flag::TURNATEDGES);
 
 					if (stance == Stance::HIT)
 						set_stance(Stance::STAND);
+				}
+			}
+
+			// AIM EVERY FRAME, NOT EVERY DECISION.
+			//
+			// Which way a mob FACES while chasing is not a decision worth
+			// taking four times a second - it is simply "where is he now".
+			// Leaving it to next_move meant a monster walked the direction
+			// you were in a moment ago, and the faster you moved the further
+			// behind its aim ran. Stance, attacks and jumps stay on the
+			// decision timer; only the steering is continuous.
+			if (!canfly && canmove && stance == Stance::MOVE
+				&& (aggro || provoked > 0) && has_target)
+			{
+				int16_t dx = static_cast<int16_t>(target.x() - get_position().x());
+
+				if (dx > 20 || dx < -20)
+				{
+					bool want = dx > 0;
+
+					// Only turn toward them if there is floor that way. The
+					// edge check in next_move stops a mob SETTING OFF over a
+					// drop; without this one it would still be steered off the
+					// side between decisions.
+					if (want == flip || ground_ahead(physics, want))
+						flip = want;
 				}
 			}
 
@@ -342,7 +449,32 @@ namespace ms
 				}
 				else
 				{
-					phobj.hforce = flip ? speed : -speed;
+					// STOP AT THE LIP - ONLY WHILE HUNTING, AND ONLY ON THE
+					// GROUND.
+					//
+					// `hunting` matters, and leaving it out cost a whole class
+					// of monster. The physics ALREADY turns a wandering mob at
+					// a foothold edge and always did; the only thing that
+					// needed fixing was a CHASING one, which is re-aimed at
+					// the player every frame and walked straight back over the
+					// drop.
+					//
+					// Applied to wanderers as well, this froze any monster
+					// whose platform was shorter than the look-ahead in both
+					// directions - it stood in the middle of its own ledge
+					// with nowhere it was willing to step. A level 12 Octopus
+					// on a short foothold never moved again.
+					//
+					// `onground` is not a detail either. In the air there is
+					// BY DEFINITION no floor ahead, so without it a monster
+					// that jumped a gap lost its forward force the instant it
+					// left the ground and dropped into the gap it was
+					// clearing.
+					if (canmove && hunting && phobj.onground
+						&& !ground_ahead(physics, flip))
+						phobj.hforce = 0.0;
+					else
+						phobj.hforce = flip ? speed : -speed;
 				}
 
 				break;
@@ -359,6 +491,46 @@ namespace ms
 				break;
 			case Stance::JUMP:
 				phobj.vforce = -5.0;
+
+				// AND FORWARD - AS A SPEED, NOT A FORCE.
+				//
+				// Setting hforce here did almost nothing, and it took reading
+				// Physics::move_normal to see why: forces are only applied
+				// `if (phobj.onground)`. So a force set during a jump lands
+				// for exactly one frame at take-off and is ignored for the
+				// whole flight. One frame of 0.1 acceleration is not a leap,
+				// it is a twitch.
+				//
+				// Player::get_walkforce has the conversion: terminal speed is
+				// 7.5 x hforce, in pixels per step. A pig's hforce is 0.1, so
+				// it walks at 0.75 px/step - and a mob that jumped from
+				// STANDING carried none of that, because it had none.
+				//
+				// So the speed is set outright, once, at take-off. 1.5x its
+				// own walking speed: enough to clear a gap, still slower for
+				// a snail than for a pig, and it comes back to zero on
+				// landing like any other speed.
+				// ONCE. `jump_launch` is set when the stance is chosen and
+				// cleared here, so a mob that has landed but has not yet
+				// re-thought cannot relaunch itself frame after frame.
+				if (jump_launch && canmove && phobj.onground)
+				{
+					jump_launch = false;
+
+					phobj.hspeed = (jump_dir != 0 ? jump_dir : (flip ? 1 : -1))
+						* speed * 7.5 * 1.5;
+
+					// LET GO OF THE LEDGE - BUT ONLY IF THIS JUMP IS MEANT TO
+					// LEAVE IT.
+					//
+					// Without this the clamp above holds the mob at the edge
+					// for the whole jump and it rises and falls on the spot,
+					// which is right for a monster amusing itself and wrong
+					// for one coming after you.
+					if (crossing)
+						phobj.clear_flag(PhysicsObject::Flag::TURNATEDGES);
+				}
+
 				break;
 			}
 
@@ -396,10 +568,32 @@ namespace ms
 					next = counter > 200;
 					break;
 				case Stance::JUMP:
-					next = phobj.onground;
+					// NOT while the take-off is still armed. A mob decides to
+					// jump with its feet on the floor, so on the very next
+					// frame `onground` is still true and this ended the jump
+					// before it had begun - the stance changed away from JUMP
+					// and the launch below never ran at all. Which is most of
+					// why a hunting mob sometimes just stood at the edge.
+					next = phobj.onground && !jump_launch;
+
+					// Landed - the aim belonged to that jump only.
+					if (next)
+						jump_dir = 0;
+
 					break;
 				default:
-					next = aniend && counter > patience;
+					// CHASING DOES NOT WAIT FOR THE ANIMATION.
+					//
+					// `aniend` means the walk cycle has looped, and a slow
+					// monster's walk cycle is over a second - so however low
+					// `patience` went, a chasing mob could still only change
+					// its mind at the end of a stride. That is the whole of
+					// why the mushrooms follow you so badly: not that they
+					// decide the wrong thing, that they decide it far too
+					// rarely to keep up with somebody walking.
+					next = (aggro || provoked > 0)
+						? counter > patience
+						: (aniend && counter > patience);
 					break;
 				}
 
@@ -409,7 +603,7 @@ namespace ms
 
 				if (next)
 				{
-					next_move();
+					next_move(physics);
 					update_movement();
 					counter = 0;
 				}
@@ -424,7 +618,23 @@ namespace ms
 		return phobj.fhlayer;
 	}
 
-	void Mob::next_move()
+	bool Mob::ground_ahead(const Physics& physics, bool facing_right) const
+	{
+		Point<int16_t> here = get_position();
+
+		int16_t probe = static_cast<int16_t>(
+			here.x() + (facing_right ? LOOK_AHEAD : -LOOK_AHEAD));
+
+		// Started a little ABOVE the feet. Asking from exactly the foot line
+		// on a sloped foothold finds the slope itself and answers "no floor"
+		// on perfectly good ground.
+		int16_t ground = physics.get_fht().get_y_below(
+			Point<int16_t>(probe, static_cast<int16_t>(here.y() - 12)));
+
+		return ground - here.y() < CLIFF_DROP;
+	}
+
+	void Mob::next_move(const Physics& physics)
 	{
 		// A swing takes priority over wandering, but only while this mob is
 		// aggressive - otherwise every monster on the map would stand around
@@ -489,27 +699,84 @@ namespace ms
 
 			// Close enough - stop shuffling and stand, so the mob does not
 			// jitter left and right on top of the player.
-			if (dx > -20 && dx < 20)
+			//
+			// UNLESS THEY ARE ABOVE YOU. This is why a pig stood under a
+			// platform doing nothing: standing directly beneath the player is
+			// "close enough" by every horizontal measure, so it never reached
+			// the jump decision at all. Being under somebody is not being
+			// near them.
+			int16_t rise = static_cast<int16_t>(target.y() - get_position().y());
+
+			if (rise > -JUMP_UP && dx > -20 && dx < 20)
 			{
 				set_stance(Stance::STAND);
 			}
 			else
 			{
-				set_stance(Stance::MOVE);
 				flip = dx > 0;
 
 				if (canfly)
 				{
+					set_stance(Stance::MOVE);
+
 					int16_t dy = static_cast<int16_t>(target.y() - get_position().y());
 
 					flydirection = (dy < -20) ? FlyDirection::UPWARDS
 						: (dy > 20) ? FlyDirection::DOWNWARDS
 						: FlyDirection::STRAIGHT;
+
+					return;
 				}
-				else if (canjump && phobj.onground && randomizer.below(0.1f))
+
+				int16_t dy = static_cast<int16_t>(target.y() - get_position().y());
+
+				bool floor = ground_ahead(physics, flip);
+
+				// UP ONTO YOUR PLATFORM.
+				//
+				// Not a dice roll any more. A monster that can jump does it
+				// when the player is ABOVE it and roughly overhead - which is
+				// the whole of "a pig follows you onto the ledge" - and when
+				// there is a gap in the way. It was a flat 10% chance before,
+				// so a pig under a platform would eventually hop for reasons
+				// unconnected to where you were standing.
+				bool wants_up = dy < -JUMP_UP
+					&& (dx > -JUMP_REACH && dx < JUMP_REACH);
+
+				if (canjump && phobj.onground && (wants_up || !floor))
 				{
+					// AIMED HERE, USED ON TAKE-OFF. dx is the truth about
+					// where the player is; `flip` is a rendering detail that
+					// something else may have flipped by then.
+					jump_dir = dx > 0 ? 1 : -1;
+					flip = dx > 0;
+
+					// THE ONE PLACE THIS IS TRUE. Hunting, on the ground, and
+					// either the player is above or there is a gap in the way
+					// - which between them are the only reasons a monster has
+					// to be anywhere but on its own platform.
+					crossing = true;
+
 					set_stance(Stance::JUMP);
+
+					return;
 				}
+
+				// NO FLOOR AND NO JUMP: STAY.
+				//
+				// A monster that cannot jump stands at the edge facing you
+				// rather than stepping off it. Standing is deliberate - it
+				// keeps looking at you, so it is plainly still hunting and
+				// still dangerous if you come back, rather than wandering off
+				// and reading as bored.
+				if (!floor)
+				{
+					set_stance(Stance::STAND);
+
+					return;
+				}
+
+				set_stance(Stance::MOVE);
 			}
 
 			return;
@@ -528,6 +795,10 @@ namespace ms
 			case Stance::JUMP:
 				if (canjump && phobj.onground && randomizer.below(0.25f))
 				{
+					// A HOP, NOT A LEAP. Nobody is being chased, so the mob
+					// keeps its ledge and the physics holds it there.
+					crossing = false;
+
 					set_stance(Stance::JUMP);
 				}
 				else
@@ -546,6 +817,9 @@ namespace ms
 						flip = true;
 						break;
 					}
+
+					// NO EDGE CHECK WHEN WANDERING. See the note in update().
+
 				}
 
 				break;

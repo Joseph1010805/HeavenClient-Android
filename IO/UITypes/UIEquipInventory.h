@@ -43,6 +43,26 @@ namespace ms
 		// where the slots go is what the picture MEANS.
 		void set_panel(Point<int16_t> screen);
 
+		// WHICH OF THE THREE THIS WINDOW IS SHOWING.
+		//
+		// The panel used to leave these as a tab strip inside the window,
+		// while the bag's five sections had already become buttons on the
+		// panel itself. One of them had to change so that the same idea was
+		// not expressed two ways; this is the equipment side of it.
+		//
+		// Named rather than exposing the button ids: those are an internal
+		// numbering with a fourth entry and an end marker, and the panel has
+		// no business knowing about either.
+		enum class Section
+		{
+			GEAR,
+			COSMETIC,
+			PET
+		};
+
+		void show_section(Section which);
+
+
 		// Which slot is picked, and where the button that acts on it sits.
 		// Same idea as the item page: on a touch screen a tap PICKS and a
 		// button acts, because a drag has nowhere to end.

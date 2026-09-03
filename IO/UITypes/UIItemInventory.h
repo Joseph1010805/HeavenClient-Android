@@ -164,6 +164,26 @@ namespace ms
 		// squares have air around them instead of tiling into a sheet.
 		static constexpr int16_t CELL_BOX = 32;
 
+		// THE TABS, AS BUTTONS WITH OUR OWN ARTWORK.
+		//
+		// The window's own tabs are a strip of the game's UI artwork, sized
+		// for a mouse and drawn in a style nothing else on this panel shares.
+		// These are the same five destinations as icon buttons, hit-tested
+		// here and handed to the SAME button_pressed - so the tab logic is
+		// not duplicated, only the thing you press.
+		// THE SAME SHAPE AS A MENU BUTTON: a faint cell, the icon inside it,
+		// and the name underneath. Not a chip - the panel has one button style
+		// and a row that invents a second one is the thing that looks wrong.
+		static constexpr int16_t TAB_W = 60;
+		static constexpr int16_t TAB_H = 48;
+		static constexpr int16_t TAB_GAP = 4;
+
+		Rectangle<int16_t> panel_tab_box(size_t index) const;
+		int16_t panel_tab_at(Point<int16_t> at) const;
+
+		mutable std::vector<Texture> tab_art;
+		mutable Text tab_label;
+
 		static constexpr uint16_t ICON_WIDTH = 36;
 		static constexpr uint16_t ICON_HEIGHT = 35;
 

@@ -268,6 +268,23 @@ namespace ms
 
 		Equipslot::Id eqslot = cloth.get_eqslot();
 
+		// WHY THIS ITEM WENT WHERE IT DID.
+		//
+		// Cosmetics kept landing in the ordinary equipment tab, and the
+		// server logged no rejection - which rules out the server refusing a
+		// cash slot and means the client never asked for one. This says, for
+		// the item actually being worn, whether the game data calls it a cash
+		// item and which slot it is therefore being sent to.
+		//
+		//   adb logcat -s HeavenClient | grep equipslot
+		printf("[ ] equipslot: item %d  cash=%d  eqslot=%d -> %d\n",
+			itemid,
+			cloth.get_itemdata().is_cashitem() ? 1 : 0,
+			static_cast<int>(eqslot),
+			static_cast<int>(cloth.get_itemdata().is_cashitem()
+				&& eqslot != Equipslot::Id::NONE
+				? Equipslot::cash_of(eqslot) : eqslot));
+
 		// A cash equip goes to the cosmetic slot above the real one, so it
 		// changes how the character looks without taking the real gear off.
 		// See Equipslot::CASH_OFFSET.

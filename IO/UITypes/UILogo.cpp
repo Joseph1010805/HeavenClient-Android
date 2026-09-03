@@ -73,7 +73,23 @@ namespace ms
 		{
 			if (!nexon_ended)
 			{
-				Nexon.draw(position + Point<int16_t>(440, 360), inter);
+				// CENTRED ON THE SCREEN, not on a number from 2005.
+				//
+				// This was drawn at a fixed (440, 360). The animation's frames
+				// carry a centred origin, so that put the logo 40 pixels right
+				// and 60 pixels BELOW the middle of an 800x600 view - measured
+				// off a screenshot, not guessed: the logo's centre landed at
+				// (1035, 647) on a 1920x1080 panel whose centre is (960, 540),
+				// which is the same 40 and 60 once the 1.8 scale is taken out.
+				//
+				// The Wizet animation below keeps its own offset. Its frames
+				// are a different size with a different origin, it looks
+				// right where it is, and centring it too would move something
+				// nobody asked to have moved.
+				Nexon.draw(position + Point<int16_t>(
+					static_cast<int16_t>(Constants::Constants::get().get_viewwidth() / 2),
+					static_cast<int16_t>(Constants::Constants::get().get_viewheight() / 2)),
+					inter);
 			}
 			else
 			{

@@ -191,6 +191,14 @@ namespace ms
 					at.x(), at.y(), CELL_BOX, CELL_BOX, 1.0f, 1.0f, 1.0f, 0.14f);
 			}
 
+			// NO TAB ROW HERE ANY MORE.
+			//
+			// The bag is a FOLDER on the panel now - five buttons that take
+			// you into a section, the same way Character and Adventure work.
+			// A tab strip inside the page was the panel growing a second way
+			// of getting about beside the one it already had, and no amount
+			// of restyling the strip fixes that.
+
 			// What is picked, marked by a brighter cell rather than by fading
 			// everything else - nothing here is ever greyed out.
 			if (selected && is_visible(selected))
@@ -1040,18 +1048,10 @@ namespace ms
 			Buttons::BT_TAB_SETUP, Buttons::BT_TAB_CASH
 		};
 
-		// Clear of the panel's page arrows, which sit in the top corners.
-		int16_t x = PANEL_TAB_LEFT;
-
+		// THE WINDOW'S OWN TABS ARE OFF. The panel draws icon buttons for the
+		// same five destinations - see panel_tab_box.
 		for (Buttons id : tabs)
-		{
-			buttons[id]->set_active(true);
-			buttons[id]->set_position(Point<int16_t>(x, PANEL_TAB_TOP));
-
-			x += 31;
-		}
-
-		buttons[button_by_tab(tab)]->set_state(Button::State::PRESSED);
+			buttons[id]->set_active(false);
 
 		// Every slot the grid can hold is on screen at once, so there is
 		// nothing to scroll and no slider to draw.
@@ -1075,6 +1075,30 @@ namespace ms
 	int16_t UIItemInventory::visible_rows() const
 	{
 		return panel ? PANEL_ROWS : ROWS;
+	}
+
+	Rectangle<int16_t> UIItemInventory::panel_tab_box(size_t index) const
+	{
+		// Centred as a row, so five buttons sit under the address bar rather
+		// than jammed against the left edge where the gauge is.
+		int16_t total = static_cast<int16_t>(5 * TAB_W + 4 * TAB_GAP);
+		int16_t left = static_cast<int16_t>((panel_screen.x() - total) / 2);
+
+		int16_t x = static_cast<int16_t>(left + index * (TAB_W + TAB_GAP));
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(x, PANEL_TAB_TOP),
+			Point<int16_t>(static_cast<int16_t>(x + TAB_W),
+				static_cast<int16_t>(PANEL_TAB_TOP + TAB_H)));
+	}
+
+	int16_t UIItemInventory::panel_tab_at(Point<int16_t> at) const
+	{
+		for (size_t i = 0; i < 5; i++)
+			if (panel_tab_box(i).contains(at))
+				return static_cast<int16_t>(i);
+
+		return -1;
 	}
 
 	Point<int16_t> UIItemInventory::grid_origin() const
@@ -1107,8 +1131,20 @@ namespace ms
 			return "EQUIP";
 		case InventoryType::Id::USE:
 			return "USE";
+		case InventoryType::Id::CASH:
+			// THE CASH TAB HAS ALWAYS BEEN ABLE TO DO THIS.
+			//
+			// activate_slot has had a CASH branch for a while - it sends
+			// UseCashItemPacket, which is how a megaphone, a teleport rock or
+			// a 2x card is spent. There was simply no BUTTON, because this
+			// returned null for every tab but two, so the only way to reach it
+			// was to know that tapping an icon twice did something.
+			//
+			// Every other tab offers its verb on a bar under the grid. This
+			// one now does too.
+			return "USE";
 		default:
-			// Nothing sensible to do with an etc item or a chair from here.
+			// Nothing sensible to do with an etc item or a setup item here.
 			return nullptr;
 		}
 	}
@@ -1180,22 +1216,17 @@ namespace ms
 	// at all - see below. Shared by the tap and the double-tap.
 	void UIItemInventory::use_cash_item(int16_t slot, int32_t item_id)
 	{
-		// A rate coupon is passive. Cosmic applies a 2x EXP or drop coupon
-		// for simply BEING in the cash inventory during the hours it is
-		// scheduled for in `nxcoupons`, and has no handler for using one. It
-		// would be sent, ignored, and look broken - so say what it actually
-		// does instead.
-		int32_t kind = item_id / 1000;
-
-		if (kind == 5211 || kind == 5360)
-		{
-			constexpr char* couponmessage =
-				"This works on its own while it is in your bag,\\nduring the hours it is good for. There is nothing to use.";
-
-			UI::get().emplace<UIOk>(couponmessage, [](bool) {});
-			return;
-		}
-
+		// A RATE COUPON IS USED LIKE ANYTHING ELSE NOW.
+		//
+		// This used to intercept 2x EXP and 2x Drop cards and explain that
+		// they work on their own, during the hours listed in `nxcoupons`,
+		// with nothing to use. That was true of Cosmic as it came: coupons
+		// were a SCHEDULE for running weekend events on a public server, and
+		// pressing one did nothing.
+		//
+		// It is no longer true. UseCashItemHandler spends the card and turns
+		// its rate on for a few hours, so the packet below is the right thing
+		// to send and the server answers with how long it lasts.
 		UseCashItemPacket(slot, item_id).dispatch();
 	}
 
@@ -1209,12 +1240,22 @@ namespace ms
 		if (!item_id)
 			return {};
 
-		// Only consumables go on a key. An equip has nothing to "use", and
-		// binding one would produce a hotkey that does nothing.
-		if (tab != InventoryType::Id::USE)
-			return {};
+		// ANY ITEM, NOT JUST CONSUMABLES.
+		//
+		// This refused everything outside the USE tab on the grounds that an
+		// equip has nothing to "use". That is true of the verb and false of
+		// the intent: a hotkey holding a weapon is how somebody swaps to it
+		// mid-fight, and a cash item on a key is how a chair or a pet gets
+		// used at all. The server decides what an item does when it is
+		// invoked; the client does not need an opinion.
+		//
+		// A CASH item carries its own type on the wire, because the quickslot
+		// bar and the server both distinguish the two inventories.
+		KeyType::Id type = (tab == InventoryType::Id::CASH)
+			? KeyType::Id::CASH
+			: KeyType::Id::ITEM;
 
-		return Keyboard::Mapping(KeyType::Id::ITEM, item_id);
+		return Keyboard::Mapping(type, item_id);
 	}
 
 	bool UIItemInventory::indragrange(Point<int16_t> cursorpos) const

@@ -71,6 +71,15 @@
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
             </intent-filter>
         </activity>
+        <!-- Exists only to hear onTaskRemoved, so that swiping the game
+             away stops the server this device is hosting. stopWithTask MUST
+             be false: with the default the service dies with the task and
+             the callback never arrives. See ShutdownWatcher. -->
+        <service
+            android:name=".ShutdownWatcher"
+            android:exported="false"
+            android:stopWithTask="false" />
+
     </application>
 
 </manifest>

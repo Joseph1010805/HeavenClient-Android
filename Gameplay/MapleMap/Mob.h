@@ -137,7 +137,70 @@ namespace ms
 		// Start the death animation.
 		void apply_death();
 		// Decide on the next state.
-		void next_move();
+		void next_move(const Physics& physics);
+
+		// IS THERE FLOOR THAT WAY?
+		//
+		// The turn-at-edges flag already stops a WANDERING monster walking
+		// off - the physics halts it at the foothold's edge and Mob::update
+		// flips it round. What it cannot do is stop a CHASING one, because
+		// pursuit re-aims at the player on every decision and immediately
+		// flips it back over the drop. So a mob that is following you needs
+		// to ask the question itself, before it commits to a direction.
+		bool ground_ahead(const Physics& physics, bool facing_right) const;
+
+		// How far ahead a monster looks, and how far down counts as a drop
+		// rather than a step. A Maple platform edge is a sheer fall; 60 is
+		// well below any slope and well above any stair.
+		static constexpr int16_t LOOK_AHEAD = 20;
+		static constexpr int16_t CLIFF_DROP = 60;
+
+		// How far above a monster the target has to be before it is worth
+		// jumping at, and how far to either side it can be while it still
+		// counts as overhead rather than "over there somewhere".
+		// WHICH WAY THE JUMP WAS AIMED, decided at take-off and remembered.
+		//
+		// `flip` cannot be trusted for this. A mob standing at a platform
+		// edge has TURNATEDGES cleared by the physics, and Mob::update turns
+		// it round the very next frame - so between deciding to jump and the
+		// jump being applied, the direction can already have been reversed
+		// by the edge logic. The trace showed exactly that: the mushroom
+		// jumped high enough every time and landed further away each time.
+		//
+		// -1 left, +1 right, 0 none.
+		int8_t jump_dir = 0;
+
+		// A MONSTER ONLY LEAVES ITS PLATFORM TO COME AFTER YOU.
+		//
+		// TURNATEDGES is what keeps a mob on its own foothold, and a jump has
+		// to drop it or the physics clamps the mob to the ledge and it rises
+		// and falls on the spot. So a jump is the ONE thing that can put a
+		// monster over a drop - and a wandering monster jumps at random.
+		//
+		// Every one of those random hops was letting go of the ledge. A pig
+		// that hopped near the lip walked off it, fell to the platform below,
+		// hopped again, and so on down: given a few minutes every monster on
+		// a layered map had migrated to the floor and piled up in a corner.
+		// That is what "the enemies are all grouping at the bottom" was.
+		//
+		// `crossing` is the difference between a hop and a leap. It is set
+		// ONLY for a jump taken while hunting, when the mob has decided to
+		// get to a player who is above it or across a gap. A wandering hop
+		// keeps the flag, so the physics holds it on its own ledge and it
+		// stays where the map put it.
+		bool crossing = false;
+
+		// Take-off happens ONCE, on the frame the jump starts.
+		//
+		// The launch used to run every frame the stance was JUMP and the mob
+		// was on the ground - and a mob that has landed is on the ground with
+		// the stance still JUMP until it next thinks, which is up to a fifth
+		// of a second. So it landed and immediately relaunched itself, over
+		// and over, with the ledge released each time.
+		bool jump_launch = false;
+
+		static constexpr int16_t JUMP_UP = 40;
+		static constexpr int16_t JUMP_REACH = 110;
 		// Send the current position and state to the server.
 		void update_movement();
 

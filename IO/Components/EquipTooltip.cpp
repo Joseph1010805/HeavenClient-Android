@@ -110,6 +110,29 @@ namespace ms
 		invpos = ivp;
 		invpos_preview = 0;
 
+		// NOTHING THERE MEANS NOTHING TO SHOW - and the tooltip has to be
+		// switched OFF, not merely left alone.
+		//
+		// Every early return below used to leave invpos set, and invpos is
+		// the one thing draw() checks before it runs. So a slot with no item
+		// in it armed the tooltip and then drew it out of whatever the last
+		// item had left behind: last item's name, last item's stats, last
+		// item's job list - and on the very first use, out of members that
+		// had never been written at all.
+		//
+		// That is reachable from an ordinary tap. A cosmetic hat sits in slot
+		// 101 while slot 1 is empty, so asking about the cosmetic by its base
+		// slot asks about nothing.
+		auto present = [this](InventoryType::Id type, int16_t at)
+		{
+			if (Stage::get().get_player().get_inventory().get_equip(type, at))
+				return true;
+
+			invpos = 0;
+
+			return false;
+		};
+
 		const Player& player = Stage::get().get_player();
 
 		InventoryType::Id invtype;
@@ -133,6 +156,16 @@ namespace ms
 
 		if (invtype == InventoryType::Id::EQUIP)
 		{
+			// Was an unguarded dereference. A bag slot that has just been
+			// emptied - moved, sold, dropped - is still under the pointer for
+			// one frame afterwards, and this read through the resulting null.
+			if (!oequip)
+			{
+				invpos = 0;
+
+				return;
+			}
+
 			const int32_t item_id = oequip.get()->get_item_id();
 			const EquipData& equipdata = EquipData::get(item_id);
 			Equipslot::Id eqslot = equipdata.get_eqslot();
@@ -353,7 +386,7 @@ namespace ms
 			}
 		}
 
-		if (!oequip)
+		if (!present(invtype, invpos))
 			return;
 
 		const Equip& equip = *oequip;

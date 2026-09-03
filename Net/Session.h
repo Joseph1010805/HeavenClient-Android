@@ -52,7 +52,8 @@ namespace ms
 		// Closes the current connection and opens a new one with default connection settings.
 		void reconnect();
 		// Closes the current connection and opens a new one.
-		void reconnect(const char* address, const char* port);
+		// Returns whether the new connection was actually made.
+		bool reconnect(const char* address, const char* port);
 		// Check if the connection is alive.
 		bool is_connected() const;
 		// Try again, against whatever the settings now say. Used when logging

@@ -22,6 +22,7 @@
 
 #include "../Configuration.h"
 #include "../Console.h"
+#include "../Util/Silent.h"
 #include "../Constants.h"
 #include "../Timer.h"
 #include "../Audio/Audio.h"
@@ -99,8 +100,27 @@ namespace ms
 				s_last_entry = entry;
 		}
 
+		// ⚠ A SILENT RETURN THAT LOSES THE WHOLE PACKET.
+		//
+		// Coming back from the cash shop is a CHANNEL CHANGE - the client
+		// reconnects and this packet is how it is told where it now is. If
+		// the remembered character does not match, nothing below runs: no
+		// player load, no map load, no transition. The screen keeps drawing
+		// whatever was last on it, which is the previous map's scenery and
+		// NPCs, over a character that is really somewhere else.
+		//
+		// That is exactly the shape of "it brought me to a map I did not
+		// leave from and the town NPCs came with me", so it says so now
+		// instead of returning in silence.
 		if (s_last_entry.id != cid)
+		{
+			Silent::report("SetfieldHandler::set_field",
+				"character " + std::to_string(cid) + " is not the one I "
+				"remember (" + std::to_string(s_last_entry.id) + ") - the "
+				"map was NOT loaded");
+
 			return;
+		}
 
 		Stage::get().loadplayer(s_last_entry);
 
@@ -130,6 +150,15 @@ namespace ms
 
 		uint8_t portalid = player.get_stats().get_portal();
 		int32_t mapid = player.get_stats().get_mapid();
+
+		// WHERE THE SERVER SAYS YOU ARE. Printed because the alternative is
+		// arguing about it from the sofa - if this number is not the map that
+		// was walked into the cash shop from, the fault is on the server side
+		// and the client is doing as it was told.
+		Silent::report("SetfieldHandler::set_field",
+			"loading map " + std::to_string(mapid) + " portal "
+			+ std::to_string(portalid) + " for character "
+			+ std::to_string(cid));
 
 		transition(mapid, portalid);
 

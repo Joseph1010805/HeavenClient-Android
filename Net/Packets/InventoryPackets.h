@@ -102,6 +102,31 @@ namespace ms
 
 	// A packet which requests that an 'USE' item is used.
 	// Opcode: USE_ITEM(72)
+	// SIT DOWN ON A CHAIR YOU OWN.
+	//
+	// The item id, and nothing else. The server checks it really is a chair
+	// and that it is in the SETUP inventory before seating anybody, so there
+	// is nothing to validate here.
+	class UseChairPacket : public OutPacket
+	{
+	public:
+		UseChairPacket(int32_t itemid) : OutPacket(OutPacket::Opcode::USE_CHAIR)
+		{
+			write_int(itemid);
+		}
+	};
+
+	// STAND UP. `id` is a seat on the map, not an item - a chair item is
+	// cancelled by sending -1.
+	class CancelChairPacket : public OutPacket
+	{
+	public:
+		CancelChairPacket(int16_t id) : OutPacket(OutPacket::Opcode::CANCEL_CHAIR)
+		{
+			write_short(id);
+		}
+	};
+
 	class UseItemPacket : public OutPacket
 	{
 	public:
@@ -133,6 +158,34 @@ namespace ms
 		{
 			write_short(slot);
 			write_int(itemid);
+		}
+	};
+
+	// CALLING A PET OUT, or putting it away again.
+	// Opcode: SPAWN_PET(98)
+	//
+	// The same packet does both: the server toggles. If the pet in that slot
+	// is already out it goes home, and if it is not it appears.
+	//
+	// Layout read out of Cosmic's SpawnPetHandler rather than guessed:
+	//
+	//   int   timestamp
+	//   byte  slot        - where the pet sits in the CASH bag
+	//   byte  unused
+	//   byte  lead        - 1 to make this the front pet of three
+	//
+	// ⚠ The slot is the CASH inventory slot, NOT the item id. Sending an id
+	// here finds no pet and the server does nothing and says nothing, which
+	// is indistinguishable from the packet never arriving.
+	class SpawnPetPacket : public OutPacket
+	{
+	public:
+		SpawnPetPacket(int16_t slot, bool lead) : OutPacket(OutPacket::Opcode::SPAWN_PET)
+		{
+			write_time();
+			write_byte(static_cast<uint8_t>(slot));
+			skip(1);
+			write_byte(lead ? 1 : 0);
 		}
 	};
 

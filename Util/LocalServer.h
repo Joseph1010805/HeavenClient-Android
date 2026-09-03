@@ -76,14 +76,29 @@ namespace ms
 			bool server = false;
 			bool wifi_direct = false;
 
-			// What has to be true before hosting can even be ATTEMPTED. The
-			// server answering is a status, not a prerequisite: starting it
-			// is the whole point of pressing HOST, so requiring it first
-			// would mean it could never be started at all.
+			// What has to be true before hosting can even be ATTEMPTED.
+			//
+			// ONLY that Termux exists. Everything else here is a STATUS.
+			//
+			// The server answering was already understood that way - starting
+			// it is the whole point of pressing the button, so requiring it
+			// first would mean it could never be started at all - and the
+			// identical argument applies to `permission`, which this used to
+			// require and should never have.
+			//
+			// Termux protects RUN_COMMAND at `dangerous` level, so Android
+			// only grants it when it is asked for at runtime. The thing that
+			// asks is LocalServer::start(). So on a device that has never
+			// hosted, the permission was needed to reach the button, and the
+			// button was needed to request the permission: the dialog could
+			// not be shown and the device could never host at all. It cost
+			// nothing on the machines that had already granted it once, and
+			// made every NEW device a dead end - which is exactly where it
+			// was found, on a freshly installed RP5.
 			//
 			// Wi-Fi Direct only matters where there is no other network, so
 			// it is reported and never required.
-			bool can_try() const { return termux && permission; }
+			bool can_try() const { return termux; }
 		};
 
 		Readiness check();
