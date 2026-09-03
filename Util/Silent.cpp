@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "Silent.h"
 
+#include <cstdio>
+#include <ctime>
 #include <iostream>
 #include <mutex>
 #include <unordered_set>
@@ -33,6 +35,48 @@ namespace ms
 		{
 			std::mutex lock;
 			std::unordered_set<std::string> seen;
+
+			// WHERE THE SESSION'S LIST SURVIVES THE SESSION.
+			//
+			// logcat is a ring buffer. An evening of play overruns it, the
+			// device gets unplugged, and by the time anybody asks what went
+			// wrong the answer has been overwritten by chatter from Google
+			// Play. Every one of these lines is a bug nobody has noticed yet,
+			// which makes them exactly the wrong thing to keep somewhere
+			// temporary.
+			//
+			// This is the app's own external folder - the one holding the NX
+			// data and the Settings file - so it needs no permission and is
+			// readable with a plain `adb shell cat`, no run-as. See
+			// tools/playlog.py, which collects it alongside the server's.
+			constexpr const char* PLAYLOG =
+				"/sdcard/Android/data/org.heavenclient.android/files/HeavenClient/playlog.txt";
+
+			void keep(const std::string& line)
+			{
+				// Appended, never truncated: two sessions before somebody
+				// asks is the normal case, and the earlier one is usually
+				// the one that matters.
+				std::FILE* out = std::fopen(PLAYLOG, "a");
+
+				if (!out)
+					return;
+
+				std::time_t now = std::time(nullptr);
+				std::tm local {};
+
+#ifdef _WIN32
+				localtime_s(&local, &now);
+#else
+				localtime_r(&now, &local);
+#endif
+
+				char when[32];
+				std::strftime(when, sizeof(when), "%m-%d %H:%M:%S", &local);
+
+				std::fprintf(out, "%s CLIENT %s\n", when, line.c_str());
+				std::fclose(out);
+			}
 		}
 
 		void report(const char* where, const std::string& what)
@@ -53,6 +97,9 @@ namespace ms
 			// Its own tag, so the session's whole list comes out of
 			// `adb logcat -s HeavenSilent:I` without anything else in it.
 			__android_log_print(ANDROID_LOG_INFO, "HeavenSilent", "%s", line.c_str());
+
+			// AND on disk, because logcat will not be there tomorrow.
+			keep(line);
 #else
 			std::cout << "[silent] " << line << std::endl;
 #endif

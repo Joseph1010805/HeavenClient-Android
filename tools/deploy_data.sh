@@ -64,9 +64,12 @@ fi
 # with it set, adb gets whatever we type, and adb wants C:/... locally and
 # /sdcard/... on the device. Mixing the two is the only combination that
 # works from Git Bash.
-V83="C:/Users/Deck/maple/wz-v83"
-V178="C:/Users/Deck/maple/wz-v178"
-CUSTOM="C:/Users/Deck/maple"
+# WHERE THE DATA IS. Overridable, because tools/install.sh runs on somebody
+# else's machine where none of these paths exist. The defaults are this
+# machine's, so every existing invocation keeps working untouched.
+V83="${MAPLE_DATA:-C:/Users/Deck/maple/wz-v83}"
+V178="${MAPLE_UI:-C:/Users/Deck/maple/wz-v178}"
+CUSTOM="${MAPLE_CUSTOM:-C:/Users/Deck/maple}"
 
 # Both forms of the repo path. adb needs the Windows one; the shell needs the
 # Unix one. `pwd -W` is a Git Bash extension, so fall back for other shells.
@@ -100,8 +103,20 @@ send() {
 
 	printf '  %-14s %6s MB  sending... ' "$name" "$((want / 1024 / 1024))"
 
+	# ⚠ KEEP WHAT ADB SAID. Do not send it to /dev/null.
+	#
+	# Both pushes here used to discard stdout AND stderr, so when every file
+	# in a fresh install landed at zero bytes the only thing anybody had to
+	# work with was "expected 13296, got 0" - seventeen times. The reason was
+	# in the message that had just been thrown away.
+	#
+	# It costs one temporary file per attempt and it is the difference
+	# between a diagnosis and an afternoon.
+	local err
+	err=$(mktemp 2>/dev/null || echo "/tmp/deploy.$$")
+
 	# Straight in, if the device allows it.
-	adb -s "$DEV" push "$src" "$DIR/$name" >/dev/null 2>&1
+	adb -s "$DEV" push "$src" "$DIR/$name" >"$err" 2>&1
 	sh "chmod 644 '$DIR/$name'" >/dev/null 2>&1
 	have=$(remote_size "$DIR/$name")
 
@@ -110,17 +125,24 @@ send() {
 		# say nothing about it. Land it somewhere permissive and move it -
 		# a move, not a copy, so a 1.5 GB file needs no extra room.
 		printf 'via staging... '
-		adb -s "$DEV" push "$src" "$STAGE/$name" >/dev/null 2>&1
-		sh "mv '$STAGE/$name' '$DIR/$name' && chmod 644 '$DIR/$name'" >/dev/null 2>&1
+		adb -s "$DEV" push "$src" "$STAGE/$name" >>"$err" 2>&1
+		sh "mv '$STAGE/$name' '$DIR/$name' && chmod 644 '$DIR/$name'" >>"$err" 2>&1
 		have=$(remote_size "$DIR/$name")
 	fi
 
 	if [ "$want" = "$have" ]; then
+		rm -f "$err"
 		echo "ok"
 		return 0
 	fi
 
 	echo "FAILED (device has $have bytes, expected $want)"
+
+	# Indented under the failure so it reads as belonging to it, and only on
+	# a failure so a good run stays quiet.
+	sed 's/^/      /' "$err" 2>/dev/null | grep -v '^ *$' | tail -6
+	rm -f "$err"
+
 	return 1
 }
 

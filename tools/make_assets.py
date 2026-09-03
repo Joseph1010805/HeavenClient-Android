@@ -30,34 +30,36 @@ SRC = os.environ.get('MAKE_ASSETS_SRC', os.path.join(
 OUT = os.environ.get('MAKE_ASSETS_OUT', os.path.join(
     os.path.expanduser('~'), 'maple', 'Map001.nx'))
 
-LOGIN_VIDEO = 'login.mp4'
-CHARSEL_VIDEO = 'character selection.mp4'
-LEVELUP_VIDEO = 'newlevelup.mp4'
+# ONLY TWO OF THESE ARE OURS.
+#
+# Everything else this file builds is MapleStory's own artwork, which means
+# the whole data file can be rebuilt by anybody who has a client of their own
+# - and that matters, because tools/install.sh refuses to distribute Nexon's
+# work and would otherwise have nothing to hand a new device.
+#
+# The videos that used to be here - a login pan, a character-select pan and a
+# level-up burst - were made for this project and are gone. Handsome, and the
+# only thing standing between a fresh install and a working game.
+#
+# The wordmarks stay: they are the project's own name and nobody else's.
 LOGO_IMAGE = 'LoginIcon.jpg'
 DS_LOGO_IMAGE = 'maplestorydslogo.png'
-WORLDSELECT_IMAGE = 'worldselect.jpg'
-BOTTOM_IMAGE = 'bottomscreenbackground.jpg'
+
+# The parchment the login and the panel sit on, both lifted from the game's
+# own notice artwork.
+TOP_IMAGE = 'icon_topscreen.png'
+BOTTOM_IMAGE = 'icon_bottomscreen.png'
 # One backdrop per page. Wide 16:9 artwork with the character in the LEFT
 # corner, so they are cropped from the left rather than the middle - centring
 # them would take the character off the picture entirely.
-PAGE_IMAGES = {
-    # TEMPORARY: the painted bag replaced with new artwork. The original is
-    # kept beside it as inventory.png.maplebak - put the name back to revert.
-    'InvBg': 'inventory.jpg',
-
-    # The shop backdrops. Not pages you can swipe to - the panel shows one
-    # while a shop is open and goes back afterwards - but they are built the
-    # same way and cropped to the same shape.
-    'ShopItemBg': 'itemshop.jpg',
-    'ShopEquipBg': 'Equipment shop.jpg',
-    'EquipBg': 'equipment.png',
-    'AbilityBg': 'ability.png',
-    'SkillBg': 'skill.png',
-    'ChatBg': 'chatandemotions.png',
-    # Pre-cropped to the panel's shape from the RIGHT, because the leaf sits
-    # against that edge and bottom_bgra's centre band would cut through it.
-    'HotkeyBg': 'hotkeysbg.jpg',
-}
+# THE PAGE BACKGROUNDS ARE GONE.
+#
+# A bag, a rack, a desk - one full-bleed photograph per page. They were
+# dropped from the panel a while ago, because five pages showing five
+# different rooms stopped the panel reading as one place, and the frame
+# underneath is what made them a set. Nothing has drawn them since; this
+# removes the 8MB they were still costing every build.
+PAGE_IMAGES = {}
 
 # THE PANEL'S OWN ICONS.
 #
@@ -92,6 +94,56 @@ ICON_IMAGES = {
     'IconMp': 'icon_mp.png',
     'IconShout': 'icon_shout.png',
     'IconRoomMessage': 'icon_roommessage.png',
+    # The speech balloon, built by tools/make_chat_icon.py out of the game's
+    # own ChatBalloon.img. Run that script if this file is missing.
+    'IconChat': 'icon_chat.png',
+
+    # The second batch. Named for what they MEAN on the panel, not for the
+    # file they came from - "equipmentininventory" is the EQUIP tab, and a
+    # node called that would have to be looked up every time.
+    'IconDoll': 'icon_doll.png',
+    'IconReport': 'icon_report.png',
+    'IconDaily': 'icon_dailyquests.png',
+    'IconPvE': 'icon_pve.png',
+    'IconPvP': 'icon_pvp.png',
+    'IconSkills': 'icon_skills.png',
+    'IconCharInfo': 'icon_charinfo.png',
+    'IconKeyBindings': 'icon_keybindings.png',
+    'IconExit': 'icon_exit.png',
+    'IconHelp': 'icon_help.png',
+    'IconScreenshot': 'icon_screenshot.png',
+    'IconCashShop': 'icon_cashshop.png',
+    'IconTrade': 'icon_trade.png',
+    'IconPets': 'icon_pets.png',
+    'IconFishing': 'icon_fishing.png',
+    'IconMonsterBook': 'icon_monstercollection.png',
+    'IconStopwatch': 'icon_stopwatch.png',
+    'IconCrown': 'icon_crown.png',
+    'IconEmotions': 'icon_emotions.png',
+    'IconParty': 'icon_party.png',
+    'IconHair': 'icon_hair.png',
+    'IconBattery': 'icon_battery.png',
+
+    # THE BADGE. 28x28, drawn small and on top of another icon to say that
+    # something is waiting behind it - a level-up to spend, an unread
+    # message, a daily quest that can be taken. Not a page of its own.
+    'IconAlert': 'icon_alert.png',
+
+    # The inventory's four tabs and the equipment window's three, as
+    # BUTTONS rather than the game's own tab artwork.
+    'IconTabEquip': 'icon_tabequip.png',
+    'IconTabUse': 'icon_tabuse.png',
+    'IconTabEtc': 'icon_tabetc.png',
+    'IconTabCash': 'icon_tabcash.png',
+    'IconTabGear': 'icon_tabgear.png',
+    'IconTabGearCash': 'icon_tabgearcash.png',
+    'IconTabPet': 'icon_tabpet.png',
+
+    # The equipment folder's two halves, drawn for the job rather than
+    # borrowed from the inventory tabs: what is ON you, and what is on you
+    # only for the look of it.
+    'IconWorn': 'icon_worn.png',
+    'IconCosmetic': 'icon_cosmetic.png',
 }
 
 # THE GAUGE CHANNEL, both ways up.
@@ -300,9 +352,35 @@ def keep_alpha_bgra(path, target_width):
     return Image.merge('RGBA', (b, g, r, a)).tobytes(), img.width, img.height
 
 
-def fit_bgra(path, width, height):
+# THE PLAIN PART OF THE PARCHMENT.
+#
+# icon_topscreen.png is a photograph of one of the game's own notice windows,
+# and it came with the window's furniture: a soft rounded border on all four
+# sides, an ornamental band down the right, and a mushroom sitting in the
+# bottom-right corner - all three sliced off mid-stroke by the original crop.
+#
+# Stretched across the login screen those became a second border inside the
+# game's border and half a mushroom hanging off the edge. Cropping to the
+# plain middle throws them away and keeps the thing that was actually wanted,
+# which is the paper.
+#
+# Measured against the 464x302 source. If that image is ever replaced this
+# needs re-measuring - it is a crop of a specific picture, not a rule.
+TOP_PLAIN = (12, 12, 398, 236)
+
+# The same treatment for the lower screen's parchment, which is a crop of the
+# same window and came with the same half a mushroom. Measured against the
+# 384x222 source.
+BOTTOM_PLAIN = (10, 10, 320, 180)
+
+
+def fit_bgra(path, width, height, crop=None):
     """Crop to a shape and scale to it, keeping the middle."""
     img = Image.open(path).convert('RGB')
+
+    if crop:
+        img = img.crop(crop)
+
     w, h = img.size
 
     band = round(w * height / width)
@@ -340,35 +418,19 @@ def main():
     builder = Builder()
     custom = builder.root.child('Custom')
 
-    print('extracting frames...')
-
-    # The pan upward from the tree to the castle. The top strip carries the
-    # generator's watermark, so it is cut before the frame is squared off to
-    # 4:3 - cropping rather than squashing, which would narrow the faces.
-    login = frames(os.path.join(SRC, LOGIN_VIDEO),
-                   'crop=1024:585:0:55,crop=780:585:122:0', fps=FPS)
-
-    # A fixed scene with clouds drifting. Half the source is enough, since
-    # zigzag plays it back out again and the loop is twice what is stored.
-    charsel = frames(os.path.join(SRC, CHARSEL_VIDEO),
-                     'crop=1440:1080:240:0', fps=FPS, start=2, duration=5)
-
-    # These used to run at 4 and 3 frames a second, cut that low because the
-    # frames were believed to be filling the sprite atlas and corrupting the
-    # world map. That belief was wrong twice over: the map's problem was not
-    # the atlas, and the arithmetic was off by about four times. The login
-    # frames hold 11.5M of the atlas's 67M pixels - 17%, not the quarter the
-    # old comment here claimed. So the smoothness was spent for nothing, and
-    # this buys it back.
     print('building nodes...')
-    animation(builder, custom, 'LoginBg', login, delay=DELAY)
-    animation(builder, custom, 'CharBg', charsel, delay=DELAY)
 
-    # World select has a picture of its own now rather than a frame borrowed
-    # from the character-select video.
-    worldbg = fit_bgra(os.path.join(SRC, WORLDSELECT_IMAGE), W, H)
-    builder.bitmap(custom, 'WorldBg', worldbg, W, H, origin=(0, 0))
-    print('  %-9s %dx%d  %s' % ('WorldBg', W, H, WORLDSELECT_IMAGE))
+    # ONE PICTURE, THREE PLACES.
+    #
+    # Login, character select and world select all showed a different moving
+    # backdrop. They are the same parchment now - the game's own - which is
+    # both honest about what this build ships and quieter to look at than a
+    # video loop behind a form.
+    top = fit_bgra(os.path.join(SRC, TOP_IMAGE), W, H, crop=TOP_PLAIN)
+
+    for name in ('LoginBg', 'CharBg', 'WorldBg'):
+        builder.bitmap(custom, name, top, W, H, origin=(0, 0))
+        print('  %-9s %dx%d  %s' % (name, W, H, TOP_IMAGE))
 
     # The wordmark the lower panel shows while the game is loading, in place
     # of a line of text. Its own transparency is kept as it arrives.
@@ -376,22 +438,18 @@ def main():
     builder.bitmap(custom, 'DsLogo', ds, dw, dh, origin=(0, 0))
     print('  %-9s %dx%d' % ('DsLogo', dw, dh))
 
-    bottom = bottom_bgra(os.path.join(SRC, BOTTOM_IMAGE))
+    bottom = fit_bgra(os.path.join(SRC, BOTTOM_IMAGE), BOTTOM_W, BOTTOM_H,
+                      crop=BOTTOM_PLAIN)
     builder.bitmap(custom, 'BottomBg', bottom, BOTTOM_W, BOTTOM_H, origin=(0, 0))
-    print('  %-9s %dx%d' % ('BottomBg', BOTTOM_W, BOTTOM_H))
+    print('  %-9s %dx%d  %s' % ('BottomBg', BOTTOM_W, BOTTOM_H, BOTTOM_IMAGE))
 
-    # The level-up flourish, played over whatever the panel was showing.
+    # THE LEVEL-UP FLOURISH IS GONE TOO.
     #
-    # Square, because the source is - it is centred on the panel rather than
-    # stretched across it, so a burst of light does not come out as an oval.
-    # It plays once and stops, so no zigzag: a level-up runs forwards.
-    LEVELUP_SIZE = 320
-
-    levelup = frames(os.path.join(SRC, LEVELUP_VIDEO), 'null',
-                     fps=FPS, w=LEVELUP_SIZE, h=LEVELUP_SIZE)
-
-    animation(builder, custom, 'LevelUp', levelup, delay=DELAY, zigzag=False,
-              w=LEVELUP_SIZE, h=LEVELUP_SIZE)
+    # It was a video of ours. The game has its own level-up effect - the
+    # burst the character plays on the top screen - and one celebration is
+    # enough. UI code that asks for 'LevelUp' gets an invalid texture and
+    # draws nothing, which is already how it behaves on a build where the
+    # node is missing.
 
     # A backdrop for every page that has one. Cropped from the left so the
     # character in the corner survives the change of shape.

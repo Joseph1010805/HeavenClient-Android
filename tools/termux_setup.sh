@@ -42,7 +42,9 @@ echo "mariadb: $(mariadbd --version 2>&1 | head -1)"
 step "Unpacking the server"
 mkdir -p "$HOME_DIR"
 
-if [ ! -f "$HOME_DIR/Cosmic.jar" ]; then
+# `-nt` as well as absence: re-running the setup after staging a new build
+# should pick it up, rather than silently keeping the old one.
+if [ ! -f "$HOME_DIR/Cosmic.jar" ] || [ "$STAGE/Cosmic.jar" -nt "$HOME_DIR/Cosmic.jar" ]; then
 	cp "$STAGE/Cosmic.jar" "$HOME_DIR/" || die "could not copy Cosmic.jar"
 fi
 
@@ -145,6 +147,48 @@ exec >> "$LOG" 2>&1
 echo
 echo "=================================================================="
 echo "run.sh at $(date)"
+
+# ──────────────────────────────────────────────────────────────────────────
+# TAKE WHATEVER HAS BEEN STAGED SINCE LAST TIME.
+#
+# This did not exist, and its absence was invisible in the worst way.
+# tools/stage_server.sh pushes a new Cosmic.jar and scripts.tar to
+# /sdcard/Download/cosmic and reports every file as "ok" - because they DO
+# arrive. But termux_setup.sh only copies them into ~/cosmic `if [ ! -f ]`,
+# which is true exactly once, on the very first setup.
+#
+# So every build after the first landed in Download and was never run. The
+# staging said ok, the server restarted cleanly, and it restarted the SAME
+# JAR it has been running for weeks. Two days of "the daily hunt does not
+# count anything" and "the Lith Harbour NPCs are still silent" were this,
+# and nothing on either machine said so.
+#
+# Starting the server is the moment to take an update: it is the one thing
+# that has to happen anyway, and doing it here means "restart it" and "take
+# the new build" stop being two different jobs somebody has to know about.
+STAGE=/sdcard/Download/cosmic
+
+if [ -f "$STAGE/Cosmic.jar" ] && [ "$STAGE/Cosmic.jar" -nt "Cosmic.jar" ]; then
+	echo "a newer Cosmic.jar is staged - installing it"
+	cp "$STAGE/Cosmic.jar" Cosmic.jar || echo "  FAILED to copy the jar"
+fi
+
+if [ -f "$STAGE/scripts.tar" ] && [ "$STAGE/scripts.tar" -nt "scripts" ]; then
+	echo "newer scripts are staged - unpacking them"
+
+	# Over the top, not a wipe and replace: a script somebody wrote by hand
+	# on the device is worth more than tidiness.
+	tar -xf "$STAGE/scripts.tar" || echo "  FAILED to unpack the scripts"
+
+	# `scripts` is the thing compared above, so its timestamp has to move or
+	# this unpacks the same tar on every single start.
+	touch scripts
+fi
+
+if [ -f "$STAGE/config.yaml" ] && [ ! -f config.yaml ]; then
+	cp "$STAGE/config.yaml" config.yaml
+fi
+# ──────────────────────────────────────────────────────────────────────────
 
 # One server, not seven.
 #

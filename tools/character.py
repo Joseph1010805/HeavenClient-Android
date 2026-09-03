@@ -44,8 +44,19 @@ NEWEST WINS
 a NEWER one is refused, because that is somebody's evening. --force overrides.
 """
 import argparse
+import os
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# ADB, WHEREVER IT IS.
+#
+# The FIFTH script here to need this. install.sh, deploy_data.sh,
+# stage_server.sh and playlog.py all grew it after failing on a machine where
+# the SDK is installed but not on PATH - the normal state of a Windows box.
+# Imported rather than written out a fifth time.
+from playlog import find_adb
 
 MYSQL = "C:/Users/Deck/mysql/mysql-8.4.6-winx64/bin/mysql.exe"
 DB = "cosmic"
@@ -77,7 +88,7 @@ class World:
                      "mariadb -u root %s -B %s") % (TERMUX, DB, "-N" if tabbed else "")
 
             done = subprocess.run(
-                ["adb", "-s", self.where, "shell", "run-as com.termux sh -c '%s'" % inner],
+                [find_adb(), "-s", self.where, "shell", "run-as com.termux sh -c '%s'" % inner],
                 input=statement, capture_output=True, text=True,
                 encoding="utf-8", errors="replace")
 

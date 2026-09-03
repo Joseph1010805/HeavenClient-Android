@@ -42,6 +42,34 @@ set -u
 # the Gradle wrapper. This script never calls Gradle.
 export MSYS_NO_PATHCONV=1
 
+# ADB, WHEREVER IT IS.
+#
+# The THIRD script in this folder to need this, and the third to be written
+# without it. install.sh and deploy_data.sh both grew a copy after failing in
+# the same way; this one had none at all, so every push died with
+# "adb: command not found" and reported six files that "did not arrive" -
+# blaming the device for a tool that was never on PATH.
+#
+# Braced with defaults throughout: this runs under `set -u`, Git Bash does not
+# always set USER, and Windows sets USERNAME instead. A bare $USER here aborts
+# the whole script before it prints anything.
+if ! command -v adb >/dev/null 2>&1; then
+	for guess in 		"${LOCALAPPDATA:-}/Android/Sdk/platform-tools" 		"${HOME:-}/AppData/Local/Android/Sdk/platform-tools" 		"/c/Users/${USERNAME:-${USER:-}}/AppData/Local/Android/Sdk/platform-tools"
+	do
+		if [ -x "$guess/adb.exe" ] || [ -x "$guess/adb" ]; then
+			PATH="$PATH:$guess"
+			export PATH
+			break
+		fi
+	done
+fi
+
+if ! command -v adb >/dev/null 2>&1; then
+	echo "adb is not on PATH and was not found in the usual SDK location."
+	echo "Add platform-tools to PATH and run this again."
+	exit 1
+fi
+
 DEV="${1:-}"
 COSMIC_UNIX="${2:-/c/Users/Deck/OneDrive/Documents/Programs/Cosmic}"
 
@@ -76,20 +104,49 @@ DIR=/sdcard/Download/cosmic
 BUILD_UNIX="$COSMIC_UNIX/.stage"
 BUILD_WIN="$COSMIC_WIN/.stage"
 
+# It used to be made by make_tar, which runs after the first send - and the
+# stamps that send now writes have to land somewhere.
+mkdir -p "$BUILD_UNIX"
+
 sh() { adb -s "$DEV" shell "$@"; }
 
 remote_size() {
 	sh "stat -c %s '$1' 2>/dev/null || echo 0" | tr -d '\r'
 }
 
+# ⚠ SIZE ALONE IS NOT "THE SAME FILE".
+#
+# This compared byte counts and nothing else, so a RECOMPILED Cosmic.jar -
+# same classes, different code, same length to the byte - was reported as
+# "already there" and never left the PC. The server on the device went on
+# running the previous build while every line of output said it was fine.
+# That is the third time in this project a transfer has been checked by a
+# number that can match while the contents differ.
+#
+# The hash is computed HERE and parked beside the payload as a stamp, rather
+# than hashing on the device: md5summing a 555 MB tar over adb costs a minute
+# a run, and the device does not need to be asked - it only has to remember
+# what it was last given.
+stamp_of() {
+	md5sum "$1" | cut -d' ' -f1
+}
+
+remote_stamp() {
+	sh "cat '$1' 2>/dev/null" | tr -d '\r\n'
+}
+
 send() {
 	local src_win="$1" src_unix="$2" name="$3"
-	local want have
+	local want have sum stamp
 
 	want=$(stat -c %s "$src_unix")
+	sum=$(stamp_of "$src_unix")
 	have=$(remote_size "$DIR/$name")
+	stamp=$(remote_stamp "$DIR/$name.md5")
 
-	if [ "$want" = "$have" ]; then
+	# BOTH must agree. A missing stamp - anything staged before this check
+	# existed - counts as unknown and is sent again, once.
+	if [ "$want" = "$have" ] && [ -n "$stamp" ] && [ "$sum" = "$stamp" ]; then
 		printf '  %-16s %6s MB  already there\n' "$name" "$((want / 1024 / 1024))"
 		return 0
 	fi
@@ -99,13 +156,19 @@ send() {
 	adb -s "$DEV" push "$src_win" "$DIR/$name" >/dev/null 2>&1
 	have=$(remote_size "$DIR/$name")
 
-	if [ "$want" = "$have" ]; then
-		echo "ok"
-		return 0
+	if [ "$want" != "$have" ]; then
+		echo "FAILED (device has $have bytes, expected $want)"
+		return 1
 	fi
 
-	echo "FAILED (device has $have bytes, expected $want)"
-	return 1
+	# The stamp goes over only AFTER the payload arrived at the right size,
+	# so an interrupted copy cannot leave the device claiming to hold a file
+	# it does not have.
+	printf '%s' "$sum" > "$BUILD_UNIX/$name.md5"
+	adb -s "$DEV" push "$BUILD_WIN/$name.md5" "$DIR/$name.md5" >/dev/null 2>&1
+
+	echo "ok"
+	return 0
 }
 
 # Builds a tar once and reuses it. 22,180 files pushed one at a time takes
@@ -117,12 +180,28 @@ send() {
 make_tar() {
 	local dir="$1" name="$2"
 
+	# REUSE ONLY IF IT IS STILL TRUE.
+	#
+	# This used to reuse any tar that existed, full stop - so a scripts.tar
+	# built a week ago was sent again while 2,392 newly generated quest
+	# scripts sat on the PC. Every line of output said "ok". Nothing on the
+	# device was wrong; the right file simply never left.
+	#
+	# `find -newer` is the whole test: if anything under the directory is
+	# newer than the tar, the tar is out of date.
 	if [ -f "$BUILD_UNIX/$name" ]; then
-		printf '  %-16s reusing\n' "$name"
-		return 0
+		if [ -z "$(find "$COSMIC_UNIX/$dir" -newer "$BUILD_UNIX/$name" -print -quit 2>/dev/null)" ]; then
+			printf '  %-16s reusing
+' "$name"
+			return 0
+		fi
+
+		printf '  %-16s stale, rebuilding... ' "$name"
+		rm -f "$BUILD_UNIX/$name"
+	else
+		printf '  %-16s building... ' "$name"
 	fi
 
-	printf '  %-16s building... ' "$name"
 	mkdir -p "$BUILD_UNIX"
 
 	if ! tar -C "$COSMIC_UNIX" -cf "$BUILD_UNIX/$name" "$dir" 2>/dev/null; then
@@ -149,8 +228,54 @@ FAILED=0
 send "$COSMIC_WIN/target/Cosmic.jar" "$COSMIC_UNIX/target/Cosmic.jar" Cosmic.jar || FAILED=$((FAILED + 1))
 send "$BUILD_WIN/wz.tar" "$BUILD_UNIX/wz.tar" wz.tar || FAILED=$((FAILED + 1))
 send "$BUILD_WIN/scripts.tar" "$BUILD_UNIX/scripts.tar" scripts.tar || FAILED=$((FAILED + 1))
-send "$COSMIC_WIN/config.yaml" "$COSMIC_UNIX/config.yaml" config.yaml || FAILED=$((FAILED + 1))
+# THE CONFIG, WITH THIS DEVICE'S REAL ADDRESS WRITTEN INTO IT.
+#
+# Cosmic tells a joining client where to reconnect for the channel server,
+# and picks the address by where the client came from - LOCALHOST for the
+# host itself, LANHOST for anybody else on the network (Server.getInetSocket).
+# LANHOST is a fixed string in config.yaml and NOTHING ever worked out what
+# address this handheld actually has.
+#
+# So it goes stale the moment the router hands out a new lease, and then the
+# host can still play while everybody else logs in, picks a character, presses
+# Start and sits there - reconnecting to an address with nothing on it. The
+# header of this script has described that failure since it was written and
+# never did anything about it. This is the something.
+#
+# Derived from the device rather than asked for, because the person running
+# this does not know the handheld's address either, and a number typed in is a
+# number that goes stale again tomorrow.
+LANIP=$(adb -s "$DEV" shell "ip route get 1.1.1.1 2>/dev/null" \
+	| tr -d '\r' | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)
+
+if [ -n "$LANIP" ]; then
+	echo "  this device is $LANIP - writing it into the config"
+
+	STAGED_CONF="$BUILD_UNIX/config.staged.yaml"
+
+	sed -e "s/^\( *HOST:\) *[0-9.]*/\1 $LANIP/" \
+	    -e "s/^\( *LANHOST:\) *[0-9.]*/\1 $LANIP/" \
+	    "$COSMIC_UNIX/config.yaml" > "$STAGED_CONF"
+
+	# Never ship a config we failed to rewrite - an empty one would take the
+	# server down completely rather than merely misdirect it.
+	if [ -s "$STAGED_CONF" ] && grep -q "LANHOST: $LANIP" "$STAGED_CONF"; then
+		send "$BUILD_WIN/config.staged.yaml" "$STAGED_CONF" config.yaml \
+			|| FAILED=$((FAILED + 1))
+	else
+		echo "  FAILED to write the address in - sending the config unchanged"
+		send "$COSMIC_WIN/config.yaml" "$COSMIC_UNIX/config.yaml" config.yaml \
+			|| FAILED=$((FAILED + 1))
+	fi
+else
+	echo "  could not read this device's address - config sent unchanged,"
+	echo "  which means anyone joining OVER THE NETWORK may not get in"
+	send "$COSMIC_WIN/config.yaml" "$COSMIC_UNIX/config.yaml" config.yaml || FAILED=$((FAILED + 1))
+fi
 send "$HERE_WIN/tools/termux_setup.sh" "$HERE_UNIX/tools/termux_setup.sh" termux_setup.sh || FAILED=$((FAILED + 1))
+
+# The one the GAME runs. See tools/bootstrap.sh for why it is not run.sh.
+send "$HERE_WIN/tools/bootstrap.sh" "$HERE_UNIX/tools/bootstrap.sh" bootstrap.sh || FAILED=$((FAILED + 1))
 
 echo
 
