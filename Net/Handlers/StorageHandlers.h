@@ -17,31 +17,18 @@
 //////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
-#include "../Net/InPacket.h"
-#include "../Character/Inventory/Inventory.h"
+#include "../PacketHandler.h"
 
 namespace ms
 {
-	namespace ItemParser
+	// THE BANK, in and out on one opcode told apart by its first byte.
+	//
+	// Opening it is not something this client asks for: a storage keeper's
+	// NPC script calls sendStorage and the packet arrives. So there is no
+	// "open" to send and no state to keep until one does.
+	class StorageHandler : public PacketHandler
 	{
-		void parse_item(InPacket& recv, InventoryType::Id invtype, int16_t slot, Inventory& inventory);
-
-		// AN ITEM NOBODY OWNS YET.
-		//
-		// What is on a trade table is not in anybody's inventory - that is
-		// the whole point of a trade - so it cannot be parsed into one.
-		// This reads the same bytes and hands back only what a picture of an
-		// item needs: which item, and how many.
-		//
-		// It lives beside parse_item on purpose. The layout of an item on
-		// the wire is fiddly and version-specific, and two copies of that
-		// knowledge in two files is two chances to update one of them.
-		struct Skimmed
-		{
-			int32_t id = 0;
-			int16_t count = 0;
-		};
-
-		Skimmed skim_item(InPacket& recv);
-	}
+	public:
+		void handle(InPacket& recv) const override;
+	};
 }

@@ -17,31 +17,21 @@
 //////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
-#include "../Net/InPacket.h"
-#include "../Character/Inventory/Inventory.h"
+#include "../PacketHandler.h"
 
 namespace ms
 {
-	namespace ItemParser
+	// EVERYTHING THAT HAPPENS IN A ROOM WITH ANOTHER PLAYER.
+	//
+	// One opcode, PLAYER_INTERACTION (0x13A coming in), carrying trades,
+	// player shops, hired merchants and two minigames, told apart by its
+	// first byte. This handles the trade branches and says plainly in the log
+	// which of the others arrived, rather than swallowing them - an unhandled
+	// branch that is silent is indistinguishable from a server that never
+	// sent anything.
+	class PlayerInteractionHandler : public PacketHandler
 	{
-		void parse_item(InPacket& recv, InventoryType::Id invtype, int16_t slot, Inventory& inventory);
-
-		// AN ITEM NOBODY OWNS YET.
-		//
-		// What is on a trade table is not in anybody's inventory - that is
-		// the whole point of a trade - so it cannot be parsed into one.
-		// This reads the same bytes and hands back only what a picture of an
-		// item needs: which item, and how many.
-		//
-		// It lives beside parse_item on purpose. The layout of an item on
-		// the wire is fiddly and version-specific, and two copies of that
-		// knowledge in two files is two chances to update one of them.
-		struct Skimmed
-		{
-			int32_t id = 0;
-			int16_t count = 0;
-		};
-
-		Skimmed skim_item(InPacket& recv);
-	}
+	public:
+		void handle(InPacket& recv) const override;
+	};
 }

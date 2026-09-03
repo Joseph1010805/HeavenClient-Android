@@ -115,6 +115,87 @@ namespace ms
 			inventory.add_equip(invtype, slot, id, cash, expire, slots, level, stats, owner, flag, itemlevel, itemexp, vicious);
 		}
 
+		// Read an item WITHOUT putting it anywhere. See ItemParser.h.
+		//
+		// The three shapes below mirror add_item, add_pet and add_equip byte
+		// for byte. If one of those changes, this changes with it - and the
+		// symptom of forgetting will be a trade window that reads the
+		// partner's item and then loses the rest of the packet, because the
+		// stream is left in the wrong place.
+		Skimmed skim_item(InPacket& recv)
+		{
+			Skimmed out;
+
+			recv.read_byte(); // 'type' byte
+			out.id = recv.read_int();
+
+			bool cash = recv.read_bool();
+
+			if (cash)
+				recv.skip(8); // unique id
+
+			recv.read_long(); // expiry
+
+			if (out.id >= 1000000 && out.id < 2000000)
+			{
+				// An equip. One of a kind, so the count is always one.
+				out.count = 1;
+
+				recv.read_byte(); // upgrade slots
+				recv.read_byte(); // upgrade level
+
+				for (size_t i = 0; i < Equipstat::Id::LENGTH; i++)
+					recv.read_short();
+
+				recv.read_string(); // owner
+				recv.read_short();  // flag
+
+				if (cash)
+				{
+					recv.skip(10);
+				}
+				else
+				{
+					recv.read_byte();
+					recv.read_byte();  // item level
+					recv.read_short();
+					recv.read_short(); // item exp
+					recv.read_int();   // vicious
+					recv.read_long();
+				}
+
+				recv.skip(12);
+
+				return out;
+			}
+
+			if (out.id >= 5000000 && out.id <= 5000102)
+			{
+				// A pet. Not tradeable - the server refuses them - but the
+				// stream still has to be walked correctly if one ever
+				// arrives.
+				out.count = 1;
+
+				recv.read_padded_string(13);
+				recv.read_byte();
+				recv.read_short();
+				recv.read_byte();
+				recv.skip(18);
+
+				return out;
+			}
+
+			out.count = recv.read_short();
+
+			recv.read_string(); // owner
+			recv.read_short();  // flag
+
+			if ((out.id / 10000 == 233) || (out.id / 10000 == 207))
+				recv.skip(8);
+
+			return out;
+		}
+
 		void parse_item(InPacket& recv, InventoryType::Id invtype, int16_t slot, Inventory& inventory)
 		{
 			// Read type and item id.
