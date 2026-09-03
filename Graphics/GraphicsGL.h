@@ -330,6 +330,7 @@ namespace ms
 
 			std::vector<Text::Layout::Line> lines;
 			std::vector<Text::Layout::Word> words;
+			std::vector<Text::Layout::Image> images;
 			std::vector<int16_t> advances;
 			int16_t width;
 			int16_t endy;

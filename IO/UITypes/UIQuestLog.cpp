@@ -25,9 +25,13 @@
 #include "../Data/QuestData.h"
 #include "../Gameplay/Stage.h"
 #include "../../Graphics/GraphicsGL.h"
+#include "../../Data/QuestData.h"
+#include "../../Gameplay/QuestTracker.h"
 #include "../Net/Packets/QuestPackets.h"
 
 #include <nlnx/nx.hpp>
+#include <algorithm>
+#include <cstdio>
 
 namespace ms
 {
@@ -141,6 +145,16 @@ namespace ms
 			break;
 		}
 
+		// THE DAILY HUNT IS NOT A QUEST YOU CAN HAND IN.
+		//
+		// The server keeps the day's monster count in info-quest 7770 so the
+		// panel can read it without a new packet - see DailyPve. It is a
+		// carrier, not a job, and listing it here would put a quest in the
+		// journal with no giver, no text and no way to finish it.
+		listed.erase(
+			std::remove(listed.begin(), listed.end(), static_cast<int16_t>(7770)),
+			listed.end());
+
 		int16_t rows = static_cast<int16_t>(listed.size());
 		slider.setrows(0, rows_shown(), rows > 0 ? rows : 1);
 
@@ -193,9 +207,72 @@ namespace ms
 		}
 
 		if (showing_detail())
+		{
 			draw_detail(inter);
+
+			// THE NAVIGATE BUTTON.
+			//
+			// Lit while this quest is the one being followed, so pressing it
+			// again to stop is obviously the same control rather than a
+			// second one hiding somewhere.
+			QuestTracker& track = QuestTracker::get();
+			bool following = track.get_quest() == opened;
+
+			Rectangle<int16_t> nav = navigate_bounds();
+
+			GraphicsGL::get().drawrectangle(
+				nav.left(), nav.top(), nav.width(), nav.height(),
+				following ? 0.86f : 0.20f,
+				following ? 0.74f : 0.34f,
+				following ? 0.36f : 0.42f,
+				0.92f);
+
+			label.change_text(following ? "FOLLOWING" : "NAVIGATE");
+			label.draw(Point<int16_t>(nav.left() + nav.width() / 2, nav.top() + 2));
+
+			// And say plainly when the person is not here, instead of
+			// pointing at a map they are not on.
+			if (following)
+			{
+				Point<int16_t> where;
+
+				if (!track.find_target(where))
+				{
+					// NAME THE PLACE. "Not on this map" says where they are
+					// NOT, which is the least useful half of the answer.
+					std::string say = "Not on this map.";
+
+					if (int32_t there = track.target_map())
+					{
+						std::string strid = std::to_string(there);
+						strid.insert(0, 9 - strid.size(), '0');
+
+						nl::node name = nl::nx::string["Map.img"];
+
+						for (nl::node region : name)
+						{
+							if (nl::node one = region[strid])
+							{
+								std::string place = std::string(one["mapName"]);
+
+								if (!place.empty())
+									say = "Go to " + place + ".";
+
+								break;
+							}
+						}
+					}
+
+					rowtext.change_text(say);
+					rowtext.draw(Point<int16_t>(
+						position.x() + PAD + 4, nav.top() - 18));
+				}
+			}
+		}
 		else
+		{
 			draw_list(inter);
+		}
 	}
 
 	void UIQuestLog::draw_list(float inter) const
@@ -403,6 +480,18 @@ namespace ms
 		return Rectangle<int16_t>(at, at + Point<int16_t>(W, H));
 	}
 
+	Rectangle<int16_t> UIQuestLog::navigate_bounds() const
+	{
+		constexpr int16_t W = 96;
+		constexpr int16_t H = 20;
+
+		// To the LEFT of the accept button, on the same line.
+		Point<int16_t> at(position.x() + width() - 88 - PAD - W - 6,
+			position.y() + height() - H - PAD);
+
+		return Rectangle<int16_t>(at, at + Point<int16_t>(W, H));
+	}
+
 	Rectangle<int16_t> UIQuestLog::action_bounds() const
 	{
 		constexpr int16_t W = 88;
@@ -447,6 +536,35 @@ namespace ms
 
 	Cursor::State UIQuestLog::send_cursor(bool clicking, Point<int16_t> cursorpos)
 	{
+		// NAVIGATE, before the rows below get a look at the press.
+		if (clicking && showing_detail() && navigate_bounds().contains(cursorpos))
+		{
+			// The NPC the quest wants. Requirement set 0 is what STARTS it and
+			// 1 is what FINISHES it, so an accepted quest points at whoever
+			// takes it back rather than at whoever handed it out.
+			const QuestData& data = QuestData::get(opened);
+			bool started = questlog.is_started(opened);
+
+			int32_t who = started ? data.to_finish().npc : data.to_start().npc;
+
+			// Some quests name nobody on one side - a kill-ten-of-these has
+			// no giver in its finish set. Fall back rather than point at 0.
+			if (who == 0)
+				who = started ? data.to_start().npc : data.to_finish().npc;
+
+			// One line, on the press, so "nothing happens" can be told apart
+			// from "the quest names nobody" and from "he is on another map".
+			//
+			//   adb logcat -s HeavenClient | grep navigate
+			printf("[ ] navigate: quest %d started=%d npc=%d\n",
+				static_cast<int>(opened), started ? 1 : 0,
+				static_cast<int>(who));
+
+			QuestTracker::get().track(opened, who);
+
+			return Cursor::State::IDLE;
+		}
+
 		if (!showing_detail() && static_cast<int16_t>(listed.size()) > rows_shown())
 		{
 			Cursor::State state = slider.send_cursor(cursorpos - position, clicking);

@@ -45,6 +45,13 @@ namespace ms
 		void draw(float inter) const override;
 		void update() override;
 
+		// A WAY TO SHUT IT.
+		//
+		// This is a permanent overlay on the top screen with no close box of
+		// its own, so on a single-screen build - the RP5, which has no lower
+		// panel to move it to - there was no way to get rid of it at all.
+		Cursor::State send_cursor(bool clicked, Point<int16_t> cursorpos) override;
+
 		UIElement::Type get_type() const override;
 
 	private:
@@ -70,6 +77,8 @@ namespace ms
 		static constexpr int16_t TITLE_H = 20;
 		static constexpr int16_t NAME_H = 17;
 		static constexpr int16_t ROW_H = 15;
+
+		Rectangle<int16_t> close_box() const;
 
 		std::vector<Entry> entries;
 

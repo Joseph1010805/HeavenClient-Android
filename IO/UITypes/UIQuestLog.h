@@ -94,6 +94,11 @@ namespace ms
 		Rectangle<int16_t> back_bounds() const;
 		Rectangle<int16_t> action_bounds() const;
 
+		// FOLLOW THIS ONE. Sits beside the accept/hand-in button on a quest's
+		// own page, on available and in-progress quests alike - "where is he"
+		// is the same question whether or not you have taken the job yet.
+		Rectangle<int16_t> navigate_bounds() const;
+
 		int16_t width() const;
 		int16_t height() const;
 		int16_t rows_shown() const;

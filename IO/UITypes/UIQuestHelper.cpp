@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIQuestHelper.h"
 
+#include "../../Graphics/GraphicsGL.h"
+
 #include "../../Data/QuestData.h"
 #include "../../Gameplay/Stage.h"
 #include "../../Graphics/Geometry.h"
@@ -109,6 +111,29 @@ namespace ms
 		dimension = Point<int16_t>(WIDTH, entries.empty() ? 0 : h);
 	}
 
+	Rectangle<int16_t> UIQuestHelper::close_box() const
+	{
+		// Top right of the plate, a thumb wide - this is tapped on a handheld,
+		// not clicked.
+		constexpr int16_t S = 22;
+
+		return Rectangle<int16_t>(
+			position + Point<int16_t>(WIDTH - S - 6, 4),
+			position + Point<int16_t>(WIDTH - 6, 4 + S));
+	}
+
+	Cursor::State UIQuestHelper::send_cursor(bool clicked, Point<int16_t> cursorpos)
+	{
+		if (clicked && !entries.empty() && close_box().contains(cursorpos))
+		{
+			deactivate();
+
+			return Cursor::State::IDLE;
+		}
+
+		return UIDragElement::send_cursor(clicked, cursorpos);
+	}
+
 	void UIQuestHelper::draw(float inter) const
 	{
 		if (entries.empty())
@@ -129,6 +154,17 @@ namespace ms
 
 		title.change_text("Quests");
 		title.draw(tl + Point<int16_t>(10, top_h + 1));
+
+		// The close box, drawn rather than built from artwork - there is no
+		// button in the game's files that belongs on a plate this size.
+		Rectangle<int16_t> shut = close_box();
+
+		GraphicsGL::get().drawrectangle(
+			shut.left(), shut.top(), shut.width(), shut.height(),
+			0.55f, 0.16f, 0.16f, 0.85f);
+
+		title.change_text("X");
+		title.draw(Point<int16_t>(shut.left() + 7, shut.top() + 1));
 
 		static const ColorBox divider(WIDTH - 10, 1, Color::Name::WHITE, 0.7f);
 		divider.draw(DrawArgument(tl + Point<int16_t>(5, top_h + TITLE_H)));

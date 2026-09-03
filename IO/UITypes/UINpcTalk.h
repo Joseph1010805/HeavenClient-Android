@@ -113,6 +113,10 @@ namespace ms
 		// `clip` is the vertical span of the box interior - rows outside it are
 		// not drawn and are not made clickable, which is what keeps a long menu
 		// inside its own frame.
+		// The pictures a `#v<id>#` macro asked for, painted into the squares
+		// the layout reserved. See the definition.
+		void draw_inline_icons(Point<int16_t> origin, Range<int16_t> clip) const;
+
 		int16_t draw_selections(Point<int16_t> at, Range<int16_t> clip) const;
 
 		// How tall the choices are altogether. Measured rather than guessed,
@@ -134,6 +138,32 @@ namespace ms
 
 		mutable std::vector<Selection> selections;
 		int32_t hovered_selection;
+
+		// ONE PRESS MUST NOT ANSWER TWO PAGES.
+		//
+		// A stylus tap is held down across several frames. Answering a choice
+		// sends the reply at once, and the next page can arrive and be on
+		// screen while the same tap is STILL down - so the very next frame
+		// counts it again, against a question the player has not read.
+		//
+		// Set false whenever a new message arrives, and true again only once
+		// the pointer has been seen up. Until then nothing here is clickable,
+		// which makes a press belong to exactly one page.
+		bool saw_release = true;
+
+		// A SECOND GUARD THAT DOES NOT DEPEND ON SEEING THE RELEASE.
+		//
+		// `saw_release` needs the pointer to come up ON this window. A thumb
+		// that lifts a little to one side, or a stylus that skips across the
+		// edge, never delivers that - and then a press held across the reply
+		// can still land on the page that replaced it.
+		//
+		// So a new page is also DEAF for a moment. Counted in frames, short
+		// enough that nobody waiting to press feels it and long enough to
+		// outlast the tap that opened the page.
+		static constexpr int16_t SETTLE_FRAMES = 10;
+
+		int16_t settle = 0;
 
 		static constexpr int16_t MAX_HEIGHT = 248;
 

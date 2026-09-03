@@ -832,7 +832,16 @@ namespace ms
 
 		while (offset < length)
 		{
-			size_t last = text.find_first_of(" \\#", offset + 1);
+			// A REAL newline is a token boundary too.
+			//
+			// This used to split on space, backslash and hash only, because
+			// the game's own data writes a line break as the two CHARACTERS
+			// backslash and 'n'. A quest script does not: `"\r\n"` in
+			// JavaScript is a real 0x0D 0x0A by the time the server sends it,
+			// and a real newline that is not a delimiter ends up buried
+			// inside a word where nothing looks at it - so it was drawn as a
+			// missing glyph. That is the "??" in Kizan's reward list.
+			size_t last = text.find_first_of(" \\#\n\r", offset + 1);
 
 			if (last == std::string::npos)
 				last = length;
@@ -870,10 +879,120 @@ namespace ms
 		size_t skip = 0;
 		bool linebreak = false;
 
+		// AN INLINE PICTURE - `#v<id>#`, `#i<id>#`, `#q<id>#`, `#s<id>#`.
+		//
+		// The tokeniser splits on '#', so this token is "#v2010000" and the
+		// closing '#' arrives as the next one. A square is reserved here and
+		// the id recorded; the bitmap is painted by whoever owns the text -
+		// this class knows about glyphs and has no business opening Item.nx.
+		//
+		// Ported from OpenStory. Its sizing note is worth keeping: the box is
+		// kept near the font's line height rather than a true 32px icon,
+		// because a taller box pushes the picture up into the line above and
+		// it stops reading as part of the sentence.
+		if (formatted && first + 2 <= last && text[first] == '#'
+			&& (text[first + 1] == 'v' || text[first + 1] == 'i'
+				|| text[first + 1] == 'q' || text[first + 1] == 's'))
+		{
+			constexpr int16_t ICON_W = 14;
+
+			int32_t item_id = 0;
+
+			try
+			{
+				if (last > first + 2)
+					item_id = std::stoi(std::string(text + first + 2, text + last));
+			}
+			catch (...)
+			{
+				// `#f<path>#` and anything else whose payload is not a number
+				// lands here. It reserves nothing and draws nothing, which is
+				// right: there is no id to look a picture up by.
+				item_id = 0;
+			}
+
+			Text::Layout::ImageKind kind = Text::Layout::ImageKind::ITEM;
+
+			switch (text[first + 1])
+			{
+			case 'q': kind = Text::Layout::ImageKind::QUEST; break;
+			case 's': kind = Text::Layout::ImageKind::SKILL; break;
+			default: break;
+			}
+
+			// Wrap first if the picture would run off the line, closing the
+			// word in flight before the line is reset.
+			if (ax > 0 && ax + ICON_W > maxwidth)
+			{
+				add_word(prev, first, last_font, last_color);
+				add_line();
+
+				endy = ay;
+				ax = 0;
+				ay += font.linespace();
+
+				if (lines.size() > 0)
+					ay -= line_adj;
+			}
+			else
+			{
+				add_word(prev, first, last_font, last_color);
+			}
+
+			int16_t before = ax;
+
+			if (item_id > 0)
+			{
+				Text::Layout::Image img;
+
+				// Its BOTTOM on the text baseline, so it sits across from the
+				// words rather than floating above them.
+				img.pos = Point<int16_t>(before, ay - ICON_W);
+				img.item_id = item_id;
+				img.size = ICON_W;
+				img.kind = kind;
+
+				images.push_back(img);
+			}
+
+			ax += ICON_W;
+
+			if (width < ax)
+				width = ax;
+
+			// The macro's own bytes get placeholder advances so that a
+			// byte-to-x lookup stays defined. They are in no word, so nothing
+			// draws them as glyphs.
+			for (size_t b = first; b < last; b++)
+				advances.push_back(before);
+
+			return last;
+		}
+
 		if (formatted)
 		{
 			switch (text[first])
 			{
+			// A REAL line feed, as opposed to the two-character "\n" below.
+			//
+			// Both forms reach this client: the game's own data spells the
+			// break out in text, while anything coming from a quest script
+			// sends the actual control character. Only the spelled-out form
+			// was understood, so script text showed a '?' wherever a line
+			// should have started.
+			case '\n':
+				linebreak = true;
+				skip++;
+				break;
+
+			// A REAL carriage return, dropped rather than broken on. It only
+			// ever arrives as CR LF, and the LF above does the breaking - so
+			// treating this as a break too would open a blank line between
+			// every pair.
+			case '\r':
+				skip++;
+				break;
+
 			case '\\':
 				if (first + 1 < last)
 				{
@@ -1002,7 +1121,7 @@ namespace ms
 
 		advances.push_back(ax);
 
-		return Text::Layout(lines, advances, width, ay, ax, endy);
+		return Text::Layout(lines, advances, images, width, ay, ax, endy);
 	}
 
 	void GraphicsGL::LayoutBuilder::add_word(size_t word_first, size_t word_last, Text::Font word_font, Color::Name word_color)

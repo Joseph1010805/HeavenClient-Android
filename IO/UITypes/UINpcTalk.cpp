@@ -19,6 +19,8 @@
 
 #include "../UI.h"
 
+#include "../../Data/ItemData.h"
+
 #include "../Components/MapleButton.h"
 #include "../Gameplay/Stage.h"
 
@@ -28,6 +30,31 @@
 
 namespace ms
 {
+	// Where the first line sits, measured down from the frame's origin. Used
+	// by draw() to place the body and by the sizing to work out how big a box
+	// that body needs - they must agree, so there is one number.
+	constexpr int16_t BODY_TOP = 19;
+
+	// A CHOICE IS A BUTTON, NOT A LINE OF TEXT.
+	//
+	// These used to be bare labels, and the hitbox was the text itself - as
+	// tall as the glyphs and only as wide as the words happened to be. On a
+	// handheld held at arm's length, with a stylus, "Magician - Ellinia" is a
+	// 16-pixel-tall target and "No" is barely there at all.
+	//
+	// So each one is drawn as a filled bar across the body: a fixed height a
+	// thumb can find, the full width whatever the wording, and the SAME gap
+	// between every pair so the eye can count them.
+	constexpr int16_t ROW_H = 51;
+	constexpr int16_t ROW_GAP = 6;
+
+	// How far the bar runs. The body starts 166 in and the frame's inner edge
+	// is a little under 500, so this fills it without touching the border.
+	constexpr int16_t ROW_W = 316;
+
+	// How much larger the frame's own buttons are drawn than their artwork.
+	constexpr float BUTTON_SCALE = 1.5f;
+
 	UINpcTalk::UINpcTalk() : offset(0), scroll(0), content_height(0), unitrows(0), rowmax(0), show_slider(false), draw_text(false), formatted_text(""), formatted_text_pos(0), timestep(0), hovered_selection(-1)
 	{
 		nl::node UIWindow2 = nl::nx::ui["UIWindow2.img"];
@@ -61,6 +88,19 @@ namespace ms
 		buttons[Buttons::QSTART] = std::make_unique<MapleButton>(UtilDlgEx["BtQStart"]);
 		buttons[Buttons::QYES] = std::make_unique<MapleButton>(UtilDlgEx["BtQYes"]);
 		buttons[Buttons::YES] = std::make_unique<MapleButton>(UtilDlgEx["BtYes"]);
+
+		// BIG ENOUGH FOR A THUMB.
+		//
+		// NEXT, OK, YES, NO and the rest are drawn from artwork made for a
+		// mouse pointer on a desktop monitor - about 60x20. On a handheld held
+		// at arm's length, answered with a stylus or a thumb, that is a hard
+		// target to hit and an easy one to miss onto whatever is beside it.
+		//
+		// Scaled rather than redrawn: Button::set_scale is honoured by
+		// MapleButton's draw AND by its bounds, so the picture and the press
+		// area grow together. Half again as big, matching the choice bars.
+		for (auto& button : buttons)
+			button.second->set_scale(BUTTON_SCALE);
 
 		name = Text(Text::Font::A11M, Text::Alignment::CENTER, Color::Name::WHITE);
 
@@ -110,22 +150,130 @@ namespace ms
 		int16_t clip_top = position.y() + top.height() - 1;
 		Range<int16_t> clip(clip_top, clip_top + height - 18);
 
+		// ONE RULE FOR EVERY MESSAGE, SCROLLING OR NOT.
+		//
+		// There used to be two branches here and they disagreed about where
+		// the body starts. The scrolling one began at 19 and clipped; the
+		// other began at `48 - (height - min_height)` and did not clip at all.
+		//
+		// That second expression moves the text UP by however much the box
+		// GREW - and the box grows to fit its content. So the more there was
+		// to read, the further above the frame it was drawn: Robin's quiz put
+		// its question out over the trees with only the answers left inside.
+		// It was never wrong for a short line, which is why it survived.
+		//
+		// The frame's top edge is a fixed place. The body starts just inside
+		// it, always, and `scroll` is the only thing that moves it - so text
+		// cannot leave the window, and when there is more than fits, the
+		// slider is how you reach the rest.
+		Point<int16_t> body = position + Point<int16_t>(166, BODY_TOP - scroll);
+
+		text.draw(body, clip);
+		draw_inline_icons(body, clip);
+		draw_selections(body + Point<int16_t>(0, text.height()), clip);
+
 		if (show_slider)
 		{
-			Point<int16_t> body = position + Point<int16_t>(162, 19 - scroll);
-
-			text.draw(body, clip);
-			draw_selections(body + Point<int16_t>(4, text.height()), clip);
-
 			slider.draw(position);
 		}
-		else
-		{
-			int16_t y_adj = height - min_height;
-			Point<int16_t> body = position + Point<int16_t>(166, 48 - y_adj);
+	}
 
-			text.draw(body);
-			draw_selections(body + Point<int16_t>(0, text.height()), clip);
+	// THE PICTURES THE SENTENCE ASKED FOR.
+	//
+	// The layout reserved a square wherever a `#v<id>#` and friends appeared
+	// and recorded what belongs there; this opens the right NX file and
+	// stamps the bitmap into that square. Split this way because the layout
+	// knows about glyphs and nothing else, and should stay that way.
+	//
+	// Ported from OpenStory's draw_inline_icons.
+	void UINpcTalk::draw_inline_icons(Point<int16_t> origin,
+		Range<int16_t> clip) const
+	{
+		for (const Text::Layout::Image& img : text.images())
+		{
+			if (img.item_id <= 0)
+				continue;
+
+			Texture tex;
+
+			switch (img.kind)
+			{
+			case Text::Layout::ImageKind::ITEM:
+				// The small inventory icon, NOT iconRaw - that is the full
+				// size artwork and dwarfs the slot.
+				tex = ItemData::get(img.item_id).get_icon(false);
+				break;
+			case Text::Layout::ImageKind::QUEST:
+			{
+				nl::node node = nl::nx::ui["UIWindow.img"]["QuestIcon"]
+					[std::to_string(img.item_id)];
+
+				if (node)
+					tex = Texture(node);
+
+				break;
+			}
+			case Text::Layout::ImageKind::SKILL:
+			{
+				// A skill icon is filed under its job, and the job is the
+				// leading digits of the skill id.
+				std::string job = std::to_string(img.item_id / 10000);
+
+				while (job.size() < 3)
+					job.insert(0, 1, '0');
+
+				nl::node node = nl::nx::skill[job + ".img"]["skill"]
+					[std::to_string(img.item_id)]["icon"];
+
+				if (node)
+					tex = Texture(node);
+
+				break;
+			}
+			default:
+				break;
+			}
+
+			if (!tex.is_valid())
+				continue;
+
+			Point<int16_t> size = tex.get_dimensions();
+
+			if (size.x() <= 0 || size.y() <= 0)
+				continue;
+
+			// Icons come in several sizes and the slot is one size, so the
+			// bitmap is scaled to fit rather than allowed to spill over the
+			// words around it.
+			float scale = 1.0f;
+			int16_t largest = std::max(size.x(), size.y());
+
+			if (largest > img.size)
+				scale = static_cast<float>(img.size) / static_cast<float>(largest);
+
+			int16_t w = static_cast<int16_t>(size.x() * scale);
+			int16_t h = static_cast<int16_t>(size.y() * scale);
+
+			Point<int16_t> slot = origin + img.pos;
+
+			Point<int16_t> corner(
+				static_cast<int16_t>(slot.x() + (img.size - w) / 2),
+				static_cast<int16_t>(slot.y() + (img.size - h) / 2));
+
+			// Anything not wholly inside the frame is skipped, so a scrolled
+			// line cannot paint a picture over the border.
+			if (corner.y() < clip.first() || corner.y() + h > clip.second())
+				continue;
+
+			// draw() pins the texture's ORIGIN at the position given and
+			// scales about it, so the scaled origin is added back to land the
+			// bitmap's top-left corner exactly where it belongs.
+			Point<int16_t> beginning = tex.get_origin();
+
+			tex.draw(DrawArgument(Point<int16_t>(
+				static_cast<int16_t>(corner.x() + beginning.x() * scale),
+				static_cast<int16_t>(corner.y() + beginning.y() * scale)),
+				scale, scale, 1.0f));
 		}
 	}
 
@@ -136,14 +284,12 @@ namespace ms
 		if (selections.empty())
 			return 0;
 
-		constexpr int16_t ROW_GAP = 2;
+		// Every row is the same height now, so this is arithmetic rather than
+		// a walk - and it CANNOT disagree with what draw_selections lays out,
+		// which is how rows used to end up unreachable below the frame.
+		int16_t rows = static_cast<int16_t>(selections.size());
 
-		int16_t total = 0;
-
-		for (const Selection& sel : selections)
-			total = static_cast<int16_t>(total + sel.label.height() + ROW_GAP);
-
-		return static_cast<int16_t>(total + ROW_GAP);
+		return static_cast<int16_t>(ROW_GAP + rows * (ROW_H + ROW_GAP));
 	}
 
 	int16_t UINpcTalk::draw_selections(Point<int16_t> at, Range<int16_t> clip) const
@@ -151,43 +297,49 @@ namespace ms
 		if (selections.empty())
 			return at.y();
 
-		constexpr int16_t ROW_GAP = 2;
-		constexpr int16_t ROW_PAD = 1;
-
-		int16_t y = at.y() + ROW_GAP;
+		int16_t y = static_cast<int16_t>(at.y() + ROW_GAP);
 
 		for (size_t i = 0; i < selections.size(); i++)
 		{
 			const Selection& sel = selections[i];
-			int16_t row_h = sel.label.height();
 
 			// Off the top or the bottom of the frame: not drawn, and NOT
 			// given a hitbox. An empty rectangle can contain nothing, so a row
 			// scrolled out of sight cannot be clicked through the chrome.
-			if (y + row_h < clip.first() || y > clip.second())
+			if (y + ROW_H < clip.first() || y > clip.second())
 			{
 				sel.bounds = Rectangle<int16_t>();
-				y = static_cast<int16_t>(y + row_h + ROW_GAP);
+				y = static_cast<int16_t>(y + ROW_H + ROW_GAP);
 				continue;
 			}
 
+			// THE WHOLE BAR IS THE TARGET, not the words on it.
 			sel.bounds = Rectangle<int16_t>(
 				Point<int16_t>(at.x(), y),
-				Point<int16_t>(at.x() + sel.label.width(), y + row_h)
-			);
+				Point<int16_t>(static_cast<int16_t>(at.x() + ROW_W),
+					static_cast<int16_t>(y + ROW_H)));
 
-			if (static_cast<int32_t>(i) == hovered_selection)
-			{
-				ColorBox highlight(
-					static_cast<int16_t>(sel.label.width() + ROW_PAD * 2),
-					row_h, Color::Name::LIGHTGREY, 0.45f);
+			bool lit = (static_cast<int32_t>(i) == hovered_selection);
 
-				highlight.draw(DrawArgument(Point<int16_t>(at.x() - ROW_PAD, y)));
-			}
+			GraphicsGL::get().drawrectangle(at.x(), y, ROW_W, ROW_H,
+				lit ? 0.78f : 0.90f, lit ? 0.84f : 0.92f,
+				lit ? 0.95f : 0.96f, 1.0f);
 
-			sel.label.draw(Point<int16_t>(at.x(), y));
+			// A border, so a row reads as something to press rather than as a
+			// tinted patch of the message area.
+			GraphicsGL::get().drawrectangle(at.x(), y, ROW_W, 1,
+				0.55f, 0.60f, 0.70f, 1.0f);
+			GraphicsGL::get().drawrectangle(at.x(),
+				static_cast<int16_t>(y + ROW_H - 1), ROW_W, 1,
+				0.55f, 0.60f, 0.70f, 1.0f);
 
-			y = static_cast<int16_t>(y + row_h + ROW_GAP);
+			// Centred in the bar rather than sitting on its top edge.
+			int16_t text_y = static_cast<int16_t>(
+				y + (ROW_H - sel.label.height()) / 2);
+
+			sel.label.draw(Point<int16_t>(static_cast<int16_t>(at.x() + 10), text_y));
+
+			y = static_cast<int16_t>(y + ROW_H + ROW_GAP);
 		}
 
 		return y;
@@ -195,6 +347,9 @@ namespace ms
 
 	void UINpcTalk::update()
 	{
+		if (settle > 0)
+			settle--;
+
 		UIElement::update();
 
 		if (draw_text)
@@ -252,6 +407,9 @@ namespace ms
 				NpcTalkMorePacket(wire_type, -1).dispatch();
 				break;
 			case Buttons::NEXT:
+			// OK IS A FORWARD BUTTON, and on a prev-only page it is the only
+			// one - see the note where the buttons are activated.
+			case Buttons::OK:
 				NpcTalkMorePacket(wire_type, 1).dispatch();
 				break;
 			case Buttons::PREV:
@@ -346,6 +504,15 @@ namespace ms
 	{
 		Point<int16_t> cursor_relative = cursorpos - position;
 
+		// The tap that answered the LAST page is often still down when this
+		// one appears. Nothing counts until the pointer has been let go.
+		if (!clicked)
+		{
+			saw_release = true;
+		}
+
+		bool may_click = clicked && saw_release && settle <= 0;
+
 		if (show_slider && slider.isenabled())
 			if (Cursor::State sstate = slider.send_cursor(cursor_relative, clicked))
 				return sstate;
@@ -364,10 +531,11 @@ namespace ms
 
 				hovered_selection = static_cast<int32_t>(i);
 
-				if (clicked)
+				if (may_click)
 				{
 					int32_t chosen = selections[i].index;
 
+					saw_release = false;
 					deactivate();
 					NpcTalkMorePacket(chosen).dispatch();
 
@@ -378,7 +546,7 @@ namespace ms
 			}
 		}
 
-		Cursor::State estate = UIElement::send_cursor(clicked, cursorpos);
+		Cursor::State estate = UIElement::send_cursor(may_click, cursorpos);
 
 		if (estate == Cursor::State::CLICKING && clicked && draw_text)
 		{
@@ -588,8 +756,18 @@ namespace ms
 		{
 			if (tx[i] != '#' || i + 1 >= tx.size())
 			{
-				// A literal carriage return would draw as a stray glyph.
-				if (tx[i] != '\r')
+				// EVERY control character, not just carriage return.
+				//
+				// The font has no glyph for any of them and draws a box, and the
+				// server sends more than a carriage return - nulls and the odd
+				// vertical tab turn up in quest text too. A newline survives
+				// because the layout understands it, and so does a tab.
+				//
+				// Written for carriage return alone, this left Roger's reward
+				// page showing two boxes where the blank line should have been.
+				unsigned char raw = static_cast<unsigned char>(tx[i]);
+
+				if (raw >= 0x20 || tx[i] == '\n' || tx[i] == '\t')
 					emit(std::string(1, tx[i]));
 
 				i++;
@@ -599,7 +777,7 @@ namespace ms
 			char code = tx[i + 1];
 
 			// Codes that read a number up to a closing '#'.
-			if (code == 'p' || code == 't' || code == 'm' || code == 'o' || code == 'i')
+			if (code == 'p' || code == 't' || code == 'z' || code == 'm' || code == 'o')
 			{
 				size_t close = tx.find('#', i + 2);
 
@@ -631,24 +809,70 @@ namespace ms
 				case 'm':
 					emit(nl::nx::string["Map.img"][std::to_string(id)]["mapName"]);
 					break;
-				default:
-					// Items live in one of several files depending on kind;
-					// the consumables one covers what quests hand out.
-					emit(nl::nx::string["Consume.img"][std::to_string(id)]["name"]);
+				case 'o':
+					emit(nl::nx::string["Mob.img"][std::to_string(id)]["name"]);
 					break;
+				default:
+				{
+					// ITEM NAMES THROUGH ItemData, not one string file.
+					//
+					// This read Consume.img directly, so it could name the
+					// potions a quest hands out and drew a blank for an
+					// equip, a scroll or an etc item - which is most of what
+					// quests hand out. ItemData already knows which file an
+					// id lives in.
+					const ItemData& item = ItemData::get(id);
+
+					emit(item.is_valid()
+						? item.get_name()
+						: ("Item " + std::to_string(id)));
+
+					break;
+				}
 				}
 
 				i = close + 1;
 				continue;
 			}
 
-			// A choice opens with #L<n># and closes with #l.
+			// A choice opens with #L<n># and closes with #l - EXCEPT WHEN IT
+			// DOES NOT.
+			//
+			// Quest 1036 lists four jobs and closes only the first two:
+			//
+			//   #L0# Warrior - Perion #l
+			//   #L1# Magician - Ellinia #l
+			//   #L2# Bowman - Henesys          <- no #l
+			//   #L3# Thief - Nautilus          <- no #l
+			//
+			// Opening a choice used to clear the buffer, so "Bowman -
+			// Henesys" was thrown away the instant #L3 arrived, and only
+			// three rows were drawn. The end-of-message flush saved the last
+			// one, which is why exactly one went missing rather than two.
+			//
+			// That is far worse than a missing line. The answer to this
+			// question is index 3, so the third row on screen sent 2 - and
+			// every answer was wrong, on a quiz that cannot be passed.
+			//
+			// A new choice therefore CLOSES the one before it. The next
+			// marker is as good an end as #l, and this data proves the game
+			// treated it that way.
 			if (code == 'L')
 			{
 				size_t close = tx.find('#', i + 2);
 
 				if (close != std::string::npos)
 				{
+					if (in_selection && !selection_text.empty())
+					{
+						Selection pending;
+						pending.index = selection_index;
+						pending.label = Text(Text::Font::A13M, Text::Alignment::LEFT,
+							Color::Name::BLUE, selection_text);
+
+						selections.push_back(std::move(pending));
+					}
+
 					try
 					{
 						selection_index = std::stoi(tx.substr(i + 2, close - i - 2));
@@ -671,7 +895,7 @@ namespace ms
 				{
 					Selection sel;
 					sel.index = selection_index;
-					sel.label = Text(Text::Font::A12M, Text::Alignment::LEFT,
+					sel.label = Text(Text::Font::A13M, Text::Alignment::LEFT,
 						Color::Name::BLUE, selection_text);
 					selections.push_back(std::move(sel));
 
@@ -693,8 +917,50 @@ namespace ms
 				continue;
 			}
 
+			// THE INLINE PICTURES.
+			//
+			// #v and #i are item icons, #q a quest icon, #s a skill icon.
+			// These are passed through UNCHANGED so the layout sees the macro
+			// and reserves a square for it - see LayoutBuilder::add - and
+			// draw_inline_icons paints the bitmap into that square.
+			//
+			// A picture cannot be emitted as text, so this is the one macro
+			// kind that survives formatting.
+			if (code == 'v' || code == 'i' || code == 'q' || code == 's')
+			{
+				size_t close = tx.find('#', i + 2);
+
+				if (close != std::string::npos)
+				{
+					emit(tx.substr(i, close - i + 1));
+					i = close + 1;
+					continue;
+				}
+			}
+
+			// #f<path># is a bitmap named by NX PATH, not by id - Roger's
+			// reward banner is "#fUI/UIWindow.img/QuestIcon/4/0#". There is
+			// no number to reserve a slot against, so it is dropped whole.
+			// A gap is honest; the path spilled into the sentence was not.
+			if (code == 'f')
+			{
+				size_t close = tx.find('#', i + 2);
+
+				if (close != std::string::npos)
+				{
+					i = close + 1;
+					continue;
+				}
+			}
+
 			// Colour and style switches, which carry no text of their own.
-			if (std::string("bkrgdenfvzc").find(code) != std::string::npos)
+			//
+			// ⚠ f, v AND z WERE IN THIS LIST AND ARE NOT COLOURS. Treated as
+			// two-character colour codes, only the "#v" was eaten and the
+			// rest spilled into the dialogue as text. Roger's reward page
+			// read "...my friend!??UI/UIWindow.img/QuestIcon/4/0??2010000 3
+			// Apple" - the path, the raw ids and all.
+			if (std::string("bkrgdenc").find(code) != std::string::npos)
 			{
 				i += 2;
 				continue;
@@ -712,7 +978,7 @@ namespace ms
 		{
 			Selection sel;
 			sel.index = selection_index;
-			sel.label = Text(Text::Font::A12M, Text::Alignment::LEFT,
+			sel.label = Text(Text::Font::A13M, Text::Alignment::LEFT,
 				Color::Name::BLUE, selection_text);
 			selections.push_back(std::move(sel));
 		}
@@ -728,9 +994,22 @@ namespace ms
 		timestep = 0;
 		draw_text = true;
 		formatted_text_pos = 0;
+
+		// A NEW PAGE DEMANDS A NEW PRESS. Whatever tap brought this message up
+		// may still be down; it answered the last question and must not
+		// answer this one too.
+		saw_release = false;
+		settle = SETTLE_FRAMES;
 		formatted_text = format_text(tx, npcid);
 
-		text = Text(Text::Font::A12M, Text::Alignment::LEFT, Color::Name::DARKGREY, formatted_text, 320);
+		// A SIZE UP. A13M, not A12M.
+		//
+		// This is read at arm's length on a handheld, by children, and it is
+		// the one thing in the window that has to be read rather than
+		// recognised. The wrap width goes with it: the same 320 at a larger
+		// face would fit fewer words per line and make the box taller for no
+		// gain, and the frame is 500 wide.
+		text = Text(Text::Font::A13M, Text::Alignment::LEFT, Color::Name::DARKGREY, formatted_text, 350);
 
 		int16_t text_height = text.height();
 
@@ -763,14 +1042,29 @@ namespace ms
 		// exactly where it was asked to go.
 		content_height = static_cast<int16_t>(text_height + selections_height());
 
+		// THE BOX HAS TO BE BIGGER THAN ITS CONTENTS.
+		//
+		// `height` is the FILL between the frame's top and bottom pieces, and
+		// the readable area inside it is smaller still: the body starts
+		// BODY_TOP down from the frame's origin, and draw() holds back the
+		// last 18 pixels for the frame's lower edge.
+		//
+		// Sizing the box to the text alone therefore made it a line and a bit
+		// too short every time, and the last row was clipped away - which
+		// looks exactly like the server having sent less than it did. So the
+		// chrome is measured and added, from the same numbers draw() uses
+		// rather than a constant that has to be kept in step by hand.
+		int16_t chrome = static_cast<int16_t>(BODY_TOP + 19 - top.height());
+		int16_t needed = static_cast<int16_t>(content_height + chrome);
+
 		height = min_height;
 		show_slider = false;
 		scroll = 0;
 		offset = 0;
 
-		if (content_height > height)
+		if (needed > height)
 		{
-			if (content_height > MAX_HEIGHT)
+			if (needed > MAX_HEIGHT)
 			{
 				height = MAX_HEIGHT;
 				show_slider = true;
@@ -778,7 +1072,10 @@ namespace ms
 				// In pixels now rather than 400 at a time. That step was fine
 				// for a wall of text, where a screenful is the useful unit, and
 				// useless for a list where one notch has to land between rows.
-				int16_t overflow = static_cast<int16_t>(content_height - height + 20);
+				// What cannot be seen at once, in pixels. Measured against
+				// the readable area rather than the box, or the last rows
+				// stay out of reach no matter how far the slider is dragged.
+				int16_t overflow = static_cast<int16_t>(needed - height + 20);
 
 				unitrows = 1;
 				rowmax = static_cast<int16_t>(overflow / SCROLL_STEP + 1);
@@ -788,7 +1085,7 @@ namespace ms
 			}
 			else
 			{
-				height = content_height;
+				height = needed;
 			}
 		}
 
@@ -799,6 +1096,34 @@ namespace ms
 		}
 
 		int16_t y_cord = height + 48;
+
+		// TWO BUTTONS THAT CANNOT TOUCH.
+		//
+		// The pairs were placed 65 pixels apart, which was measured when the
+		// artwork was drawn at its own size. Every button in this window is
+		// scaled by BUTTON_SCALE now - they had to be, for a thumb - so 65 is
+		// narrower than the buttons themselves and Accept sat across Decline.
+		//
+		// Asked of the button rather than worked out from the scale: bounds()
+		// already honours set_scale, so this stays right if the scale changes
+		// again. Laid out from the RIGHT EDGE, where the single OK sits, so a
+		// wider pair grows leftward into empty space instead of off the end
+		// of the window.
+		auto place_pair = [&](Buttons first, Buttons second, int16_t y)
+		{
+			constexpr int16_t GAP = 10;
+			constexpr int16_t RIGHT = 471;
+
+			int16_t w = buttons[second]->bounds(Point<int16_t>(0, 0)).width();
+
+			buttons[second]->set_position(Point<int16_t>(RIGHT, y));
+			buttons[second]->set_active(true);
+
+			buttons[first]->set_position(
+				Point<int16_t>(static_cast<int16_t>(RIGHT - w - GAP), y));
+			buttons[first]->set_active(true);
+		};
+
 
 		buttons[Buttons::CLOSE]->set_position(Point<int16_t>(9, y_cord));
 		buttons[Buttons::CLOSE]->set_active(true);
@@ -811,13 +1136,7 @@ namespace ms
 			break;
 		case TalkType::SENDYESNO:
 		{
-			Point<int16_t> yes_position = Point<int16_t>(389, y_cord);
-
-			buttons[Buttons::YES]->set_position(yes_position);
-			buttons[Buttons::YES]->set_active(true);
-
-			buttons[Buttons::NO]->set_position(yes_position + Point<int16_t>(65, 0));
-			buttons[Buttons::NO]->set_active(true);
+			place_pair(Buttons::YES, Buttons::NO, y_cord);
 			break;
 		}
 		// These three had their buttons built in the constructor, wired up in
@@ -834,13 +1153,7 @@ namespace ms
 		// starting where YES sits - rather than new coordinates guessed at.
 		case TalkType::SENDACCEPTDECLINE:
 		{
-			Point<int16_t> pair = Point<int16_t>(389, y_cord);
-
-			buttons[Buttons::QYES]->set_position(pair);
-			buttons[Buttons::QYES]->set_active(true);
-
-			buttons[Buttons::QNO]->set_position(pair + Point<int16_t>(65, 0));
-			buttons[Buttons::QNO]->set_active(true);
+			place_pair(Buttons::QYES, Buttons::QNO, y_cord);
 			break;
 		}
 		case TalkType::SENDNEXT:
@@ -848,18 +1161,31 @@ namespace ms
 			buttons[Buttons::NEXT]->set_active(true);
 			break;
 		case TalkType::SENDPREV:
-			buttons[Buttons::PREV]->set_position(Point<int16_t>(471, y_cord));
-			buttons[Buttons::PREV]->set_active(true);
+		{
+			// A PAGE YOU CAN ONLY GO BACK FROM IS A DEAD END.
+			//
+			// The server marks the last page of a conversation prev-but-not-
+			// next, and this used to render it literally: one Back button and
+			// Close. But the SCRIPT is not finished - its next step is the
+			// one that hands over the reward and completes the quest, and it
+			// only runs on a forward answer (mode 1). There was no button
+			// that sent one.
+			//
+			// Roger's quest 1021 is exactly this. "I will give you a
+			// present", then "this is all I can teach you" with the item list
+			// on it - and then Back, forever, with the potions never handed
+			// over and the quest never completing.
+			//
+			// OpenStory sidesteps it by throwing the prev/next bytes away
+			// entirely and giving every text page a single OK that goes
+			// forward. This keeps Back, which is nicer, and adds the forward
+			// button that has to exist.
+			place_pair(Buttons::PREV, Buttons::OK, y_cord);
 			break;
+		}
 		case TalkType::SENDNEXTPREV:
 		{
-			Point<int16_t> pair = Point<int16_t>(389, y_cord);
-
-			buttons[Buttons::PREV]->set_position(pair);
-			buttons[Buttons::PREV]->set_active(true);
-
-			buttons[Buttons::NEXT]->set_position(pair + Point<int16_t>(65, 0));
-			buttons[Buttons::NEXT]->set_active(true);
+			place_pair(Buttons::PREV, Buttons::NEXT, y_cord);
 			break;
 		}
 		// Left alone deliberately. SIMPLE is a list of clickable text lines
