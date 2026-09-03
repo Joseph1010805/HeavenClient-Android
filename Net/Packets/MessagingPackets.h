@@ -23,6 +23,22 @@ namespace ms
 {
 	// Packet which sends a message to general chat.
 	// Opcode: GENERAL_CHAT(49)
+	// PULL A FACE, and let everyone in the map see it.
+	//
+	// The client could already DRAW an expression on its own character - that
+	// is what CharLook::set_expression does - but never told the server, so
+	// nobody else ever saw one. Both halves are needed: the packet so the
+	// others see it, and the local set so it happens instantly rather than
+	// after a round trip.
+	class FaceExpressionPacket : public OutPacket
+	{
+	public:
+		FaceExpressionPacket(int32_t expression) : OutPacket(OutPacket::Opcode::FACE_EXPRESSION)
+		{
+			write_int(expression);
+		}
+	};
+
 	class GeneralChatPacket : public OutPacket
 	{
 	public:

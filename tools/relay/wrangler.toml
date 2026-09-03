@@ -1,0 +1,25 @@
+# The relay's whole configuration.
+#
+# Deploy once, from any PC, and never touch it again:
+#
+#     npm install -g wrangler
+#     wrangler login
+#     wrangler kv namespace create MAILBOX     <- paste the id below
+#     wrangler deploy
+#
+# It prints a URL like https://localstory-relay.<you>.workers.dev
+# Put that in each device's Settings as `RelayURL` and they can write to each
+# other from anywhere.
+#
+# ⚠ Nothing in the game REQUIRES this. With no relay, or no internet, every
+# local path works exactly as it does now - see worker.js.
+
+name = "localstory-relay"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# The mailbox. Free tier is 100,000 reads and 1,000 writes a day, which for a
+# family sending each other messages is not a limit anybody will meet.
+[[kv_namespaces]]
+binding = "MAILBOX"
+id = "PUT_THE_ID_FROM_WRANGLER_KV_NAMESPACE_CREATE_HERE"

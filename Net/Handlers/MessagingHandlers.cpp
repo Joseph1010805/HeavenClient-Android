@@ -17,6 +17,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 #include "MessagingHandlers.h"
 
+#include "../Util/Silent.h"
+
 #include "../Data/QuestData.h"
 
 #include "../Data/ItemData.h"
@@ -44,7 +46,12 @@ namespace ms
 
 			if (mode2 == -1)
 			{
-				show_status(Color::Name::WHITE, "You can't get anymore items.");
+				// Cosmic's getShowInventoryFull(), which writes 0xFF - the
+				// same byte, read signed. Worth naming the tab: "you can't
+				// get any more items" is puzzling when the bag looks half
+				// empty, because it is the ETC tab that is full and not the
+				// one being looked at.
+				show_status(Color::Name::RED, "That tab of your bag is full.");
 			}
 			else if (mode2 == 0)
 			{
@@ -108,8 +115,36 @@ namespace ms
 
 				show_status(Color::Name::WHITE, "You have gained mesos (" + sign + std::to_string(gain) + ")");
 			}
+			else if (static_cast<uint8_t>(mode2) == 0xFE)
+			{
+				// WHY YOU CANNOT PICK THAT UP.
+				//
+				// Cosmic's showItemUnavailable(). It fires when a drop still
+				// belongs to somebody else - the free-for-all timer has not
+				// run out yet, or it was a party drop - and the player is
+				// stooping over it getting nothing.
+				//
+				// Two trailing ints, both zero, drained so the stream stays
+				// where the next reader expects it.
+				if (recv.length() >= 8)
+				{
+					recv.read_int();
+					recv.read_int();
+				}
+
+				// DELIBERATELY VAGUE, because this one packet covers several
+				// different refusals and the client cannot tell which. The
+				// SERVER says the specific reason alongside it - see
+				// Character.pickupItem - and this is the fallback wording for
+				// any case that has not been given one.
+				show_status(Color::Name::RED, "You cannot pick that up.");
+			}
 			else
 			{
+				// STILL SAID, and still in red, but this is now a real
+				// surprise rather than the ordinary experience of walking
+				// over a drop somebody else can claim. Ported from OpenStory,
+				// which had already worked out what 0xFE and 0xFF are.
 				show_status(Color::Name::RED, "Mode: 0, Mode 2: " + std::to_string(mode2) + " is not handled.");
 			}
 		}
@@ -454,6 +489,26 @@ namespace ms
 					chatbar->send_chatline(message, UIChatbar::LineType::BLUE);
 			}
 		}
+		else if (mode1 == 4) // a pet levelled up
+		{
+			// THREE BYTES, AND THE CATCH-ALL BELOW WANTED SEVEN.
+			//
+			// PacketCreator.showOwnPetLevelUp sends byte(4), byte(0),
+			// byte(index) and nothing else. With no branch for it the message
+			// fell through to "buff effect", which reads a four-byte skill id
+			// out of a packet holding two - and because InPacket::read takes
+			// one byte at a time, it got two of them before running out:
+			//
+			//     Packet Error: Stack underflow at 3, opcode 206
+			//
+			// That aborted the whole packet, so anything travelling behind it
+			// in the same batch was dropped as well. A pet gaining a level is
+			// not a rare event.
+			recv.read_byte(); // always 0
+			recv.read_byte(); // which pet, of the three slots
+
+			Stage::get().get_player().show_effect_id(CharEffect::Id::LEVELUP);
+		}
 		else if (mode1 == 13) // card effect
 		{
 			Stage::get().get_player().show_effect_id(CharEffect::Id::MONSTER_CARD);
@@ -469,6 +524,29 @@ namespace ms
 		}
 		else // Buff effect
 		{
+			// A MODE WE DO NOT KNOW MUST NOT TAKE THE BATCH DOWN WITH IT.
+			//
+			// This is the catch-all, and it assumes four bytes of skill id
+			// are waiting. When they are not, InPacket throws, PacketSwitch
+			// abandons the message, and every packet BEHIND it in the same
+			// read is lost too - so one unhandled effect can drop a map load
+			// or an inventory update, and the symptom appears somewhere else
+			// entirely. That is how the pet level-up above presented.
+			//
+			// Named and skipped instead. The effect goes unshown, which is
+			// worth far less than the rest of the batch.
+			if (recv.length() < sizeof(int32_t))
+			{
+				Silent::report("ShowItemGainInChatHandler",
+					"effect " + std::to_string(static_cast<int32_t>(mode1))
+					+ " carried only " + std::to_string(recv.length())
+					+ " byte(s) - not a buff, and not handled");
+
+				recv.skip(recv.length());
+
+				return;
+			}
+
 			int32_t skillid = recv.read_int();
 
 			// More bytes, but we don't need them
