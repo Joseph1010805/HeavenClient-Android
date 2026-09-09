@@ -25,6 +25,16 @@ namespace ms
 	class Physics
 	{
 	public:
+		// Downward acceleration, in pixels per step per step. Nexon's 2000
+		// px/s^2 over 125 steps/s: 2000 / 125^2. Was 0.14, about 9% heavy.
+		//
+		// Public because anything that LAUNCHES something needs it. A launch
+		// speed on its own says nothing about how far the thing will actually
+		// travel - only `speed^2 / (2 * GRAVFORCE)` does - so a caller that
+		// wants to aim for a height has to be able to see this number rather
+		// than keep its own copy of it and drift.
+		static constexpr double GRAVFORCE = 0.128;
+
 		Physics(nl::node src);
 		Physics();
 

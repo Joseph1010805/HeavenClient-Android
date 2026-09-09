@@ -204,6 +204,19 @@ namespace ms
 			int8_t pic = recv.read_byte();
 			int32_t slots = recv.read_int();
 
+			// WHAT THE SERVER SAID ABOUT PICs, AND HOW MANY SLOTS.
+			//
+			// 0 = no PIC set, 1 = one is set and will be asked for, 2 = this
+			// server does not use them. It decides what the DELETE button
+			// does, and a wrong value here reads as "deleting is broken".
+			// Also a cheap check that the character list parsed to the right
+			// length: a slot count of 3 is right, and a wild one means
+			// parse_charentry drifted and everything after it is nonsense.
+			Silent::report("CharlistHandler",
+				std::to_string(static_cast<int>(charcount)) + " character(s), "
+				"pic mode " + std::to_string(static_cast<int>(pic))
+				+ ", " + std::to_string(slots) + " slots");
+
 			// Remove previous UIs.
 			UI::get().remove(UIElement::Type::LOGINNOTICE);
 			UI::get().remove(UIElement::Type::LOGINWAIT);

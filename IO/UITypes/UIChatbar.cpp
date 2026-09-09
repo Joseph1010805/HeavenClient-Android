@@ -16,6 +16,7 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIChatbar.h"
+#include "../SecondScreen.h"
 
 #include "../Components/MapleButton.h"
 
@@ -26,6 +27,7 @@
 #include "../../Audio/Audio.h"
 
 #include "../../Util/PostBox.h"
+#include "../../Util/Silent.h"
 
 #include "../Net/Packets/InventoryPackets.h"
 #include "../Net/Packets/MessagingPackets.h"
@@ -93,6 +95,28 @@ namespace ms
 	// are the only way to form a party at all.
 	bool UIChatbar::handle_command(const std::string& line)
 	{
+		// ⚠ @bug IS TAKEN HERE AS WELL AS ON THE SERVER.
+		//
+		// The server's @bug writes who and where into ITS log, which is the
+		// half that knows about quests and maps. This half knows what the
+		// CLIENT noticed - every silent refusal, in order, with counts - and
+		// that is the half that has found nearly every fault this month.
+		//
+		// Both run: the line is still sent on afterwards, so the two reports
+		// are written within a second of each other and can be read together.
+		if (line.size() >= 4 && lowercase(line.substr(0, 4)) == "@bug")
+		{
+			std::string note = trim(line.substr(4));
+			std::string path = Silent::snapshot(note);
+
+			send_chatline(path.empty()
+				? std::string("Could not write the report.")
+				: "Wrote " + path,
+				UIChatbar::LineType::YELLOW);
+
+			return false;   // and let the server have it too
+		}
+
 		if (line.empty() || line[0] != '/')
 			return false;
 
@@ -520,7 +544,18 @@ namespace ms
 					// identical in all three cases - the live balloon, the
 					// pause that decides you have finished - and only the
 					// destination differs.
-					if (!dictate_to.empty())
+					if (dictate_gather)
+					{
+						// ⚠ GATHERED, NOT SENT. The megaphone page sends once,
+						// on its own button, with the banner and the face it
+						// was told to use - so a finished sentence goes into
+						// its box and waits there. Speaking twice adds to it.
+						//
+						// dictate_gather is false for every other destination, so
+						// nothing else can take this path by accident.
+						SecondScreen::megaphone_heard(said);
+					}
+					else if (!dictate_to.empty())
 					{
 						// ONE PERSON, WHEREVER THEY ARE. Queued rather than
 						// sent: PostBox hands it on the moment anything can
@@ -555,6 +590,7 @@ namespace ms
 				listening = false;
 				dictate_to_world = false;
 				dictate_to.clear();
+				dictate_gather = false;
 				dictated.clear();
 				dictation_quiet = 0;
 			}
@@ -910,11 +946,35 @@ namespace ms
 		// against the previous destination.
 		dictate_to_world = to_world;
 		dictate_to.clear();
+		dictate_gather = false;
 
 		listening = Speech::get().start();
 
 		// The speaker is an inch from the microphone on these machines, so the
 		// recogniser hears the soundtrack too and does noticeably worse for it.
+		if (listening)
+			Music::duck(true);
+	}
+
+	void UIChatbar::start_dictation_mega(int32_t)
+	{
+		if (listening)
+		{
+			Speech::get().stop();
+			Music::duck(false);
+			listening = false;
+			return;
+		}
+
+		// Set BEFORE the recogniser starts, for the same reason the other two
+		// are: a sentence must not be able to finish against the destination
+		// the last one used.
+		dictate_to_world = false;
+		dictate_to.clear();
+		dictate_gather = true;
+
+		listening = Speech::get().start();
+
 		if (listening)
 			Music::duck(true);
 	}
@@ -934,6 +994,7 @@ namespace ms
 		// destination.
 		dictate_to_world = false;
 		dictate_to = to;
+		dictate_gather = false;
 
 		listening = Speech::get().start();
 

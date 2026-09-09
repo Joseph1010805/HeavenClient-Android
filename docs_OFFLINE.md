@@ -154,8 +154,8 @@ is not to reconcile worlds, it is to gather characters, and that is
 
 ```
 python tools/character.py where pc 6b0cf210          what is where
-python tools/character.py account joey pc 6b0cf210   take a player with you
-python tools/character.py verify joey pc 6b0cf210    prove it arrived whole
+python tools/character.py account alex pc 6b0cf210   take a player with you
+python tools/character.py verify alex pc 6b0cf210    prove it arrived whole
 ```
 
 The unit is an **account**, not a character, because Cosmic gives an account

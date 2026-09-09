@@ -155,7 +155,7 @@ namespace ms
 
 			// THE STATUS LINE DECIDES, NOT THE PRESENCE OF A BODY.
 			//
-			// A 404 has a body too - "no account called joey" - and writing
+			// A 404 has a body too - "no account called alex" - and writing
 			// that over the card would replace a character with a sentence.
 			ok = head.compare(0, 12, "HTTP/1.1 200") == 0;
 
@@ -377,9 +377,11 @@ namespace ms
 				}
 			}
 
+			// The address is deliberately left out - see the note in UILogin.
+			// WHICH world it was does not help a fix; that it failed does.
 			Silent::report("Carry",
-				"could not bring the characters home from " + from
-				+ " - they are still on that world: " + last_trouble);
+				"could not bring the characters home - they are still on "
+				"that world: " + last_trouble);
 
 			working.store(false);
 		}).detach();

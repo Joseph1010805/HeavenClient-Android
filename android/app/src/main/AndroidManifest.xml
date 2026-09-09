@@ -80,6 +80,23 @@
             android:exported="false"
             android:stopWithTask="false" />
 
+
+        <!-- Lets the report share hand files to whatever app the player
+             picks. Since Android 7 a raw file:// path thrown at another app
+             raises FileUriExposedException and the share dies on the spot;
+             this grants read access to just the named files, just to the
+             chosen app, just for that one share. Not exported: nothing can
+             reach it except through an intent we started ourselves. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.reports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/report_paths" />
+        </provider>
+
     </application>
 
 </manifest>

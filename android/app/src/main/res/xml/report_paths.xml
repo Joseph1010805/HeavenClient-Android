@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    What the report share is allowed to hand out.
+
+    Deliberately narrow: the app's own external files directory and nothing
+    else. That is where report.txt, the play log and the screenshots live, and
+    it is the only thing a bug report ever needs. The NX game data sits here
+    too but is never named by the share, and nothing outside this folder - no
+    saves, no settings elsewhere, no other app's files - can be reached through
+    the provider at all.
+-->
+<paths>
+    <external-files-path name="reports" path="." />
+</paths>

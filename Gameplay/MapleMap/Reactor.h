@@ -40,6 +40,20 @@ namespace ms
 		void set_state(int8_t state);
 		void destroy(int8_t state, Point<int16_t> position);
 
+		// ⚠ BRING A BROKEN REACTOR BACK - the other half of destroy().
+		//
+		// The server respawns a reactor by sending SPAWN_REACTOR again with
+		// the SAME oid, and nothing here could act on that. A dead reactor is
+		// never erased (update() only returns -1 to remove an object, and this
+		// one always returns its foothold layer), so the spawn found the old
+		// object still in the map and did no more than makeactive() it - which
+		// left `dead` set and `state` one past the last frame. update() then
+		// saw `animation_ended && dead` and deactivated it again on the very
+		// next tick. The treasure chests in Kerning's subway did respawn every
+		// five seconds exactly as the data says; they just went straight back
+		// to being invisible, so there was nothing to see.
+		void revive(int8_t state, Point<int16_t> position);
+
 		bool is_hittable() const;
 
 	private:

@@ -254,6 +254,16 @@ namespace ms
 		return TYPE;
 	}
 
+	void UIEnterNumber::deactivate()
+	{
+		// Only if the keyboard is still ours - setting a field DISABLED clears
+		// whoever currently holds it, not specifically this one.
+		if (numfield.get_state() == Textfield::State::FOCUSED)
+			numfield.set_state(Textfield::State::DISABLED);
+
+		UIElement::deactivate();
+	}
+
 	Button::State UIEnterNumber::button_pressed(uint16_t buttonid)
 	{
 		switch (buttonid)

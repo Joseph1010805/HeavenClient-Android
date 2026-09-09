@@ -17,7 +17,7 @@ import sys
 from PIL import Image, ImageFilter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from nxbuild import Builder
+from nxbuild import Builder, Node
 
 # ffmpeg does the decoding and scaling. Anything on PATH will do; set the
 # MAKE_ASSETS_FFMPEG environment variable to point at a specific build.
@@ -44,6 +44,36 @@ OUT = os.environ.get('MAKE_ASSETS_OUT', os.path.join(
 # The wordmarks stay: they are the project's own name and nobody else's.
 LOGO_IMAGE = 'LoginIcon.jpg'
 DS_LOGO_IMAGE = 'maplestorydslogo.png'
+
+# THE THREE VIDEOS, BACK AGAIN.
+#
+# They were dropped so that a fresh install could rebuild this whole file from
+# a player's own client - the videos are ours and cannot be derived from
+# anything Nexon ships, so they were the one thing standing between "run the
+# installer" and "have a working game".
+#
+# That trade is off: they are wanted, and the build simply SKIPS any of them
+# whose source is missing. So a machine that has the .mp4 files gets the
+# videos, a machine that does not gets a still, and both produce a Map001.nx
+# the client is happy with. Nothing is required.
+LOGIN_VIDEO = 'login.mp4'
+CHARSEL_VIDEO = 'character selection.mp4'
+LEVELUP_VIDEO = 'newlevelup.mp4'
+
+# The death card. Same deal as the other three - ours, skipped in silence if
+# the file is not here, and the panel simply draws nothing when the node is
+# absent.
+DEATH_VIDEO = 'Youdied.mp4'
+
+# How much of each to keep. A loop is paid for in sprite-atlas space at
+# W*H per frame, so this is the dial that matters - see FPS/DELAY below.
+LOGIN_SECONDS = 8
+CHARSEL_SECONDS = 8
+LEVELUP_SECONDS = 2
+
+# Dying is a beat, not a loop - long enough to land, short enough that it is
+# not standing between the player and the revive prompt.
+DEATH_SECONDS = 3
 
 # The parchment the login and the panel sit on, both lifted from the game's
 # own notice artwork.
@@ -88,11 +118,20 @@ ICON_IMAGES = {
     'IconLuck': 'icon_luck.png',
     'IconMinigame': 'icon_minigame.png',
     'IconScroll': 'icon_scroll.png',
+
+    # The minimap page had been borrowing IconScroll, which is a scroll and
+    # not a map. Its own artwork now.
+    'IconMinimap': 'icon_minimap.png',
     'IconSave': 'icon_save.png',
     'IconMouse': 'icon_mouse.png',
     'IconHp': 'icon_hp.png',
     'IconMp': 'icon_mp.png',
     'IconShout': 'icon_shout.png',
+
+    # ⚠ THE MEGAPHONE IS NOT THE ENVELOPE. IconShout is a magenta invitation
+    # letter, which is what the Megaphone page was showing. This is the game's
+    # own Megaphone item icon (5071000), lifted straight out of Item.nx.
+    'IconMegaphone': 'icon_megaphone.png',
     'IconRoomMessage': 'icon_roommessage.png',
     # The speech balloon, built by tools/make_chat_icon.py out of the game's
     # own ChatBalloon.img. Run that script if this file is missing.
@@ -374,6 +413,135 @@ TOP_PLAIN = (12, 12, 398, 236)
 BOTTOM_PLAIN = (10, 10, 320, 180)
 
 
+# WHERE THE GAME'S OWN ART LIVES.
+#
+# Set MAKE_ASSETS_WZ if the client data is somewhere else. Reading the login
+# backdrop straight out of Map.nx rather than shipping a PNG keeps the whole
+# file rebuildable from a player's OWN client, which is the same rule the
+# videos are held to - nothing here redistributes Nexon's work.
+WZ = os.environ.get('MAKE_ASSETS_WZ',
+                    os.path.join(os.path.expanduser('~'), 'maple', 'wz-v83'))
+
+# The login backdrop: the biggest tile in this set, a wide cloudscape.
+LOGIN_BACKDROP = ('timeTemple.img', 700, 400)
+
+# WHICH ROWS OF THAT TILE ARE ACTUALLY SKY.
+#
+# A map backdrop is not a picture, it is a layer: the top corners and the
+# bottom third are TRANSPARENT, because the map draws ground over them. Taken
+# whole and flattened, those holes come out black - a stepped notch across the
+# top and a black blob along the bottom, which is what the first attempt
+# looked like.
+#
+# Measured off the tile's own alpha: rows 0-480 average ~220, rows 560+ drop
+# to 21. So the sky is the band between.
+LOGIN_SKY = (40, 490)
+
+
+def scenery(setname, min_w, min_h):
+    """The largest back tile in a Map.nx set, as a PIL image. None if absent."""
+    import struct
+
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+    from nxdump import Nx
+    from nxbmp import NxBmp
+
+    path = os.path.join(WZ, 'Map.nx')
+
+    if not os.path.exists(path):
+        return None
+
+    mp, bm = Nx(path), NxBmp(path)
+
+    node = mp.resolve('Back/%s/back' % setname)
+
+    if node is None:
+        return None
+
+    _, first, num, _, _ = mp.node(node)
+    best = None
+
+    for m in range(first, first + num):
+        _, _, _, t, pl = mp.node(m)
+
+        if t != 5:
+            continue
+
+        bid, w, h = struct.unpack_from('<IHH', pl)
+
+        if w >= min_w and h >= min_h and (best is None or w * h > best[1] * best[2]):
+            best = (bid, w, h)
+
+    if best is None:
+        return None
+
+    bid, w, h = best
+    raw = bm.bitmap(bid, w, h)
+
+    # NX keeps pixels BGRA; PIL wants RGBA.
+    im = Image.frombytes('RGBA', (w, h), bytes(raw))
+    b, g, r, a = im.split()
+
+    return Image.merge('RGBA', (r, g, b, a))
+
+
+def flatten(img, band):
+    """Take the opaque band of a map layer and fill what holes remain.
+
+    The fill is the mean of the SOLID pixels, so the small gaps left inside
+    the clouds blend into their own artwork instead of punching through to
+    black.
+    """
+    w, h = img.size
+    top, bottom = band
+
+    img = img.crop((0, top, w, min(bottom, h)))
+
+    px = img.load()
+    total = [0, 0, 0]
+    count = 0
+
+    for y in range(0, img.height, 3):
+        for x in range(0, w, 5):
+            r, g, b, a = px[x, y]
+
+            if a > 240:
+                total[0] += r
+                total[1] += g
+                total[2] += b
+                count += 1
+
+    fill = tuple(c // count for c in total) if count else (0, 0, 0)
+
+    flat = Image.new('RGB', img.size, fill)
+    flat.paste(img, (0, 0), img)
+
+    return flat
+
+
+def fit_image(img, width, height):
+    """Crop an already-loaded image to a shape and scale to it."""
+    w, h = img.size
+
+    band = round(w * height / width)
+
+    if band < h:
+        top = (h - band) // 2
+        img = img.crop((0, top, w, top + band))
+    else:
+        band = round(h * width / height)
+        left = (w - band) // 2
+        img = img.crop((left, 0, left + band, h))
+
+    img = img.resize((width, height), Image.LANCZOS)
+
+    r, g, b = img.split()
+    a = Image.new('L', img.size, 255)
+
+    return Image.merge('RGBA', (b, g, r, a)).tobytes()
+
+
 def fit_bgra(path, width, height, crop=None):
     """Crop to a shape and scale to it, keeping the middle."""
     img = Image.open(path).convert('RGB')
@@ -428,9 +596,58 @@ def main():
     # video loop behind a form.
     top = fit_bgra(os.path.join(SRC, TOP_IMAGE), W, H, crop=TOP_PLAIN)
 
-    for name in ('LoginBg', 'CharBg', 'WorldBg'):
-        builder.bitmap(custom, name, top, W, H, origin=(0, 0))
-        print('  %-9s %dx%d  %s' % (name, W, H, TOP_IMAGE))
+    # A MOVING BACKDROP WHERE THERE IS A VIDEO FOR IT, A STILL WHERE THERE IS
+    # NOT.
+    #
+    # An NX animation is just a node whose children are numbered frames, each
+    # carrying a `delay` - which is why a video needs no engine code at all,
+    # only frames on disk. The client already treats these three nodes as
+    # animations if they have numbered children and as a still if they do not,
+    # so both shapes work with the code exactly as it stands.
+    #
+    # WorldBg keeps the parchment on purpose: the world list is a short stop
+    # between two moving screens, and three pans in a row is seasickness.
+    def moving_backdrop(name, filename, seconds):
+        path = os.path.join(SRC, filename)
+
+        if not os.path.exists(path):
+            builder.bitmap(custom, name, top, W, H, origin=(0, 0))
+            print('  %-9s %dx%d  %s (no %s - still)' % (name, W, H, TOP_IMAGE, filename))
+            return
+
+        shots = frames(path, 'crop=iw:ih', FPS, duration=seconds)
+
+        node = custom.add(Node(name))
+
+        for i, shot in enumerate(shots):
+            builder.bitmap(node, str(i), shot, W, H, origin=(0, 0), delay=DELAY)
+
+        print('  %-9s %dx%d  %s, %d frames @ %dms' % (name, W, H, filename,
+                                                     len(shots), DELAY))
+
+    # THE LOGIN IS A PAINTING, THE CHARACTER SCREEN IS A PAN.
+    #
+    # Deliberately different: the login is the first thing anyone sees and a
+    # still cloudscape reads as a title card, where a second moving pan right
+    # before the character one just makes the whole opening restless. It also
+    # gives back a third of the sprite atlas the videos cost.
+    #
+    # Falls back to the parchment if Map.nx is not where WZ says.
+    art = scenery(*LOGIN_BACKDROP)
+
+    if art is not None:
+        art = flatten(art, LOGIN_SKY)
+
+        builder.bitmap(custom, 'LoginBg', fit_image(art, W, H), W, H, origin=(0, 0))
+        print('  %-9s %dx%d  Map.nx Back/%s' % ('LoginBg', W, H, LOGIN_BACKDROP[0]))
+    else:
+        builder.bitmap(custom, 'LoginBg', top, W, H, origin=(0, 0))
+        print('  %-9s %dx%d  %s (no Map.nx - parchment)' % ('LoginBg', W, H, TOP_IMAGE))
+
+    moving_backdrop('CharBg', CHARSEL_VIDEO, CHARSEL_SECONDS)
+
+    builder.bitmap(custom, 'WorldBg', top, W, H, origin=(0, 0))
+    print('  %-9s %dx%d  %s' % ('WorldBg', W, H, TOP_IMAGE))
 
     # The wordmark the lower panel shows while the game is loading, in place
     # of a line of text. Its own transparency is kept as it arrives.
@@ -443,13 +660,59 @@ def main():
     builder.bitmap(custom, 'BottomBg', bottom, BOTTOM_W, BOTTOM_H, origin=(0, 0))
     print('  %-9s %dx%d  %s' % ('BottomBg', BOTTOM_W, BOTTOM_H, BOTTOM_IMAGE))
 
-    # THE LEVEL-UP FLOURISH IS GONE TOO.
+    # THE LEVEL-UP BURST, ON THE LOWER PANEL.
     #
-    # It was a video of ours. The game has its own level-up effect - the
-    # burst the character plays on the top screen - and one celebration is
-    # enough. UI code that asks for 'LevelUp' gets an invalid texture and
-    # draws nothing, which is already how it behaves on a build where the
-    # node is missing.
+    # Distinct from the game's own effect, which plays on the character up on
+    # the top screen. This one is ours and it plays down here, so the panel
+    # marks the moment too rather than sitting there showing a bag.
+    #
+    # Skipped in silence when the source is absent: SecondScreenPanel asks for
+    # 'LevelUp', gets an invalid texture and draws nothing, which is exactly
+    # how it behaved for the whole time the node was missing.
+    levelup_path = os.path.join(SRC, LEVELUP_VIDEO)
+
+    if os.path.exists(levelup_path):
+        shots = frames(levelup_path, 'crop=iw:ih', FPS,
+                       duration=LEVELUP_SECONDS,
+                       w=BOTTOM_W, h=BOTTOM_H)
+
+        node = custom.add(Node('LevelUp'))
+
+        for i, shot in enumerate(shots):
+            builder.bitmap(node, str(i), shot, BOTTOM_W, BOTTOM_H,
+                           origin=(0, 0), delay=DELAY)
+
+        print('  %-9s %dx%d  %s, %d frames @ %dms'
+              % ('LevelUp', BOTTOM_W, BOTTOM_H, LEVELUP_VIDEO, len(shots), DELAY))
+    else:
+        print('  %-9s skipped - no %s' % ('LevelUp', LEVELUP_VIDEO))
+
+    # THE DEATH CARD, ON THE LOWER PANEL.
+    #
+    # Built exactly like the level-up burst above, and for the same reason:
+    # the moment is marked down here as well as up on the map, so the panel is
+    # part of what happened rather than a bag someone forgot to close.
+    #
+    # The words "You Died" are NOT burnt into these frames. They are drawn by
+    # SecondScreenPanel over the top, so they stay crisp at whatever size the
+    # panel happens to be and can be changed without re-encoding a video.
+    death_path = os.path.join(SRC, DEATH_VIDEO)
+
+    if os.path.exists(death_path):
+        shots = frames(death_path, 'crop=iw:ih', FPS,
+                       duration=DEATH_SECONDS,
+                       w=BOTTOM_W, h=BOTTOM_H)
+
+        node = custom.add(Node('Died'))
+
+        for i, shot in enumerate(shots):
+            builder.bitmap(node, str(i), shot, BOTTOM_W, BOTTOM_H,
+                           origin=(0, 0), delay=DELAY)
+
+        print('  %-9s %dx%d  %s, %d frames @ %dms'
+              % ('Died', BOTTOM_W, BOTTOM_H, DEATH_VIDEO, len(shots), DELAY))
+    else:
+        print('  %-9s skipped - no %s' % ('Died', DEATH_VIDEO))
 
     # A backdrop for every page that has one. Cropped from the left so the
     # character in the corner survives the change of shape.

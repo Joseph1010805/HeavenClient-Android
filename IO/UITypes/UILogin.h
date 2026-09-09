@@ -89,7 +89,27 @@ namespace ms
 			// its own screen rather than a tick box on the first, because a
 			// box drawn in text does not read as something you can press -
 			// and this is a real choice, not a setting to skim past.
-			HOST_NETWORK
+			HOST_NETWORK,
+
+			// ⚠ THE HOST / JOIN PAIR IS BACK, BY REQUEST.
+			//
+			// It was taken out on the argument that nobody at a table thinks
+			// "am I a host or a joiner". That argument was wrong about THIS
+			// table: the answer is known before the handheld is picked up -
+			// one person starts the game and the others join them - and being
+			// asked plainly beats a list that has to be read to find out
+			// whether anybody is hosting yet.
+			//
+			// It is also the first thing seen, so nothing is on the screen
+			// until LOGIN is pressed.
+			CHOICE,
+
+			// Hosting, step one: who is allowed in.
+			//
+			// PRIVATE keeps the code. PUBLIC has none, and the row simply
+			// joins. Two words rather than a code screen somebody has to
+			// understand they may skip.
+			PRIVACY
 		};
 
 		// THE FRAME'S INNER OPENING - the only rectangle this screen owns.
@@ -129,16 +149,37 @@ namespace ms
 		static constexpr int16_t POP_H = 424;
 
 		static constexpr int16_t PAD = 10;
-		static constexpr int16_t BUTTON_W = 132;
-		static constexpr int16_t BUTTON_H = 34;
+		// BIGGER THAN THEY WERE. These are ours, not Nexon's, and they are
+		// pressed with a thumb on a handheld held at arm's length rather than
+		// clicked with a pointer.
+		static constexpr int16_t BUTTON_W = 164;
+		static constexpr int16_t BUTTON_H = 44;
 		static constexpr int16_t LINE_H = 16;
-		static constexpr int16_t ROW_H = 30;
+		static constexpr int16_t ROW_H = 40;
 
 		static constexpr int16_t CODE_LEN = 6;
 
 		// Rows in the list: 0..n-1 are found games, and the one after the
 		// last game is always CREATE A GAME.
 		Rectangle<int16_t> list_row(int16_t row) const;
+
+		// ⚠ THE SAME ROWS, BUT INSIDE THE POPUP.
+		//
+		// list_row is measured from the right-hand section. Using it for the
+		// popup's rows drew HOST A GAME out in the corner of the screen,
+		// nowhere near the box it belongs to - the two are different places
+		// and cannot share one helper.
+		Rectangle<int16_t> pop_row(int16_t row) const;
+
+		// Where CLOSE THE GAME sits while hosting. Shared by the drawing and
+		// the hit test: they were two copies of "+78" and a public game moves
+		// the row up, which would have left the button drawn in one place and
+		// pressable in another.
+		Rectangle<int16_t> close_game_bounds() const;
+
+		// How tall the popup has to be for what it is showing. A fixed 424
+		// left the choice screen four fifths empty.
+		int16_t popup_height() const;
 		int16_t create_row() const;
 
 		// The keypad, 3 across and 4 down: 1-9, then DELETE 0 CLEAR.
@@ -148,6 +189,11 @@ namespace ms
 		Rectangle<int16_t> choice_bounds(int16_t which) const;
 		Rectangle<int16_t> commit_bounds() const;
 		Rectangle<int16_t> cancel_bounds() const;
+
+		// The games panel down the right. Its own method because it is drawn
+		// only sometimes, and the guard for that used to be an early return
+		// out of draw() - which took the account and password fields with it.
+		void draw_games() const;
 
 		void draw_panel_over(float alpha) const;
 		void draw_keypad(int16_t top) const;
@@ -178,6 +224,11 @@ namespace ms
 		// because somebody pressed CREATE and then chose a network.
 		bool hosting = false;
 
+		// PUBLIC games have no code. Kept apart from `typed` because an empty
+		// code and a code not yet typed are different things, and only one of
+		// them may be committed.
+		bool want_private = true;
+
 		// One line under the list, when there is something to say that is not
 		// about a particular game - "say yes to Termux", and the like. Empty
 		// the rest of the time.
@@ -201,6 +252,12 @@ namespace ms
 		// - LocalServer::check() reports whether the server is ANSWERING, not
 		// merely installed - and it stays up until the answer is yes.
 		bool waiting_for_server = false;
+
+		// Set when HOST is committed, cleared when the server answers and the
+		// login it owes is sent. Choosing to host IS choosing to play, so the
+		// second press of LOGIN should never have been asked for - it existed
+		// only because the server was not up yet at the moment of choosing.
+		bool login_when_ready = false;
 
 		// Only so the screen can say something after a while. Nothing is
 		// abandoned because of it.

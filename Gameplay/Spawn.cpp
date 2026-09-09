@@ -66,10 +66,36 @@ namespace ms
 		return oid;
 	}
 
+	int8_t ReactorSpawn::get_state() const
+	{
+		return state;
+	}
+
+	Point<int16_t> ReactorSpawn::get_position() const
+	{
+		return position;
+	}
+
 	std::unique_ptr<MapObject> ReactorSpawn::instantiate(const Physics& physics) const
 	{
-		auto spawnposition = physics.get_y_below(position);
-		return std::make_unique<Reactor>(oid, rid, state, spawnposition);
+		// ⚠ WHERE THE MAP PUT IT, not the foothold under it.
+		//
+		// get_y_below drops the reactor onto the ground below its position,
+		// which is only right if the position were a rough guess. It is not:
+		// the map data gives a reactor an exact x and y - the chests in
+		// 130030004 sit at y -333, -151, -451 and so on, on platforms at
+		// different heights - and that y is where the sprite's ORIGIN goes.
+		//
+		// Snapping is what made a correction seem necessary in the drawing,
+		// and the correction is what made the chests float. Neither is needed
+		// once the position is left alone.
+		//
+		// `physics` is kept in the signature: MobSpawn and DropSpawn beside
+		// this one genuinely do need it, and changing one of three to match
+		// would make the odd one out look like an oversight.
+		(void)physics;
+
+		return std::make_unique<Reactor>(oid, rid, state, position);
 	}
 
 	DropSpawn::DropSpawn(int32_t o, int32_t i, bool ms, int32_t ow, Point<int16_t> p, Point<int16_t> d, int8_t t, int8_t m, bool pd) : oid(o), id(i), meso(ms), owner(ow), start(p), dest(d), droptype(t), mode(m), playerdrop(pd) {}

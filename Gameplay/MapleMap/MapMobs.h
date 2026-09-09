@@ -25,6 +25,7 @@
 #include "../Combat/SpecialMove.h"
 
 #include <queue>
+#include <vector>
 
 namespace ms
 {
@@ -59,6 +60,12 @@ namespace ms
 		// Update a mob's movements.
 		void send_movement(int32_t oid, Point<int16_t> start, std::vector<Movement>&& movements);
 
+		// How many mobs this client has been told about. Not a debug frill:
+		// "the monsters are missing" is either the server not sending them or
+		// this client not drawing them, and nothing on the screen tells those
+		// two apart. This number does.
+		size_t count() const;
+
 		// Calculate the results of an attack.
 		void send_attack(AttackResult& result, const Attack& attack, const std::vector<int32_t>& targets, uint8_t mobcount);
 		// Applies damage to a mob.
@@ -86,5 +93,22 @@ namespace ms
 		MapObjects mobs;
 
 		std::queue<MobSpawn> spawns;
+
+		// A KILL THAT HAS NOT BEEN DRAWN YET. See MapMobs::remove - the blow
+		// that causes a death is drawn late, so the death has to wait for it.
+		struct Pending
+		{
+			int32_t oid;
+			int8_t animation;
+			int16_t left;
+		};
+
+		// About a fifth of a second. Long enough to sit behind a normal
+		// attack delay, short enough that a corpse does not linger.
+		static constexpr int16_t DEATH_HOLD = 200;
+
+		std::vector<Pending> pending;
+
+		void update_pending();
 	};
 }

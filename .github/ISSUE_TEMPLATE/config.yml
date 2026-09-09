@@ -1,0 +1,11 @@
+# Turns off the "open a blank issue" link, so every report arrives in the
+# shape the bug template asks for. Without this GitHub always offers a blank
+# issue alongside the templates, and most people take it.
+blank_issues_enabled: false
+
+contact_links:
+  - name: I need the game data
+    url: https://github.com/Joseph1010805/HeavenClient-Android#game-data
+    about: >
+      This project does not distribute Nexon's game files and cannot help you
+      find them. Read this first.

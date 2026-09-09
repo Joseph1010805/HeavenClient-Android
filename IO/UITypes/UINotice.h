@@ -96,6 +96,15 @@ namespace ms
 
 		UIElement::Type get_type() const override;
 
+		// ⚠ THE SAME BORROWED KEYBOARD AS UIMegaphone - see the note there.
+		//
+		// This box focuses `numfield` on construction and every way out of it
+		// (Enter, Escape, Cancel, and entering a valid number) was a bare
+		// deactivate(), so the quantity prompt for dropping or selling a stack
+		// left the keys pointing into a dialog that was no longer on screen.
+		// The character then would not walk until a trip to the cash shop.
+		void deactivate() override;
+
 	protected:
 		Button::State button_pressed(uint16_t buttonid) override;
 

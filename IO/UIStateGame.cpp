@@ -19,6 +19,8 @@
 #include "UI.h"
 #include "SecondScreen.h"
 
+#include "../Util/Silent.h"
+
 #include "UITypes/UIStatusMessenger.h"
 #include "UITypes/UIStatusbar.h"
 #include "UITypes/UIChatbar.h"
@@ -208,18 +210,43 @@ namespace ms
 
 	void UIStateGame::send_key(KeyType::Id type, int32_t action, bool pressed, bool escape)
 	{
-		if (UIElement* focusedelement = get(focused))
-		{
-			if (focusedelement->is_active())
-			{
-				return focusedelement->send_key(action, pressed, escape);
-			}
-			else
-			{
-				focused = UIElement::NONE;
+		UIElement* focusedelement = get(focused);
 
-				return;
-			}
+		// ⚠ A STALE FOCUS MUST NOT EAT THE KEY THAT FOUND IT.
+		//
+		// This used to clear the focus and RETURN, so the press that noticed
+		// the focused window had closed was thrown away. One dropped key is
+		// harmless; a focus that can never be cleared is not, and that is what
+		// the avatar-megaphone banner produced - it sat in the NONE slot, so
+		// `focused == NONE` (which means "nobody") kept finding an inactive
+		// element here, and every key in the game hit this branch and stopped.
+		//
+		// The banner has its own type now, so that particular trap is gone.
+		// Letting go and carrying on regardless is what stops the NEXT one
+		// from costing a session: at worst a key goes to the game a frame
+		// early, instead of the controls dying until a screen change.
+		if (focusedelement && !focusedelement->is_active())
+		{
+			Silent::report("UIStateGame",
+				"focus was still on type "
+				+ std::to_string(static_cast<int32_t>(focused))
+				+ ", which is closed - letting go");
+
+			focused = UIElement::NONE;
+			focusedelement = nullptr;
+		}
+
+		if (focusedelement)
+		{
+			// SAY WHO TOOK IT. UI::send_key's own report calls this "game",
+			// because from up there it is - the key was passed down. It
+			// cannot see that a window claimed it one layer further in, which
+			// is exactly the gap that hid the banner for two sessions.
+			Silent::report("UIStateGame",
+				"key claimed by focused element type "
+				+ std::to_string(static_cast<int32_t>(focused)));
+
+			return focusedelement->send_key(action, pressed, escape);
 		}
 		else
 		{

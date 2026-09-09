@@ -38,4 +38,17 @@ namespace ms
 	{
 		void handle(InPacket& recv) const override;
 	};
+
+	// A BAG THAT JUST GOT BIGGER.
+	//
+	// Slots are bought in the cash shop and handed out by a few quests, and
+	// the server has always announced it - nothing here listened. So the
+	// slots existed on the server and the client went on drawing the old
+	// number of cells, which reads exactly like the purchase not working.
+	//
+	// Opcode: INVENTORY_GROW(30)
+	class InventoryGrowHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
 }

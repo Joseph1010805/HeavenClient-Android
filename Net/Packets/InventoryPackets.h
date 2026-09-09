@@ -226,6 +226,31 @@ namespace ms
 		}
 	};
 
+	// THE AVATAR MESSENGER - the "tiger megaphone".
+	//
+	// Item type 539: a coloured banner carrying the sender's character, their
+	// name and FOUR lines. Cosmic's UseCashItemHandler reads exactly four
+	// strings and then the ear byte, so all four are always written even when
+	// the message is shorter - a handler that stops early runs off the end of
+	// the packet and the failure is silent.
+	//
+	// Opcode: USE_CASH_ITEM(41)
+	class AvatarMegaphonePacket : public OutPacket
+	{
+	public:
+		AvatarMegaphonePacket(int32_t itemid, const std::string lines[4], bool ear)
+			: OutPacket(OutPacket::Opcode::USE_CASH_ITEM)
+		{
+			write_short(0);
+			write_int(itemid);
+
+			for (size_t i = 0; i < 4; i++)
+				write_string(lines[i]);
+
+			write_byte(ear ? 1 : 0);
+		}
+	};
+
 	// Requests using a scroll on an equip.
 	// Opcode: SCROLL_EQUIP(86)
 	class ScrollEquipPacket : public OutPacket

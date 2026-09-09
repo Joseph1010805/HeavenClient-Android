@@ -154,6 +154,20 @@ namespace ms
 		std::unordered_map<int32_t, bool> is_key_down;
 
 		bool enabled;
+
+		// ⚠ HOW LONG THE UI HAS BEEN SWITCHED OFF.
+		//
+		// disable() is how the client says "I have asked the server something,
+		// wait for the answer" - spending a stat point, using an item. The
+		// answer is what calls enable() again. If that answer never arrives,
+		// or the server refuses in a way that sends nothing back, EVERY
+		// control on both screens stays dead: no menu, no buttons, and no way
+		// to quit, because the quit dialog is a control too. The only way out
+		// was killing the app.
+		//
+		// So the switch-off is watched. See UI::update.
+		int64_t disabled_for = 0;
+
 		bool quitted;
 		bool caps_lock_enabled = false;
 	};

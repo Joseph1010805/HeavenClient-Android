@@ -257,8 +257,8 @@ namespace ms
 		// A NAME, WITH THE WIRE SCRAPED OFF IT.
 		//
 		// Notes arrive newline-separated, so a sender parsed out of one keeps
-		// a trailing carriage return - and "ianjuicce" from the map and
-		// "ianjuicce\r" from a message are two different strings that DRAW
+		// a trailing carriage return - and "playerone" from the map and
+		// "playerone\r" from a message are two different strings that DRAW
 		// IDENTICALLY. That is the duplicate the screen could not show: the
 		// list was right, both entries looked the same, and save_known then
 		// wrote the stray byte back to disk.
@@ -519,8 +519,8 @@ namespace ms
 		// ADDRESSED BY CHARACTER NAME, NOT ACCOUNT NAME.
 		//
 		// The pick-list is built from the people standing on your map, and
-		// what the client knows about them is their CHARACTER name - "jubs",
-		// "ianice". The account behind it ("joey", "ian") is never sent to
+		// what the client knows about them is their CHARACTER name - "playerone",
+		// "playertwo". The account behind it ("alex", "sam") is never sent to
 		// anybody else and cannot be looked up.
 		//
 		// So a message addressed to the account would be posted to a name

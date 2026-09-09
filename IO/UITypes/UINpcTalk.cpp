@@ -1009,7 +1009,10 @@ namespace ms
 		// recognised. The wrap width goes with it: the same 320 at a larger
 		// face would fit fewer words per line and make the box taller for no
 		// gain, and the frame is 500 wide.
-		text = Text(Text::Font::A13M, Text::Alignment::LEFT, Color::Name::DARKGREY, formatted_text, 350);
+		// 330, NOT 350. The body starts 166 in and the frame is 519 wide, so 350
+		// ran the words to within three pixels of the border - which reads as
+		// text falling out of the window rather than text in a window.
+		text = Text(Text::Font::A13M, Text::Alignment::LEFT, Color::Name::DARKGREY, formatted_text, 330);
 
 		int16_t text_height = text.height();
 
@@ -1022,6 +1025,24 @@ namespace ms
 			strid.append(".img");
 
 			speaker = nl::nx::npc[strid]["stand"]["0"];
+
+			// ⚠ AND THE PORTRAIT WHERE THAT IS A PLACEHOLDER.
+			//
+			// 33 NPCs keep their real picture at info/default and leave
+			// stand/0 as a stub a pixel or two wide - Cygnus's is 1x60,
+			// Shinsoo's 1x121. Drawn as the speaker they were a hairline, so
+			// their dialogue box came up with an empty portrait while
+			// Neinheart, who has an ordinary animation, looked fine.
+			//
+			// Same rule and same threshold as Npc's own artwork, so the face
+			// in the box always matches the one on the map.
+			if (!speaker.is_valid() || speaker.width() < 8)
+			{
+				nl::node fallback = nl::nx::npc[strid]["info"]["default"];
+
+				if (fallback.data_type() == nl::node::type::bitmap)
+					speaker = fallback;
+			}
 
 			std::string namestr = nl::nx::string["Npc.img"][std::to_string(npcid)]["name"];
 			name.change_text(namestr);
@@ -1109,18 +1130,41 @@ namespace ms
 		// again. Laid out from the RIGHT EDGE, where the single OK sits, so a
 		// wider pair grows leftward into empty space instead of off the end
 		// of the window.
+		// THE FRAME'S OWN INNER EDGE, not a number from 2005.
+		//
+		// UtilDlgEx is 519 wide. 471 was where the artwork's OK button sat at
+		// its original size, and it survived every change since - including
+		// the 1.5x scale, which makes a button about 82 across. 471 + 82 is
+		// 553, so the right-hand button of every pair was drawn thirty pixels
+		// PAST the border it was supposed to sit inside.
+		//
+		// Measured off top.width() now, so the buttons follow the frame
+		// whatever the artwork is, and off bounds() so they follow the scale.
+		constexpr int16_t EDGE = 14;
+
+		auto place_right = [&](Buttons only, int16_t y)
+		{
+			int16_t w = buttons[only]->bounds(Point<int16_t>(0, 0)).width();
+
+			buttons[only]->set_position(Point<int16_t>(
+				static_cast<int16_t>(top.width() - EDGE - w), y));
+			buttons[only]->set_active(true);
+		};
+
 		auto place_pair = [&](Buttons first, Buttons second, int16_t y)
 		{
 			constexpr int16_t GAP = 10;
-			constexpr int16_t RIGHT = 471;
 
-			int16_t w = buttons[second]->bounds(Point<int16_t>(0, 0)).width();
+			int16_t w2 = buttons[second]->bounds(Point<int16_t>(0, 0)).width();
+			int16_t w1 = buttons[first]->bounds(Point<int16_t>(0, 0)).width();
 
-			buttons[second]->set_position(Point<int16_t>(RIGHT, y));
+			int16_t right = static_cast<int16_t>(top.width() - EDGE - w2);
+
+			buttons[second]->set_position(Point<int16_t>(right, y));
 			buttons[second]->set_active(true);
 
 			buttons[first]->set_position(
-				Point<int16_t>(static_cast<int16_t>(RIGHT - w - GAP), y));
+				Point<int16_t>(static_cast<int16_t>(right - w1 - GAP), y));
 			buttons[first]->set_active(true);
 		};
 
@@ -1131,8 +1175,7 @@ namespace ms
 		switch (type)
 		{
 		case TalkType::SENDOK:
-			buttons[Buttons::OK]->set_position(Point<int16_t>(471, y_cord));
-			buttons[Buttons::OK]->set_active(true);
+			place_right(Buttons::OK, y_cord);
 			break;
 		case TalkType::SENDYESNO:
 		{
@@ -1157,8 +1200,7 @@ namespace ms
 			break;
 		}
 		case TalkType::SENDNEXT:
-			buttons[Buttons::NEXT]->set_position(Point<int16_t>(471, y_cord));
-			buttons[Buttons::NEXT]->set_active(true);
+			place_right(Buttons::NEXT, y_cord);
 			break;
 		case TalkType::SENDPREV:
 		{

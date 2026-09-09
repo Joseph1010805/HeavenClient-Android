@@ -28,3 +28,10 @@ __pycache__/
 # lets somebody else publish an app Android believes is yours.
 *.jks
 *.keystore
+
+# ⚠ NEXON'S GAME DATA, IN EITHER FORM.
+#
+# *.nx was already here. *.wz was not, and it is the format the .nx files are
+# converted FROM - so the one thing a well-meaning contributor is most likely
+# to drop into the tree was the one thing not covered.
+*.wz

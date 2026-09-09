@@ -47,6 +47,11 @@ namespace ms
 		// Check if the NPC is in range of the cursor.
 		bool inrange(Point<int16_t> cursorpos, Point<int16_t> viewpos) const;
 
+		// The middle of the click box, in map coordinates. Overlapping NPCs
+		// are settled by whichever centre is nearest the tap - see
+		// MapNpcs::send_cursor.
+		Point<int16_t> get_click_centre() const;
+
 		// Returns the NPC name.
 		std::string get_name();
 		// Returns the NPC's function description or title.
@@ -67,6 +72,10 @@ namespace ms
 		};
 
 		void set_quest_mark(QuestMark mark);
+
+		// Step the shared quest balloons. Called ONCE a frame by MapNpcs, not
+		// per NPC - see the note where it is defined.
+		static void update_markers();
 		int32_t get_npcid() const;
 
 	private:
@@ -83,6 +92,34 @@ namespace ms
 		QuestMark questmark = QuestMark::NONE;
 		bool flip;
 		std::string stance;
+
+		// ⚠ THE CLICK RECTANGLE THE DATA GIVES, relative to the NPC's origin.
+		//
+		// Npc.img/<id>/info carries dcLeft, dcRight, dcTop and dcBottom -
+		// the box the real client tests a click against. It is NOT the size
+		// of the artwork and must not be inferred from it: Empress Cygnus's
+		// only animation frame is ONE PIXEL WIDE, a placeholder standing in
+		// for the 129x86 `default` bitmap she is actually drawn from. Sizing
+		// her hit box from that frame produced a single-pixel column, so she
+		// drew perfectly and could not be clicked at all.
+		//
+		// Zero on all four means the data gave none and inrange() falls back
+		// to the animation, which is right for the NPCs that have no dc box.
+		int16_t dc_left = 0;
+		int16_t dc_right = 0;
+		int16_t dc_top = 0;
+		int16_t dc_bottom = 0;
+
+		// ⚠ THE PICTURE, WHERE THE ANIMATION IS ONLY A PLACEHOLDER.
+		//
+		// 33 of the game's 1620 NPCs - Cygnus and Shinsoo among them - have a
+		// `stand` frame one pixel wide standing in for a real portrait held at
+		// info/default. Drawing the animation renders them as a hairline
+		// sliver: the name label and the quest balloon appear over apparently
+		// empty ground, which is exactly what they looked like.
+		//
+		// Invalid for every other NPC, whose animation is the real artwork.
+		Texture default_art;
 		bool control;
 
 		Randomizer random;

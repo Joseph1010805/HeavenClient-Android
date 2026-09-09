@@ -1,0 +1,83 @@
+name: Bug report
+description: Something in the game went wrong
+title: "[bug] "
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The fastest way to report a bug is from inside the game.**
+
+        Open the lower screen, go to **Settings → Report**, choose whether the
+        picture should be of the **game** or the **panel**, and press
+        **SAVE A REPORT**. The game writes a file, takes a screenshot, and
+        offers to send them — pick anything you like and mail them to
+        yourself, then drag the files onto this issue.
+
+        Those files contain the build, your device, which map you were on,
+        your character's stats and gear, and the game's own error notices.
+        They do **not** contain your password, your account name, your chat,
+        or anybody else's messages.
+
+        If you cannot get the files, fill this in anyway — a described bug is
+        worth far more than no bug.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, and what the game did instead of what you expected.
+      placeholder: |
+        I tapped Empress Cygnus and nothing happened. She has a quest icon
+        over her head. Tapping other NPCs works.
+    validations:
+      required: true
+
+  - type: input
+    id: where
+    attributes:
+      label: Where were you?
+      description: The map, the town, or the menu. "Ereve, near the throne" is plenty.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: often
+    attributes:
+      label: How often does it happen?
+      options:
+        - Every time
+        - Most times
+        - Once, and I could not repeat it
+        - I have not tried again
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: What are you playing on?
+      description: >
+        The handheld or phone, and the Android version if you know it. The
+        report file has this in it, so you can skip it if you attached one.
+      placeholder: AYN Thor, Android 13
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: files
+    attributes:
+      label: Files
+      options:
+        - label: I attached report.txt, playlog.txt and/or the screenshot
+          required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **A note on game data.** This project ships code only. It has never
+        contained, downloaded or linked to Nexon's `.wz` or `.nx` files, and
+        it never will. Please do not attach them, link to them, or ask where
+        to get them — issues doing so will be closed.

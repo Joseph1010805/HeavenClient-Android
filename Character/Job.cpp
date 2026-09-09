@@ -34,7 +34,19 @@ namespace ms
 		id = i;
 		name = get_name(id);
 
-		if (id == 0)
+		// ⚠ EVERY BRANCH HAS A BEGINNER, not just the Explorers.
+		//
+		// This tested `id == 0`, so only an Explorer beginner counted. A
+		// NOBLESSE is job 1000 and an ARAN is 2000, and 1000 % 100 == 0, so
+		// both fell into the next branch and were filed as FIRST JOB
+		// characters. The skill window then believed a level 3 Noblesse had
+		// already advanced: its first-job tab was live and filled with the
+		// beginner book, and the tab tests everywhere else were answered
+		// against the wrong tier.
+		//
+		// The three roots are 0, 1000 and 2000 - all of them multiples of a
+		// thousand, and no advanced job is - so this is the whole test.
+		if (id % 1000 == 0)
 			level = Level::BEGINNER;
 		else if (id % 100 == 0)
 			level = Level::FIRST;
@@ -77,7 +89,21 @@ namespace ms
 			switch (lv)
 			{
 			case Level::BEGINNER:
-				return 0;
+				// ⚠ WHICH BEGINNER, not "the" beginner.
+				//
+				// This returned 0 for everybody, which is the EXPLORER
+				// beginner book - so a Noblesse was shown Explorer's Three
+				// Snails, Recovery and Nimble Feet (1000/1001/1002) instead
+				// of her own (10001000/1/2). Pressing SPEND then sent skill
+				// 1001 for a job that has no such skill: Cosmic refused it as
+				// packet editing, logged an AUTOBAN alert for each press, and
+				// the level never moved.
+				//
+				// The three branches are 1000 apart at the root - Explorer 0,
+				// Noblesse 1000, Aran 2000 - and every job under one keeps
+				// that root, so dropping the last three digits names the
+				// beginner book the character actually has.
+				return (id / 1000) * 1000;
 			case Level::FIRST:
 				return (id / 100) * 100;
 			case Level::SECOND:

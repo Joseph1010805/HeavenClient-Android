@@ -16,6 +16,7 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UISkillbook.h"
+#include "../../Util/Silent.h"
 
 #include "../Components/Icon.h"
 #include "../Components/MapleButton.h"
@@ -256,7 +257,13 @@ namespace ms
 		int16_t left = static_cast<int16_t>((panel_screen.x() - P_COLS * P_CELL_W) / 2);
 
 		int16_t col = static_cast<int16_t>(index % P_COLS);
-		int16_t row = static_cast<int16_t>(index / P_COLS);
+		int16_t row = static_cast<int16_t>(index / P_COLS - panel_scroll);
+
+		// Scrolled out of sight. An empty rectangle, so the drawing and the
+		// hit test agree about which cells are on the page without either
+		// working the range out for itself.
+		if (row < 0 || row >= panel_rows_visible())
+			return Rectangle<int16_t>();
 
 		int16_t x = static_cast<int16_t>(left + col * P_CELL_W + 10);
 		int16_t y = static_cast<int16_t>(P_GRID_TOP + row * P_CELL_H);
@@ -273,9 +280,40 @@ namespace ms
 	// x226-326 - exactly where the panel pins its own "TO HOTKEYS" button.
 	// SPEND was drawn, underneath it. Two things that belong to different
 	// layers must not be laid out from the same edge.
+	//
+	// ⚠ AND FROM THE BOTTOM OF THE SCREEN, not from panel_height(). The row
+	// was measured against the WINDOW's height while the skill name and the
+	// SP count were measured against the SCREEN's - so with one row of skills
+	// the buttons floated in the middle of the panel and the text sat at the
+	// foot, half a screen apart. One base, or they drift every time the
+	// number of skills changes.
+	int16_t UISkillbook::panel_rows_visible() const
+	{
+		// Between the top of the grid and the bar the buttons sit on.
+		int16_t room = static_cast<int16_t>(
+			panel_screen.y() - P_FOOT - P_ACTION_H - 24 - P_GRID_TOP);
+
+		int16_t n = static_cast<int16_t>(room / P_CELL_H);
+
+		return n < 1 ? 1 : n;
+	}
+
+	int16_t UISkillbook::panel_rows_total() const
+	{
+		return static_cast<int16_t>((skills.size() + P_COLS - 1) / P_COLS);
+	}
+
+	int16_t UISkillbook::panel_scroll_max() const
+	{
+		int16_t over = static_cast<int16_t>(
+			panel_rows_total() - panel_rows_visible());
+
+		return over > 0 ? over : 0;
+	}
+
 	Rectangle<int16_t> UISkillbook::panel_action_box() const
 	{
-		int16_t top = static_cast<int16_t>(panel_height() - P_ACTION_H - 8);
+		int16_t top = static_cast<int16_t>(panel_screen.y() - P_FOOT - P_ACTION_H);
 
 		return Rectangle<int16_t>(
 			Point<int16_t>(P_EDGE, top),
@@ -285,7 +323,7 @@ namespace ms
 
 	Rectangle<int16_t> UISkillbook::panel_minus_box() const
 	{
-		int16_t top = static_cast<int16_t>(panel_height() - P_ACTION_H - 8);
+		int16_t top = static_cast<int16_t>(panel_screen.y() - P_FOOT - P_ACTION_H);
 
 		return Rectangle<int16_t>(
 			Point<int16_t>(static_cast<int16_t>(P_EDGE + 100), top),
@@ -295,7 +333,7 @@ namespace ms
 
 	Rectangle<int16_t> UISkillbook::panel_plus_box() const
 	{
-		int16_t top = static_cast<int16_t>(panel_height() - P_ACTION_H - 8);
+		int16_t top = static_cast<int16_t>(panel_screen.y() - P_FOOT - P_ACTION_H);
 
 		return Rectangle<int16_t>(
 			Point<int16_t>(static_cast<int16_t>(P_EDGE + 156), top),
@@ -319,6 +357,13 @@ namespace ms
 			// A finger, not a mouse: the whole cell counts, not just the
 			// 32 pixels the icon occupies.
 			Rectangle<int16_t> box = panel_cell_box(i);
+
+			// Scrolled off. Without this the empty rectangle it returns gets
+			// the touch margin added to it and becomes a live target in the
+			// top-left corner of the page.
+			if (box.width() <= 0)
+				continue;
+
 			Rectangle<int16_t> reach(
 				Point<int16_t>(box.left() - 8, box.top() - 4),
 				Point<int16_t>(box.right() + 8, box.bottom() + 12));
@@ -342,7 +387,19 @@ namespace ms
 		int32_t id = skills[panel_selected].get_id();
 
 		if (skillbook.get_level(id) == 0)
+		{
+			// ⚠ SAY SO. A refusal here looks exactly like a dead button:
+			// TO CONTROLLER opens the pad carrying nothing, every cell tapped
+			// does nothing, and there is no way to tell that from the binding
+			// path being broken. If a skill the player has just spent a point
+			// on lands here, the skillbook and the server disagree, and that
+			// is the thing worth knowing.
+			Silent::report("skillbook",
+				"cannot bind skill " + std::to_string(id)
+				+ " - skillbook says level 0");
+
 			return Keyboard::Mapping();
+		}
 
 		return Keyboard::Mapping(KeyType::Id::SKILL, id);
 	}
@@ -398,6 +455,9 @@ namespace ms
 		{
 			Rectangle<int16_t> box = panel_cell_box(i);
 
+			if (box.width() <= 0)
+				continue;
+
 			Point<int16_t> at = position + Point<int16_t>(box.left(), box.top());
 
 			GraphicsGL::get().drawrectangle(
@@ -449,15 +509,47 @@ namespace ms
 			panel_name_text.change_text("Pick a skill");
 		}
 
-		int16_t bar_y = static_cast<int16_t>(panel_screen.y() - P_ACTION_H - 16);
+		int16_t bar_y = static_cast<int16_t>(panel_screen.y() - P_FOOT - P_ACTION_H);
 
 		// The name and the SP go on their OWN line, above the controls - the
 		// row below is four boxes wide and there is no room beside them.
 		panel_name_text.draw(position + Point<int16_t>(P_EDGE, bar_y - 20));
 
+		// WHAT IT DOES, under the icons.
+		//
+		// The page named the skill and then said nothing about it, so picking
+		// one out told you its name and its rank and left you to remember the
+		// rest. The description is already loaded - SkillData reads it from
+		// String.img - and there is a clear band between the grid and the
+		// action row to put it in.
+		if (panel_selected >= 0
+			&& panel_selected < static_cast<int16_t>(skills.size()))
+		{
+			// The wrap width belongs to the Text, not to the draw call - it
+			// is what decides where the line breaks fall when the string is
+			// set, so it has to be known at construction.
+			if (panel_desc_text.get_text().empty())
+				panel_desc_text = Text(Text::Font::A11M, Text::Alignment::LEFT,
+					Color::Name::WHITE, "",
+					static_cast<uint16_t>(panel_screen.x() - P_EDGE * 2));
+
+			const std::string& blurb =
+				SkillData::get(skills[panel_selected].get_id()).get_desc();
+
+			panel_desc_text.change_text(blurb);
+
+			// Wrapped to the panel, and clear of the gauges either side.
+			panel_desc_text.draw(
+				DrawArgument(position + Point<int16_t>(P_EDGE, bar_y - 74)));
+		}
+
+		// ⚠ CLEAR OF THE PANEL'S OWN BUTTONS. At P_EDGE + 250 this was drawn
+		// underneath TO HOTKEYS, which the panel pins to the bottom right -
+		// so the one number you need in order to decide what to spend was the
+		// one thing covered up.
 		panel_level_text.change_text(std::to_string(sp) + " SP LEFT");
 		panel_level_text.draw(position + Point<int16_t>(
-			static_cast<int16_t>(P_EDGE + 250), bar_y - 20));
+			static_cast<int16_t>(P_EDGE + 140), bar_y - 20));
 
 		auto chip = [&](Rectangle<int16_t> box, const char* label, bool live)
 		{
@@ -880,6 +972,22 @@ namespace ms
 
 	void UISkillbook::send_scroll(double yoffset)
 	{
+		// THE PANEL HAS NO SLIDER, so the book's would move nothing visible.
+		if (panel)
+		{
+			panel_scroll = static_cast<int16_t>(panel_scroll - yoffset);
+
+			if (panel_scroll < 0)
+				panel_scroll = 0;
+
+			int16_t last = panel_scroll_max();
+
+			if (panel_scroll > last)
+				panel_scroll = last;
+
+			return;
+		}
+
 		if (slider.isenabled())
 			slider.send_scroll(yoffset);
 	}
@@ -1066,7 +1174,20 @@ namespace ms
 			{
 				int32_t skillid = skills[i].get_id();
 
-				if (skillid == SkillId::Id::THREE_SNAILS || skillid == SkillId::Id::HEAL || skillid == SkillId::Id::FEATHER)
+				// ⚠ EVERY BRANCH'S THREE, not just the Explorer's.
+				//
+				// THREE_SNAILS, HEAL and FEATHER are 1000, 1001 and 1002 -
+				// the EXPLORER ids. A Noblesse's are 10001000/1/2 and an
+				// Aran's 20001000/1/2, so nothing ever matched, nothing was
+				// ever subtracted, and the page went on saying "3 SP LEFT"
+				// however many points had been spent.
+				//
+				// The last four digits are what identify the skill within its
+				// branch, which is the same test Cosmic's AssignSPProcessor
+				// uses to decide what beginner SP may be spent on.
+				int32_t within = skillid % 10000000;
+
+				if (within >= 1000 && within <= 1002)
 					remaining_beginner_sp -= skills[i].get_level();
 			}
 
@@ -1091,8 +1212,28 @@ namespace ms
 
 		skills.clear();
 		skillcount = 0;
+		panel_scroll = 0;
 
 		Job::Level joblevel = joblevel_by_tab(tab);
+
+		// ⚠ A TAB PAST THIS CHARACTER'S JOB SHOWS NOTHING.
+		//
+		// Job::get_subjob falls through to `return 0` for any level the
+		// character has not reached, and job 0 is the EXPLORER BEGINNER book
+		// - so tabs III, IV and V were filled with twenty-odd Explorer
+		// skills, on a Noblesse, none of which she can ever have. An empty
+		// tab is the truth; somebody else's skill list is not.
+		if (joblevel > job.get_level())
+		{
+			slider.setrows(ROWS, 0);
+			change_offset(0);
+			change_sp();
+
+			relayout_panel();
+
+			return;
+		}
+
 		uint16_t subid = job.get_subjob(joblevel);
 
 		const JobData& data = JobData::get(subid);
@@ -1110,9 +1251,48 @@ namespace ms
 			if (invisible && masterlevel == 0)
 				continue;
 
+			// ⚠ THE BEGINNER BOOK SHOWS ONLY WHAT SP CAN BUY.
+			//
+			// v83's beginner book holds twenty-five entries - Blessing of the
+			// Fairy, Maker, the mounts, the event skills - and NONE of them
+			// carry the `invisible` flag this loop was filtering on, so every
+			// one was drawn. Twenty-five "0/0" cells that cannot be selected,
+			// spent on or explained, with the three real skills lost among
+			// them and the grid running under the buttons.
+			//
+			// Filtering on master level does not help either: they all have
+			// at least one level in the data.
+			//
+			// So the rule is taken from the SERVER, which is the only thing
+			// whose opinion counts here. AssignSPProcessor accepts a beginner
+			// skill only when `skillid % 10000000` falls in 1000..1002 - the
+			// three every branch has. Offering anything else is offering a
+			// button that Cosmic answers by refusing the packet and filing an
+			// autoban alert, which is exactly what was happening.
+			if (joblevel == Job::Level::BEGINNER)
+			{
+				int32_t within = skill_id % 10000000;
+
+				if ((within < 1000 || within > 1002) && level == 0)
+					continue;
+			}
+
 			skills.emplace_back(skill_id, level);
 			skillcount++;
 		}
+
+		// WHAT THIS TAB ACTUALLY CAME OUT AS.
+		//
+		// "The page is empty" has four possible causes that look identical -
+		// the wrong book, an empty book, everything filtered out, or the tab
+		// refused as past this character's tier - and no way to tell them
+		// apart from the panel. One line separates all four.
+		Silent::report("SKILLTAB", "tab " + std::to_string(tab)
+			+ " joblevel " + std::to_string(static_cast<int>(joblevel))
+			+ " of " + std::to_string(static_cast<int>(job.get_level()))
+			+ " book " + std::to_string(subid)
+			+ " -> " + std::to_string(data.get_skills().size())
+			+ " in data, " + std::to_string(skillcount) + " shown");
 
 		slider.setrows(ROWS, skillcount);
 		change_offset(0);

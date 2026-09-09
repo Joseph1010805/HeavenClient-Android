@@ -100,6 +100,9 @@ android {
 // tools/deploy_data.sh puts it beside the .nx files. Without it SpeechInput
 // reports itself unavailable and the microphone buttons stay quiet.
 dependencies {
+    // FileProvider, for handing a bug report to another app - see Report.java.
+    implementation 'androidx.core:core:1.13.1'
+
     implementation 'com.alphacephei:vosk-android:0.3.47@aar'
     implementation 'net.java.dev.jna:jna:5.13.0@aar'
 }

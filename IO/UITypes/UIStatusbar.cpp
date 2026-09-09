@@ -1287,7 +1287,7 @@ namespace ms
 	// menu, which is the only way in once this row is gone.
 	void UIStatusbar::draw_panel_menu() const
 	{
-		if (!SecondScreen::overlay_supported())
+		if (!SecondScreen::overlay_device())
 			return;
 
 		if (!buttons.at(Buttons::BT_MENU)->is_active())
@@ -1352,7 +1352,11 @@ namespace ms
 	{
 		// The one button that survives on a one-screen device, and only
 		// there - the Thor reaches all of this downstairs.
-		bool keep_menu = SecondScreen::overlay_supported();
+		// THE DEVICE, NOT THE MOMENT. This runs while the game is still
+		// loading, before the map is up - asking "may the overlay open right
+		// now" would answer no and leave a one-screen device with no MENU
+		// button at all.
+		bool keep_menu = SecondScreen::overlay_device();
 
 		if (keep_menu)
 		{

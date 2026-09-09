@@ -76,7 +76,7 @@ namespace ms
 		// The server will happily hold you in a party by yourself - inviting
 		// somebody creates one before they answer, and leaving the last other
 		// member leaves you in it. That is correct server-side and it is why
-		// "JosephGrey's Party" was on screen for somebody who had never made
+		// "PlayerOne's Party" was on screen for somebody who had never made
 		// one on purpose.
 		//
 		// Nothing is changed about the party itself: the Party page still

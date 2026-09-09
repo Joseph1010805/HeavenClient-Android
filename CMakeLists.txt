@@ -332,6 +332,7 @@ set(HEAVEN_SOURCES
         IO/UITypes/UIChat.h
         IO/UITypes/UICharacterPage.cpp
         IO/UITypes/UICharacterPage.h
+        IO/UITypes/UIAvatarMega.cpp
         IO/UITypes/UIChatbar.cpp
         IO/UITypes/UIChatbar.h
         IO/UITypes/UICygnusCreation.cpp
@@ -531,6 +532,7 @@ set(HEAVEN_SOURCES
         Util/Randomizer.h
         Util/ScreenResolution.h
         Util/Silent.cpp
+        Util/Shot.cpp
         Util/Silent.h
         Util/TimedBool.h
         Configuration.cpp

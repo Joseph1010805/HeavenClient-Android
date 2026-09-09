@@ -44,13 +44,29 @@ namespace ms
 
 		// Items fell at a falling character's rate, which reads far too brisk
 		// for something tumbling out of a monster. Weakening gravity for drops
-		// alone stretches the whole arc out; the launch is eased by the square
-		// root of the same figure so the pop stays the height it was and only
-		// the timing changes. One number to tune, here.
+		// alone stretches the whole arc out. One number to tune, here.
 		phobj.gravityscale = DROP_GRAVITY;
 
-		constexpr float LAUNCH = -5.0f;
-		const float launch = LAUNCH * std::sqrt(static_cast<float>(DROP_GRAVITY));
+		// HOW HIGH A DROP POPS, in pixels, and the launch derived from it.
+		//
+		// ⚠ THE OLD CONSTANT WAS A SPEED, AND A SPEED HIDES THE HEIGHT.
+		// It was -5.0 against a gravity of 0.128, and `peak = v^2 / (2a)`
+		// makes that a NINETY-EIGHT pixel pop - about the gap between two
+		// platforms, which is why treasure looked like it was being thrown up
+		// to the floor above. Nothing was wrong with the arithmetic; the
+		// number simply never said out loud what it did, so nobody could see
+		// it was wrong by a factor of two. Scaling it by sqrt(DROP_GRAVITY),
+		// as it was, deliberately PRESERVED that height and changed only the
+		// timing - so the slower fall was never going to fix this.
+		//
+		// Written as the height instead, and the speed solved for: it is the
+		// height that anyone looking at the screen can judge.
+		constexpr double DROP_POP = 48.0;
+
+		// v = sqrt(2 * a * peak), with `a` the per-step acceleration the
+		// engine will actually apply to this object - gravity AS SCALED.
+		const float launch = -static_cast<float>(
+			std::sqrt(2.0 * Physics::GRAVFORCE * DROP_GRAVITY * DROP_POP));
 
 		switch (mode)
 		{

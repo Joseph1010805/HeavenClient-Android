@@ -27,6 +27,8 @@
 #include "../Util/Silent.h"
 #include "../IO/SecondScreen.h"
 
+#include "../Data/ItemData.h"
+#include "../IO/UITypes/UIChatbar.h"
 #include "../IO/UITypes/UIStatsinfo.h"
 #include "../Net/Packets/GameplayPackets.h"
 #include "../Net/Packets/InventoryPackets.h"
@@ -35,6 +37,7 @@
 #include <nlnx/nx.hpp>
 
 #include <algorithm>
+#include <ctime>
 #include <string>
 
 namespace ms
@@ -112,6 +115,46 @@ namespace ms
 		{
 			const CharStats& stats = player.get_stats();
 			int16_t level = static_cast<int16_t>(stats.get_stat(Maplestat::Id::LEVEL));
+
+			// THE THINGS THAT ONLY APPLY TO TAKING A QUEST ON.
+			//
+			// Both were ignored entirely, and between them they are why so
+			// many NPCs wore a balloon that led to nothing: the client
+			// offered a quest, the server refused it, and the icon went on
+			// claiming there was something to do.
+			if (!finishing)
+			{
+				// Never offered by asking - the server hands these out
+				// itself and refuses a request by number.
+				if (need.auto_start)
+					return false;
+
+				// EXPIRED EVENTS. 1,030 quests carry a window and almost all
+				// of them closed in 2009. Compared as fixed-width strings,
+				// biggest unit first, so no date parsing is involved.
+				if (!need.opens.empty() || !need.closes.empty())
+				{
+					std::time_t now = std::time(nullptr);
+					std::tm local {};
+
+#ifdef _WIN32
+					localtime_s(&local, &now);
+#else
+					localtime_r(&now, &local);
+#endif
+
+					char stamp[16];
+					std::strftime(stamp, sizeof(stamp), "%Y%m%d%H", &local);
+
+					std::string today(stamp);
+
+					if (!need.opens.empty() && today < need.opens)
+						return false;
+
+					if (!need.closes.empty() && today > need.closes)
+						return false;
+				}
+			}
 
 			if (need.lvmin && level < need.lvmin)
 				return false;
@@ -307,8 +350,27 @@ namespace ms
 		InventoryType::Id type = InventoryType::by_item_id(itemid);
 		int16_t slot = inventory.find_item(type, itemid);
 
+		Silent::report("Player::use_item",
+			"item " + std::to_string(itemid)
+			+ " is inventory " + std::to_string(static_cast<int>(type))
+			+ ", bag slot " + std::to_string(slot));
+
+		// NOT IN THE BAG, AND SAY SO.
+		//
+		// The commonest reason a hotkey "does nothing": the thing it points
+		// at was sold, dropped, or belongs to a DIFFERENT CHARACTER who used
+		// this handheld. Silence here is what made a correct refusal look
+		// exactly like a broken button, and it cost three sessions.
 		if (!slot)
+		{
+			if (auto chat = UI::get().get_element<UIChatbar>())
+				chat->send_chatline(
+					"You do not have " + ItemData::get(itemid).get_name()
+					+ " - that button belongs to another character.",
+					UIChatbar::LineType::RED);
+
 			return;
+		}
 
 		// EVERY KIND OF ITEM A HOTKEY CAN HOLD, not just a potion.
 		//
@@ -329,7 +391,24 @@ namespace ms
 			// The same range Cosmic checks (ItemId.CHAIR_MIN..CHAIR_MAX),
 			// which is the whole 301xxxx block.
 			if (itemid / 10000 == 301)
+			{
 				UseChairPacket(itemid).dispatch();
+
+				// ⚠ AND SIT DOWN OURSELVES. The server does NOT tell you to.
+				//
+				// Character.sitChair broadcasts `showChair` to everybody ELSE
+				// on the map and sends the sitter nothing but enableActions -
+				// because in the original, sitting is a client-side decision
+				// and the server is only relaying it. So the packet was going
+				// out, the server was accepting it, and every other player
+				// could see the character sitting on a chair it did not
+				// believe it was on.
+				//
+				// That is why the chair "did nothing": from the inside it
+				// genuinely did nothing, and from the outside it worked.
+				if (!is_sitting() && !is_attacking())
+					set_state(Char::State::SIT);
+			}
 			else
 				Silent::report("Player::use_item",
 					"setup item " + std::to_string(itemid)

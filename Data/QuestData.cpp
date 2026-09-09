@@ -62,6 +62,15 @@ namespace ms
 			read_pairs(src["item"], into.items);
 			read_pairs(src["mob"], into.mobs);
 
+			// Stored as strings in the data - "2009082600" - and compared as
+			// strings, which works because the format is fixed-width and
+			// biggest-unit-first. No date parsing, nothing to get wrong
+			// about time zones.
+			into.opens = static_cast<std::string>(src["start"]);
+			into.closes = static_cast<std::string>(src["end"]);
+
+			into.auto_start = static_cast<bool>(src["normalAutoStart"]);
+
 			// `startscript` on the start phase and `endscript` on the end one.
 			// Which is present is what decides whether QUEST_ACTION carries a
 			// plain action or a scripted one.
@@ -161,6 +170,17 @@ namespace ms
 	const QuestData::Requirements& QuestData::to_finish() const { return finish; }
 	const QuestData::Rewards& QuestData::start_rewards() const { return startgives; }
 	const QuestData::Rewards& QuestData::finish_rewards() const { return finishgives; }
+
+	std::string QuestData::npc_name(int32_t npcid)
+	{
+		if (npcid <= 0)
+			return "(nobody)";
+
+		std::string name = nl::nx::string["Npc.img"]
+			[std::to_string(npcid)]["name"];
+
+		return name.empty() ? "(unknown)" : name;
+	}
 
 	std::vector<int16_t> QuestData::candidates(int16_t level)
 	{
@@ -267,11 +287,34 @@ namespace ms
 			{
 				int16_t id = static_cast<int16_t>(std::stoi(quest.name()));
 
-				if (int32_t npc = quest["0"]["npc"])
-					starters[npc].push_back(id);
+				int32_t giver = quest["0"]["npc"];
+				int32_t taker = quest["1"]["npc"];
 
-				if (int32_t npc = quest["1"]["npc"])
-					finishers[npc].push_back(id);
+				// ⚠ MOST QUESTS NAME NOBODY TO HAND BACK TO.
+				//
+				// Check.img phase 1 often has only the requirements - the
+				// items to gather - and no `npc` at all, because in the
+				// original the quest is handed back to whoever gave it and
+				// the data does not bother to repeat itself.
+				//
+				// Read literally, those quests have no taker: they were
+				// missing from `finishers` entirely, so the book never
+				// appeared over the NPC's head however complete the quest
+				// was. Pio's 1008 is exactly this - phase 1 is two items and
+				// nothing else.
+				//
+				// The SERVER has the same rule for the same reason
+				// (QuestDialogue: `if (taker <= 0 && giver > 0) taker =
+				// giver`). The two have to agree, or the marker says one
+				// thing and the NPC does another.
+				if (taker <= 0)
+					taker = giver;
+
+				if (giver > 0)
+					starters[giver].push_back(id);
+
+				if (taker > 0)
+					finishers[taker].push_back(id);
 			}
 		}
 

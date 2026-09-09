@@ -18,6 +18,7 @@
 #include "MapMobs.h"
 #include "Mob.h"
 
+#include "../../Constants.h"
 #include "../../IO/UI.h"
 #include "../../IO/UITypes/UIStatusbar.h"
 
@@ -38,6 +39,32 @@ namespace ms
 		{
 			const MobSpawn& spawn = spawns.front();
 
+			// ⚠ A SPAWN CANCELS A KILL THAT HAS NOT LANDED YET.
+			//
+			// The server REFRESHES every monster when a map transition
+			// finishes - PlayerMapTransitionHandler sends destroy, then spawn,
+			// then hands control over. Arriving in that order the pair means
+			// "replace this", and applying both immediately came out right.
+			//
+			// The death hold below delays a kill by DEATH_HOLD so the killing
+			// blow is drawn before the monster falls. That reordered this
+			// pair: the spawn was applied at once and the destroy landed a
+			// fifth of a second later, on top of the monster that had just
+			// replaced it. Every mob on the map appeared for that fifth of a
+			// second, played its death sound and went inactive - invisible,
+			// motionless and impossible to touch, while this client went on
+			// holding all four of them.
+			//
+			// A delay may reorder events that were only ever correct in the
+			// order they arrived. This is the guard for that.
+			for (size_t i = 0; i < pending.size(); )
+			{
+				if (pending[i].oid == spawn.get_oid())
+					pending.erase(pending.begin() + i);
+				else
+					i++;
+			}
+
 			if (Optional<Mob> mob = mobs.get(spawn.get_oid()))
 			{
 				int8_t mode = spawn.get_mode();
@@ -53,6 +80,10 @@ namespace ms
 			}
 		}
 
+		// Before the mobs themselves, so a death that comes due this frame is
+		// animated from this frame rather than the next.
+		update_pending();
+
 		mobs.update(physics);
 	}
 
@@ -63,13 +94,53 @@ namespace ms
 
 	void MapMobs::remove(int32_t oid, int8_t animation)
 	{
-		if (Optional<Mob> mob = mobs.get(oid))
-			mob->kill(animation);
+		// ⚠ THE DEATH WAITS FOR THE BLOW THAT CAUSED IT.
+		//
+		// A hit is drawn LATE on purpose - Combat queues its damage effect
+		// behind Char::get_attackdelay, so the number and the flinch land on
+		// the frame the weapon actually connects rather than the frame the
+		// button was pressed. The kill had no such delay: it arrives from the
+		// server and was applied the instant it was read.
+		//
+		// So a killing blow played backwards. The monster started dying, and
+		// only afterwards did the strike that killed it appear.
+		//
+		// Held for a beat instead. Not matched to the exact attack delay,
+		// which the mob cannot know - the attacker, the weapon and the attack
+		// speed all move it - but long enough to cover the usual range and
+		// short enough that nothing feels sticky.
+		pending.push_back({ oid, animation, DEATH_HOLD });
+	}
+
+	void MapMobs::update_pending()
+	{
+		for (size_t i = 0; i < pending.size(); )
+		{
+			Pending& p = pending[i];
+
+			p.left = static_cast<int16_t>(p.left - Constants::TIMESTEP);
+
+			if (p.left > 0)
+			{
+				i++;
+				continue;
+			}
+
+			if (Optional<Mob> mob = mobs.get(p.oid))
+				mob->kill(p.animation);
+
+			pending.erase(pending.begin() + i);
+		}
 	}
 
 	void MapMobs::clear()
 	{
 		mobs.clear();
+
+		// Deaths that never came due. A map change removes the monster they
+		// referred to, and holding an oid across a map is how a fresh monster
+		// with a recycled id gets killed on arrival.
+		pending.clear();
 
 		// The pending queue as well as the live objects.
 		//
@@ -148,6 +219,11 @@ namespace ms
 	bool MapMobs::contains(int32_t oid) const
 	{
 		return mobs.contains(oid);
+	}
+
+	size_t MapMobs::count() const
+	{
+		return mobs.size();
 	}
 
 	int32_t MapMobs::find_colliding(const MovingObject& moveobj) const

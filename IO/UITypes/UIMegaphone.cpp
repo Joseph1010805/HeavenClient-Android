@@ -266,4 +266,26 @@ namespace ms
 	{
 		return TYPE;
 	}
+
+	void UIMegaphone::makeactive()
+	{
+		UIElement::makeactive();
+
+		// Reopened rather than rebuilt - the SHOUT button toggles - so the box
+		// has to be told to take the keys again. The constructor only ever
+		// runs once.
+		message.set_state(Textfield::State::FOCUSED);
+	}
+
+	void UIMegaphone::deactivate()
+	{
+		// ONLY IF IT IS STILL OURS. Setting a field DISABLED clears whatever
+		// the client currently has focused, not specifically this one, so a
+		// window closing while somebody is typing in the chat bar would take
+		// the chat bar's keyboard away with it.
+		if (message.get_state() == Textfield::State::FOCUSED)
+			message.set_state(Textfield::State::DISABLED);
+
+		UIElement::deactivate();
+	}
 }

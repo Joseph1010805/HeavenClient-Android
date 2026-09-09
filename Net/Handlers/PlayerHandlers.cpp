@@ -16,6 +16,7 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "PlayerHandlers.h"
+#include "../../Util/Silent.h"
 #include "../../Console.h"
 #include "../../IO/KeyAction.h"
 
@@ -24,6 +25,8 @@
 #include "../Character/CharEffect.h"
 #include "../Gameplay/Stage.h"
 #include "../IO/UI.h"
+#include "../IO/SecondScreen.h"
+#include "../IO/UITypes/UIChatbar.h"
 #include "../IO/UITypes/UIBuffList.h"
 #include "../IO/UITypes/UIStatsinfo.h"
 #include "../IO/UITypes/UISkillbook.h"
@@ -73,6 +76,14 @@ namespace ms
 			// implemented dying for it to belong to.
 			player.show_effect_id(CharEffect::Id::TOMBSTONE);
 			Sound(Sound::Name::TOMBSTONE).play();
+
+			// And the death card on the lower panel, the same way levelling
+			// plays its burst there. Raised HERE rather than in
+			// Player::set_state, because this is the one place that knows a
+			// death has just been NOTICED - set_state is reached again on
+			// every stat packet that arrives while HP sits at zero, and the
+			// card would restart each time.
+			SecondScreen::play_death();
 
 			// The revive request, whichever frame asks for it. The tombstone
 			// frame is the right one for dying; the plain message box is the
@@ -153,7 +164,7 @@ namespace ms
 			// was empty, which sounds right and is not: a character that has
 			// been played at all has SOMETHING bound - the client writes the
 			// keymap back whenever a binding changes - and one stray entry was
-			// enough to skip the lot. Josephgrey arrived with a partial keymap
+			// enough to skip the lot. Playerone arrived with a partial keymap
 			// and no attack key, and the defaults never ran.
 			//
 			// Filling each unbound key leaves anything the player has chosen
@@ -237,9 +248,26 @@ namespace ms
 			player.get_inventory().set_meso(recv.read_int());
 			break;
 		default:
-			player.get_stats().set_stat(stat, recv.read_short());
+		{
+			int16_t value = recv.read_short();
+
+			// ⚠ DID THE SERVER ACTUALLY CHANGE OUR HP?
+			//
+			// Damage and healing both stop together partway through a
+			// session, and from the screen that has two possible causes which
+			// look identical: the server is no longer APPLYING the change, or
+			// it is applying it and this client is not SHOWING it. Every HP
+			// the server sends is reported here, so an hour with no line
+			// means the packets stopped and an hour of lines with a frozen
+			// bar means they did not.
+			if (stat == Maplestat::Id::HP || stat == Maplestat::Id::MAXHP)
+				Silent::report("HP", (stat == Maplestat::Id::HP ? "now " : "max ")
+					+ std::to_string(value));
+
+			player.get_stats().set_stat(stat, value);
 			recalculate = true;
 			break;
+		}
 		}
 
 		bool update_statsinfo = need_statsinfo_update(stat);
@@ -363,5 +391,33 @@ namespace ms
 		int16_t cooltime = recv.read_short();
 
 		Stage::get().get_player().add_cooldown(skill_id, cooltime);
+	}
+
+	void MonsterBookAddCardHandler::handle(InPacket& recv) const
+	{
+		// The leading byte is 0 when the set is now FULL - five of that card -
+		// and 1 for an ordinary addition. Either way the card is recorded;
+		// the difference is only which flourish the original played.
+		bool full = recv.read_byte() == 0;
+
+		int32_t cardid = recv.read_int();
+		int32_t level = recv.read_int();
+
+		// STORED AS A SHORT, sent as an int. The book is keyed by the card id
+		// with its leading digit dropped, which always fits - but reading it
+		// as a short here would take half of the wrong four bytes.
+		Stage::get().get_player().get_monsterbook().add_card(
+			static_cast<int16_t>(cardid), static_cast<int8_t>(level));
+
+		if (full)
+			if (auto chat = UI::get().get_element<UIChatbar>())
+				chat->send_chatline(
+					"You have completed a monster card set.",
+					UIChatbar::LineType::YELLOW);
+	}
+
+	void MonsterBookCoverHandler::handle(InPacket& recv) const
+	{
+		Stage::get().get_player().get_monsterbook().set_cover(recv.read_int());
 	}
 }

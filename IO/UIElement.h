@@ -78,6 +78,26 @@ namespace ms
 			TRADE,
 			STORAGE,
 			QUIT,
+
+			// ⚠ THE AVATAR MEGAPHONE BANNER NEEDS A SLOT OF ITS OWN.
+			//
+			// It was declared with TYPE = NONE, and NONE is not a type - it is
+			// the SENTINEL that means "no element". UIStateGame keeps its
+			// focus as a Type and tests it with `get(focused)`, so once a
+			// banner was living in the NONE slot, "nothing is focused" started
+			// returning the banner. Every key in the game was then handed to
+			// it, and when it expired the lookup found an INACTIVE element and
+			// returned without passing the key on at all.
+			//
+			// So sending one banner killed the controls for good: not for the
+			// twelve seconds it was up, but permanently, because the dead
+			// element stayed in the map answering to "nothing". Only a screen
+			// change rebuilt the map and cleared it - which is why a trip to
+			// the cash shop was the cure.
+			//
+			// Added at the END so no existing value renumbers.
+			AVATARMEGA,
+
 			NUM_TYPES
 		};
 
@@ -87,8 +107,16 @@ namespace ms
 		virtual void update();
 		virtual void update_screen(int16_t new_width, int16_t new_height) {}
 
-		void makeactive();
-		void deactivate();
+		// ⚠ VIRTUAL, because opening and closing is not always just a flag.
+		//
+		// An element that focuses a Textfield has taken the whole keyboard:
+		// UI::send_key hands every key to the focused field and the game gets
+		// none of them. Closing the window has to give that back, and only the
+		// window knows it took it. With these non-virtual there was no way for
+		// it to be told - toggle_active() calls them, so the close path went
+		// straight past any override.
+		virtual void makeactive();
+		virtual void deactivate();
 		bool is_active() const;
 
 		virtual void toggle_active();

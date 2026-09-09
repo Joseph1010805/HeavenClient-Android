@@ -109,6 +109,11 @@ namespace ms
 
 		// Messaging 2
 		SERVER_MESSAGE = 68,
+
+		// The avatar messenger banner, and the packet that takes it away
+		// again ten seconds later. Both were arriving and being dropped.
+		SET_AVATAR_MEGAPHONE = 111,
+		CLEAR_AVATAR_MEGAPHONE = 112,
 		WEEK_EVENT_MESSAGE = 77,
 
 		FIELD_SET_VARIABLE = 92,
@@ -138,6 +143,13 @@ namespace ms
 		// GIFTS. Duey's counter, and every word it says about a send - see
 		// Net/Handlers/DueyHandlers.h.
 		PARCEL = 322,
+
+		// A bag that grew, and the monster card collection - see the notes on
+		// their handlers. All three were announced by the server and heard by
+		// nobody.
+		INVENTORY_GROW = 30,
+		MONSTER_BOOK_ADD_CARD = 83,
+		MONSTER_BOOK_SET_COVER = 84,
 		CHAR_MOVED = 185,
 
 		// Attack
@@ -214,6 +226,9 @@ namespace ms
 		emplace<REMOVE_CHAR, RemoveCharHandler>();
 		emplace<SPAWN_PET, SpawnPetHandler>();
 		emplace<PARCEL, ParcelHandler>();
+		emplace<INVENTORY_GROW, InventoryGrowHandler>();
+		emplace<MONSTER_BOOK_ADD_CARD, MonsterBookAddCardHandler>();
+		emplace<MONSTER_BOOK_SET_COVER, MonsterBookCoverHandler>();
 		emplace<SPAWN_NPC, SpawnNpcHandler>();
 		emplace<SPAWN_NPC_C, SpawnNpcControllerHandler>();
 		emplace<SPAWN_MOB, SpawnMobHandler>();
@@ -274,6 +289,8 @@ namespace ms
 		emplace<WHISPER, WhisperHandler>();
 		emplace<SCROLL_RESULT, ScrollResultHandler>();
 		emplace<SERVER_MESSAGE, ServerMessageHandler>();
+		emplace<SET_AVATAR_MEGAPHONE, SetAvatarMegaphoneHandler>();
+		emplace<CLEAR_AVATAR_MEGAPHONE, ClearAvatarMegaphoneHandler>();
 		emplace<WEEK_EVENT_MESSAGE, WeekEventMessageHandler>();
 		emplace<SHOW_ITEM_GAIN_INCHAT, ShowItemGainInChatHandler>();
 

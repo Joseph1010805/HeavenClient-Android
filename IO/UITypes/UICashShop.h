@@ -122,10 +122,27 @@ namespace ms
 		// Where the character stands inside the preview panel, and how far
 		// left and right the arrow keys may walk them without leaving it.
 		static constexpr int16_t STAGE_X = LEFT_X + LEFT_W / 2;
-		// Where his FEET are. Measured off a screenshot rather than guessed:
-		// at -40 he stood shin-deep in the ground, because the floor in the
-		// backdrop art sits higher than the bottom of the panel.
-		static constexpr int16_t STAGE_Y = PREVIEW_Y + PREVIEW_H - 63;
+		// Where his FEET are. Measured off the ARTWORK, not a screenshot:
+		// UI.nx CashShop.img/Base/Preview is 366x238 and is stretched into
+		// (LEFT_W - 8) x (PREVIEW_H - 26), so a source row maps to
+		// PREVIEW_Y + 22 + row * (PREVIEW_H - 26) / 238.
+		//
+		// The grass surface sits at source row 161, which is panel y 239. At
+		// -63 he stood at 267 - twenty-eight pixels down INSIDE the stone
+		// band, which is what "not on ground level" was.
+		static constexpr int16_t STAGE_Y = PREVIEW_Y + PREVIEW_H - 91;
+
+		// ⚠ THE LADDER, TAKEN FROM THE PICTURE.
+		//
+		// There is no foothold data behind a cash-shop backdrop - it is one
+		// flat bitmap - so the rungs were measured out of the art the same
+		// way the ground was: source x 248..281, top at row 8. A map's real
+		// Ladder objects carry exactly this (an x, a top and a bottom), so
+		// the shape of the thing matches what Stage uses; only the source of
+		// the numbers differs.
+		static constexpr int16_t LADDER_X0 = LEFT_X + 4 + 192;
+		static constexpr int16_t LADDER_X1 = LEFT_X + 4 + 218;
+		static constexpr int16_t LADDER_TOP = PREVIEW_Y + 22 + 9;
 		static constexpr int16_t STAGE_MIN_X = LEFT_X + 40;
 		static constexpr int16_t STAGE_MAX_X = LEFT_X + LEFT_W - 40;
 
@@ -288,6 +305,18 @@ namespace ms
 		bool char_jumping = false;
 		bool key_left = false;
 		bool key_right = false;
+
+		// On the rungs. While this is set gravity and walking are both off -
+		// the same arrangement Char uses on a real ladder.
+		bool char_climbing = false;
+		bool key_up = false;
+		bool key_down = false;
+
+		bool on_ladder() const
+		{
+			return char_x >= static_cast<float>(LADDER_X0)
+				&& char_x <= static_cast<float>(LADDER_X1);
+		}
 		bool facing_right = true;
 		uint8_t cur_stance = 0;
 

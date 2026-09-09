@@ -53,11 +53,21 @@ if [ ! -f "$HOME_DIR/config.yaml" ]; then
 fi
 
 # 596 MB and 22,180 files. This is the slow part, and only happens once.
+#
+# ⚠ "already unpacked" ONLY EVER MEANS "the directory exists". It is not a
+# statement about whether the data is CURRENT, and reading it as one cost two
+# days: every wz edit after the first setup was staged to /sdcard and stopped
+# there, while this printed a cheerful line and moved on. Keeping the data up
+# to date is bootstrap.sh's job now, against `.wz.installed`.
 if [ ! -d "$HOME_DIR/wz" ]; then
 	echo "wz: unpacking 596 MB, this takes a while..."
 	tar -C "$HOME_DIR" -xf "$STAGE/wz.tar" || die "could not unpack wz.tar"
+
+	# Leave bootstrap.sh the same evidence it would have left itself, or the
+	# very next server start unpacks all 596 MB again for nothing.
+	cp "$STAGE/wz.tar" "$HOME_DIR/.wz.installed"
 else
-	echo "wz: already unpacked"
+	echo "wz: present (bootstrap.sh checks whether it is current)"
 fi
 
 if [ ! -d "$HOME_DIR/scripts" ]; then

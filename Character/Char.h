@@ -136,6 +136,15 @@ namespace ms
 
 		// Return if the char is in the Char::SIT state.
 		bool is_sitting() const;
+		// What this character is DOING. Exposed so a diagnostic can say why a
+		// key was ignored: "the game took it and the player refused" is a
+		// different fault from the key never arriving, and the two are
+		// indistinguishable without this.
+		// ⚠ NOT get_state - Player.cpp has a free get_state(State) that picks
+		// the state OBJECT, and a member of that name shadows it inside every
+		// Player method.
+		State current_state() const { return state; }
+
 		// Return if the char is in the Char::LADDER or Char::ROPE state.
 		bool is_climbing() const;
 		// Return whether the character sprite uses stances for two-handed weapons.

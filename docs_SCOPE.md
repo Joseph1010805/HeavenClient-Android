@@ -50,7 +50,7 @@ Two separate holes, and the second is the one that matters:
   screen, no marker over an NPC who has one.
 - **There is no `QUEST_ACTION` packet at all.** A quest can be *started* by an
   NPC script, because the NPC dialogue path works, but it cannot be accepted,
-  forfeited or handed in from the log. The database says exactly that: joey
+  forfeited or handed in from the log. The database says exactly that: alex
   has **2 quests started and 0 completed**.
 
 The window also wants a richer text renderer than we have - quest text

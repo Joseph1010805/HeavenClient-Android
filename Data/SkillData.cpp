@@ -31,8 +31,24 @@ namespace ms
 	{
 		// Locate sources
 		std::string strid = string_format::extend_id(id, 7);
-		std::string jobid = strid.substr(0, 3);
-		nl::node src = nl::nx::skill[jobid + ".img"]["skill"][strid];
+
+		// ⚠ THE JOB IS id / 10000, NOT THE FIRST THREE CHARACTERS.
+		//
+		// extend_id pads to SEVEN digits, which is right for an Explorer:
+		// 1001 becomes "0001001" and the first three are "000". A Cygnus or
+		// Aran skill is EIGHT digits and is left alone, so 10001002 gave
+		// "100" - the Explorer WARRIOR book - and the skill was looked up
+		// somewhere it does not exist. No icon, no levels, and a master level
+		// of zero, which is why the panel read "3/0" for a skill that has
+		// three ranks and drew blank squares where the icons belong.
+		//
+		// OpenStory carries the same fix and the same reasoning.
+		// This class had the rule right all along - it was the four places
+		// that reached into Skill.nx directly which did not. The rule now
+		// lives in string_format::skill_file(); `jobid` is kept only for the
+		// weapon test further down, which asks about the job and not the file.
+		std::string jobid = string_format::extend_id(id / 10000, 3);
+		nl::node src = nl::nx::skill[string_format::skill_file(id)]["skill"][strid];
 		nl::node strsrc = nl::nx::string["Skill.img"][strid];
 
 		// Load icons

@@ -306,6 +306,30 @@ namespace ms
 		return Rectangle<int16_t>(at, at + Point<int16_t>(W, H));
 	}
 
+	Keyboard::Mapping UIEquipInventory::selected_mapping() const
+	{
+		if (selected == Equipslot::Id::NONE)
+			return {};
+
+		// The WORN slot, not the box's own - a cosmetic box shows the
+		// cosmetic, and that is the item a key should carry, exactly as
+		// unequip_selected() takes the same slot.
+		int32_t item_id = inventory.get_item_id(
+			InventoryType::Id::EQUIPPED, worn_slot(selected));
+
+		if (!item_id)
+			return {};
+
+		// CASH gear carries its own type, because the quickslot bar and the
+		// server distinguish the two inventories - same rule the item page
+		// follows.
+		KeyType::Id type = on_cash_tab()
+			? KeyType::Id::CASH
+			: KeyType::Id::ITEM;
+
+		return Keyboard::Mapping(type, item_id);
+	}
+
 	void UIEquipInventory::unequip_selected()
 	{
 		if (selected == Equipslot::Id::NONE)

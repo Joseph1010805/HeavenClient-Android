@@ -59,6 +59,22 @@ namespace ms
 
 		// Prefix an id with zeroes so that it has the minimum specified length.
 		std::string extend_id(int32_t id, size_t length);
+
+		// ⚠ WHICH FILE IN Skill.nx A SKILL LIVES IN, e.g. "1000.img".
+		//
+		// Four separate places worked this out as `strid.substr(0, 3)`, which
+		// is right for a seven-digit Explorer id and WRONG for every Cygnus
+		// Knight and Aran. Their skills are eight digits, so the first three
+		// characters of 10001001 are "100" - the WARRIOR file - and the lookup
+		// found nothing at all. Silently: an absent nlnx node is not an error,
+		// it is just empty, so the skill went on working mechanically with no
+		// effect animation, no buff icon and no afterimage. That is the whole
+		// of why Recovery and Nimble Feet did nothing visible.
+		//
+		// The file is named for the JOB, which is the id without its last four
+		// digits, padded to at least three: 1001 -> "000", 10001001 -> "1000",
+		// 1120005 -> "112". One copy of that rule, here.
+		std::string skill_file(int32_t skillid);
 	};
 
 	namespace bytecode

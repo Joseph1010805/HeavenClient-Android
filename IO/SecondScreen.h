@@ -98,6 +98,12 @@ namespace ms
 		// down instead.
 		Keyboard::Mapping selected_mapping();
 
+		// A finished spoken sentence, on its way to the megaphone page. The
+		// recogniser lives in UIChatbar on the main screen and the page that
+		// gathers the words is on the panel, so it goes through here for the
+		// same reason selected_mapping does.
+		void megaphone_heard(const std::string& said);
+
 		// The last thing picked out on ANY page, which survives a page turn.
 		// What the hotkey page binds.
 		Keyboard::Mapping carried_mapping();
@@ -140,6 +146,10 @@ namespace ms
 		// no panel, so the one-screen build is unaffected.
 		void play_levelup();
 
+		// Play the death card on the panel. Like play_levelup, a no-op where
+		// there is no panel, so the one-screen build is unaffected.
+		void play_death();
+
 		// THE SAME PANEL ON A DEVICE WITH ONLY ONE SCREEN.
 		//
 		// Everything above draws to a surface the RP5 and the Quest do not
@@ -157,7 +167,18 @@ namespace ms
 		// what replaces the game's own icon row, and a menu that half-covers
 		// the map is easier to read than one squeezed beside it.
 
-		// True where there is no second display - the case this exists for.
+		// A DEVICE FACT: there is no second display, so the overlay is how
+		// this machine reaches the panel at all.
+		//
+		// Distinct from overlay_supported below, which also asks whether NOW
+		// is a sensible moment. The status bar needs this one: it is built
+		// during the transition into the game and has to decide whether to
+		// keep its MENU button before the map is up.
+		bool overlay_device();
+
+		// True where the overlay may be opened: no second display AND the
+		// game is running. See the note on the login screen where this is
+		// defined.
 		bool overlay_supported();
 
 		// Whether it is currently over the game.

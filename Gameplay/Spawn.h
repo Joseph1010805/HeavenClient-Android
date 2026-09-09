@@ -69,6 +69,14 @@ namespace ms
 		ReactorSpawn(int32_t oid, int32_t rid, int8_t state, Point<int16_t> position);
 
 		int32_t get_oid() const;
+
+		// Needed by the RESPAWN path, which reuses a reactor already in the
+		// map rather than building a new one, so it cannot go through
+		// instantiate() to learn where the reactor stands or what state the
+		// server put it back in.
+		int8_t get_state() const;
+		Point<int16_t> get_position() const;
+
 		std::unique_ptr<MapObject> instantiate(const Physics& physics) const;
 
 	private:

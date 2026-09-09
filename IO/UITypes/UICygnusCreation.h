@@ -59,6 +59,22 @@ namespace ms
 			BT_CHARC_CANCEL,
 			BT_CHARC_SKINL,
 			BT_CHARC_SKINR,
+
+			// FACE, HAIR STYLE, AND THE CLOTHES.
+			//
+			// Only skin and weapon ever had arrows, so five of the seven rows
+			// on this screen could be read and not changed - including the
+			// hair, which is the one people care about.
+			BT_CHARC_FACEL,
+			BT_CHARC_FACER,
+			BT_CHARC_HAIRL,
+			BT_CHARC_HAIRR,
+			BT_CHARC_TOPL,
+			BT_CHARC_TOPR,
+			BT_CHARC_BOTL,
+			BT_CHARC_BOTR,
+			BT_CHARC_SHOEL,
+			BT_CHARC_SHOER,
 			BT_CHARC_WEPL,
 			BT_CHARC_WEPR,
 			BT_CHARC_GENDER_M,

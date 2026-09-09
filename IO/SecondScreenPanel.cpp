@@ -18,7 +18,17 @@
 #include "SecondScreenPanel.h"
 
 #include "UITypes/UIHotkeys.h"
+#include "UITypes/UIStatusbar.h"
+#include "UITypes/UIAvatarMega.h"
+#include "../Data/SkillData.h"
 #include "../Util/GiftBox.h"
+#include "../Util/Silent.h"
+#include "../Util/Shot.h"
+
+#if defined(PLATFORM_ANDROID)
+// For the device name in a bug report - see device_name().
+#include <sys/system_properties.h>
+#endif
 #include "../Util/PostBox.h"
 
 #include "../Net/Packets/DueyPackets.h"
@@ -26,6 +36,7 @@
 #include "UITypes/UIStorage.h"
 
 #include "../Net/Packets/TradePackets.h"
+#include "../Net/Packets/InventoryPackets.h"
 #include "UITypes/UICharacterPage.h"
 
 #include "UI.h"
@@ -55,6 +66,7 @@
 #include "../Constants.h"
 #include "../Gameplay/Stage.h"
 #include "../Character/ExpTable.h"
+#include "../Character/Monsterbook.h"
 #include "../Data/ItemData.h"
 #include "../Character/Look/Face.h"
 
@@ -89,8 +101,85 @@ namespace ms
 	// One top and one size for both, so they cannot drift out of line with
 	// each other. A size up from 18 - these are read at arm's length from a
 	// screen nineteen inches away, not clicked with a mouse.
-	constexpr int16_t CRUMB = 22;
-	constexpr int16_t CHROME_TOP = 3;
+	// THE ADDRESS BAR, AT THE SIZE THE PANEL IS LAID OUT IN.
+	//
+	// These were fixed numbers, which is right for one screen and wrong for
+	// two. The Thor lays the panel out 300 high; the RP5's overlay lays it out
+	// in the main screen's own 600 - so every crumb came out at half the
+	// relative size and three pixels from the physical edge of a handheld,
+	// where a thumb cannot reach it without wrapping round the corner.
+	//
+	// Sized against the layout height instead, so the bar is the same share
+	// of the screen on both and the numbers below still mean what they meant
+	// on the panel they were measured for.
+	// THE JUMP-BUTTON STRIP: its height, the gap splitting it into two
+	// buttons, and how far it clears the numbers on the EXP bar. Named here
+	// because content_area() subtracts the same band it occupies, and the two
+	// have to agree or the buttons sit on the page again.
+	// Line spacing for a wrapped binding name in a controller cell - see
+	// draw_controller, which puts one word per line down the cell.
+	constexpr int16_t PAD_LINE_H = 15;
+
+	constexpr int16_t JUMP_H = 26;
+	constexpr int16_t JUMP_GAP = 6;
+	constexpr int16_t JUMP_CLEAR = 5;
+
+	constexpr int16_t CRUMB_BASE = 22;
+	constexpr int16_t CHROME_BASE = 3;
+	constexpr int16_t DESIGN_H = 300;
+
+	// THE MEGAPHONES THAT ACTUALLY REACH SOMEBODY.
+	//
+	// Up here rather than beside the page that draws them, because the touch
+	// handler is thousands of lines above it and needs the same table.
+	//
+	// Names are the game's own. Heart (5073000) and Skull (5074000) exist in
+	// v83 and are deliberately absent: Cosmic's UseCashItemHandler switches
+	// on (id / 1000) % 10 and has no case for 3 or 4, so both fall through
+	// and do nothing at all - the same silent failure the Cheap Megaphone
+	// already taught us.
+	struct Megaphone { int32_t item; const char* name; };
+
+	// ⚠ NAMED BY COLOUR, not by the item.
+	//
+	// "Diablo" and "Loveholic" are Nexon's names for things nobody here has
+	// ever bought, and they say nothing about what the banner will look like.
+	// The colour is the only difference between the five and the only thing
+	// worth choosing between, so it is what the button says.
+	const Megaphone MEGAPHONES[] = {
+		{ 5390000, "Red" },
+		{ 5390001, "Blue" },
+		{ 5390002, "Pink" },
+		{ 5390005, "Orange" },
+		{ 5390006, "Brown" }
+	};
+
+	// The faces, in the order the panel's own emotion page shows them.
+	const char* MEGA_FACE_NAMES[] = {
+		"Blink", "Hit", "Smile", "Troubled", "Cry", "Angry", "Puzzled"
+	};
+
+	// THE KEYS GRID. Up here rather than beside the page that draws it,
+	// because the two scroll paths are hundreds of lines above that page and
+	// need the same numbers.
+	constexpr int16_t KEY_COLS = 8;
+	constexpr int16_t KEY_GAP = 3;
+
+	// 32 for the icon, a line for the key under it, and two to breathe.
+	constexpr int16_t KEY_CELL_H = 47;
+
+	// Kept clear at the bottom: the name of the picked action on one line,
+	// then TO HOTKEY and TO CONTROLLER. The name has to be OUTSIDE the grid -
+	// drawn over the last row it collided with the icons, which is the same
+	// mistake as the row that used to vanish behind the EXP bar.
+	constexpr int16_t KEY_FOOT = 52;
+
+	int16_t chrome_scale(int16_t height)
+	{
+		int16_t n = static_cast<int16_t>(height / DESIGN_H);
+
+		return n < 1 ? 1 : n;
+	}
 
 	// How much of the gauge artwork is rim rather than trough, so the fill
 	// can be drawn inside it instead of over it.
@@ -227,7 +316,7 @@ namespace ms
 		// Quests left here for ADVENTURE. A quest is not a fact about your
 		// character, it is somewhere you are going - and it sat next to your
 		// stats only because there were four tabs on the top screen.
-		static const Page character[] = { INVENTORY, EQUIPMENT, ABILITY, SKILLS };
+		static const Page character[] = { INVENTORY, EQUIPMENT, ABILITY, SKILLS, MONSTERBOOK };
 
 		// WHERE you are going: the map and the quest log answer the same
 		// question from two directions.
@@ -250,7 +339,15 @@ namespace ms
 		// The megaphone became L3. A stick click reaches the whole world as a
 		// banner, which is what that page was for and is one press instead of
 		// four.
-		static const Page social[] = { SAY, ROOMCHAT, NEARBY, GIFT, EMOTIONS, PARTY };
+		// ⚠ THE MEGAPHONE IS IN THE LIST NOW.
+		//
+		// SHOUT existed, drew, and worked - and was reachable from nowhere.
+		// It was dropped from this list when the megaphone became L3, and
+		// when L3 went back to being a plain hotkey nothing put it back, so
+		// the one page that shouts to the world had no way in.
+		static const Page social[] = {
+			SAY, ROOMCHAT, SHOUT, NEARBY, GIFT, EMOTIONS, PARTY
+		};
 
 		// The list of options, the pad, and a way to tell us it broke.
 		// OPTIONS IS GONE. It was a read-only list of what Configuration
@@ -337,7 +434,18 @@ namespace ms
 		// is the ENTIRE point of it: it cleared the selection on the way to
 		// the one page that exists to receive it. Pressing the button worked,
 		// arrived, and put you down empty-handed. Same for a skill.
-		if (which != HOTKEYS)
+		//
+		// ⚠ AND THE PAD IS THE SECOND SUCH PAGE. It was added later and this
+		// line was never widened to cover it, so TO CONTROLLER did exactly
+		// what TO HOTKEYS used to: the button picked the skill up, go_to threw
+		// it away one line later, and the pad opened holding nothing. Every
+		// cell tapped there was then a dead cell - which is why binding worked
+		// from the Keys page and from the bar on the main screen, and only
+		// this one route failed.
+		//
+		// THE TWO DESTINATIONS THAT RECEIVE THINGS ARE THE TWO EXCEPTIONS.
+		// Anything else is a page turn and drops what you were holding.
+		if (which != HOTKEYS && which != CONTROLLER)
 			carried = Keyboard::Mapping();
 	}
 
@@ -407,6 +515,17 @@ namespace ms
 
 	Keyboard::Mapping SecondScreenPanel::selected_mapping() const
 	{
+		// ⚠ THE KEYS PAGE HAS NO WINDOW TO ASK.
+		//
+		// It is drawn by the panel itself, so pages[KEYBINDS] is null and this
+		// used to hand back an empty mapping for it. UIStatusbar::send_cursor
+		// asks exactly this question when a pad cell is tapped, so the answer
+		// being empty is why tapping a button on the bar did nothing at all -
+		// the binding path was complete from end to end and the one thing
+		// missing was the page saying what was picked.
+		if (current == KEYBINDS)
+			return keys_selected_mapping();
+
 		// Only a page that has been built can have a selection, so this must
 		// not go through window() - that builds the page on first sight, and
 		// merely asking what is selected should not bring one into existence.
@@ -422,15 +541,24 @@ namespace ms
 		// This handed everything to window(), which is null on every page
 		// this class paints - so the stick moved the inventory and the skill
 		// list and did nothing whatever on the keys.
+		// THE PAGES THE PANEL DRAWS ITSELF HAVE NO WINDOW TO ASK.
+		//
+		// This handed everything to window(), which is null on every page
+		// this class paints - so the stick moved the inventory and the skill
+		// list and did nothing whatever on the keys.
+		//
+		// Counted in ROWS now that the page is a grid: one nudge moves one
+		// line of icons. The clamp is measured from the panel rather than
+		// assumed, so on a shape where every row already fits it comes out at
+		// zero and the stick simply has nothing to move.
 		if (current == KEYBINDS)
 		{
-			key_scroll = static_cast<int16_t>(key_scroll - yoffset * 2);
+			key_scroll = static_cast<int16_t>(key_scroll - yoffset);
 
 			if (key_scroll < 0)
 				key_scroll = 0;
 
-			int16_t last = static_cast<int16_t>(
-				bindable_count() > 4 ? bindable_count() - 4 : 0);
+			int16_t last = key_scroll_max(panel_screen);
 
 			if (key_scroll > last)
 				key_scroll = last;
@@ -476,7 +604,8 @@ namespace ms
 			|| current == KEYBINDS || current == EXITGAME || current == PARTY
 			|| current == PVE || current == PVP
 			|| current == SHOUT || current == ROOMCHAT || current == EMOTIONS
-			|| current == SAY || current == NEARBY || current == GIFT)
+			|| current == SAY || current == NEARBY || current == GIFT
+			|| current == MONSTERBOOK)
 			return nullptr;
 
 		auto& slot = const_cast<std::unique_ptr<UIElement>&>(pages[current]);
@@ -648,8 +777,53 @@ namespace ms
 		// it - the numbers are the part that gets forgotten, and they are
 		// what a grid's last row disappears behind.
 		constexpr int16_t SIDE = VITAL_W + 4;
-		constexpr int16_t TOP = CHROME_TOP + CRUMB + 5;
-		constexpr int16_t BOTTOM = VITAL_W + 22;
+		int16_t k = chrome_scale(screen.y());
+		int16_t TOP = static_cast<int16_t>(CHROME_BASE * k + (k - 1) * 6
+			+ CRUMB_BASE * k + 5);
+		int16_t BOTTOM = VITAL_W + 22;
+
+		// ⚠ THE MAPS GET THE WHOLE PANEL, under the address bar and nothing
+		// else. A map is the one page whose entire value is how much of it
+		// you can see at once, and the gutters this reserves for the HP and
+		// MP gauges were costing it the better part of an inch on each side.
+		//
+		// draw_chrome() leaves the gauges, the menu and the arrows off the
+		// world map to match, so nothing is drawn over the space handed out
+		// here - see the guard there.
+		// ⚠ AND THE WORLD MAP GOES UNDER THE ADDRESS BAR TOO, not below it.
+		//
+		// draw_chrome() runs AFTER the page, so the crumbs and the clock are
+		// already drawn on top of whatever the page put there - which means
+		// the row they occupy does not have to be reserved, it only has to be
+		// drawn over. A map has nothing but blank ocean in its corners, so
+		// the bar costs it nothing and the map gains the whole strip.
+		//
+		// The minimap keeps its top margin: it is a small picture centred in
+		// the space, and sliding it under the bar would put the room name on
+		// top of the room.
+		if (current == WORLDMAP)
+			return Rectangle<int16_t>(
+				Point<int16_t>(0, 0),
+				Point<int16_t>(screen.x(), screen.y()));
+
+		if (current == MINIMAP)
+			return Rectangle<int16_t>(
+				Point<int16_t>(0, TOP),
+				Point<int16_t>(screen.x(), screen.y()));
+
+		// ⚠ AND ABOVE THE TWO JUMP BUTTONS, on the pages that carry them.
+		//
+		// They used to be drawn OVER the page: the strip they occupy ended
+		// one pixel above this boundary, so every page that showed them had
+		// its last row underneath them, and a scrolling list slid its contents
+		// straight beneath. Reserving the band here instead means no page can
+		// reach it - a list simply has less room and scrolls sooner, which is
+		// the correct answer rather than a collision.
+		//
+		// Only on the pages that show them, or every other page would lose a
+		// band of height to buttons that are not there.
+		if (hotkey_jump_visible())
+			BOTTOM = static_cast<int16_t>(BOTTOM + JUMP_H + JUMP_CLEAR);
 
 		return Rectangle<int16_t>(
 			Point<int16_t>(SIDE, TOP),
@@ -682,8 +856,12 @@ namespace ms
 		// sits slightly high, not when it is measured equal. Only this page:
 		// the windows are furniture with their own frames and look wrong
 		// anywhere but the middle.
-		if (current == MINIMAP)
-			spare = static_cast<int16_t>(spare / 3);
+		// ⚠ NOT ANY MORE ON THE MINIMAP. It now gets the whole panel from
+		// content_area(), so a third of the leftover height was pushing a
+		// full-size map down off its own page - which is exactly the "still
+		// too low" that survived every earlier attempt to nudge it.
+		if (current == MINIMAP || current == WORLDMAP)
+			spare = 0;
 		else
 			spare = static_cast<int16_t>(spare / 2);
 
@@ -705,6 +883,22 @@ namespace ms
 
 		levelup.reset();
 		levelup_playing = true;
+	}
+
+	void SecondScreenPanel::play_death()
+	{
+		if (!died_tried)
+		{
+			died_tried = true;
+			died = nl::nx::map001["Custom"]["Died"];
+		}
+
+		died.reset();
+		died_playing = true;
+
+		// The level-up and the death card cannot both be the moment. Dying
+		// wins: it is the one that has to be understood.
+		levelup_playing = false;
 	}
 
 	void SecondScreenPanel::leave_page()
@@ -802,6 +996,22 @@ namespace ms
 
 		if (levelup_playing && levelup.update())
 			levelup_playing = false;
+
+		if (died_playing && died.update())
+			died_playing = false;
+
+		// THE SHARE WAITS FOR THE PICTURE.
+		//
+		// write_report() asks for a capture and arms this; the renderer takes
+		// it on the next frame that draws the wanted screen. Offering the
+		// share before then attaches a file that does not exist, so the sheet
+		// comes up here, the moment the image is actually on disk.
+		if (share_wanted && Shot::take_ready())
+		{
+			share_wanted = false;
+
+			Shot::share(share_picture);
+		}
 
 		// Nothing announces a shop closing, so notice it here.
 		if (guest && !guest->is_active())
@@ -922,6 +1132,9 @@ namespace ms
 				return;
 			}
 
+			if (current == CONTROLLER && controller_pressed(position, screen))
+				return;
+
 			if (current == KEYBINDS && keys_pressed(position, screen))
 			{
 				touching = false;
@@ -1012,6 +1225,22 @@ namespace ms
 			// rather than sit quietly on a page you might have opened by
 			// accident - and the dialog already knows how to count down and
 			// warn you if you are in combat.
+			if (current == REPORT && shot_box(screen, true).contains(position))
+			{
+				shot_top = true;
+				touching = false;
+
+				return;
+			}
+
+			if (current == REPORT && shot_box(screen, false).contains(position))
+			{
+				shot_top = false;
+				touching = false;
+
+				return;
+			}
+
 			if (current == REPORT && report_box(screen).contains(position))
 			{
 				write_report();
@@ -1176,22 +1405,113 @@ namespace ms
 			// held. Both live here rather than on a settings toggle because
 			// the page has one control on it and it should do the obvious
 			// thing the first time it is pressed.
-			if (current == SHOUT && talk_box(screen).contains(position))
+			if (current == SHOUT)
 			{
-				Voice& voice = Voice::get();
+				for (size_t i = 0; i < MEGA_COUNT; i++)
+					if (mega_box(i, screen).contains(position))
+					{
+						mega_choice = i;
+						touching = false;
 
-				if (!voice.is_open())
-					voice.start();
-				else
-					voice.set_talking(true);
+						return;
+					}
 
-				touching = false;
+				for (size_t i = 0; i < MEGA_FACES; i++)
+					if (mega_face_box(i, screen).contains(position))
+					{
+						mega_face = i;
+						touching = false;
 
-				return;
+						return;
+					}
+
+				// SPEAK. The words are GATHERED, not sent - one send, however
+				// many sentences, so this only fills the box.
+				if (mega_speak_box(screen).contains(position))
+				{
+					if (auto chatbar = UI::get().get_element<UIChatbar>())
+						chatbar->start_dictation_mega(0);
+
+					touching = false;
+
+					return;
+				}
+
+				// TYPE. The panel's own keyboard, which is the only one a
+				// handheld has - the same one the chat page raises.
+				if (mega_type_box(screen).contains(position))
+				{
+					mega_typing = !mega_typing;
+
+					touching = false;
+
+					return;
+				}
+
+				if (mega_send_box(screen).contains(position))
+				{
+					if (!mega_words.empty())
+					{
+						// FOUR LINES, ALWAYS WRITTEN. The packet carries four
+						// whether or not there were four - see
+						// AvatarMegaphonePacket - so a long message is cut
+						// across them and a short one leaves the rest empty.
+						std::string lines[4];
+
+						size_t at = 0;
+
+						for (size_t i = 0; i < 4 && at < mega_words.size(); i++)
+						{
+							lines[i] = mega_words.substr(at, 40);
+							at += lines[i].size();
+						}
+
+						// ⚠ THE FACE CANNOT TRAVEL - the packet has no field
+						// for it - so it is done twice, honestly, and neither
+						// pretends to be the other.
+						//
+						// On the character, where it is a real expression the
+						// whole map can see; and remembered for the banner,
+						// which this device draws for itself a moment later.
+						Expression::Id chosen = static_cast<Expression::Id>(
+							Expression::Id::BLINK + mega_face);
+
+						Stage::get().get_player().set_expression(chosen);
+
+						UIAvatarMega::remember_face(
+							Stage::get().get_player().get_name(), chosen);
+
+						AvatarMegaphonePacket(
+							MEGAPHONES[mega_choice].item, lines, false).dispatch();
+
+						mega_words.clear();
+						mega_typing = false;
+					}
+
+					touching = false;
+
+					return;
+				}
 			}
 
 			// Tested before the page gets the touch, or the window underneath
 			// swallows it.
+			if (hotkey_jump_visible() && pad_jump_box(screen).contains(position))
+			{
+				// ⚠ PICK IT UP BEFORE LEAVING.
+				//
+				// Once the page changes, the window behind it is no longer
+				// the one asked for a selection - so the pad arrived holding
+				// nothing and every cell tapped there did nothing at all.
+				carried = selected_mapping();
+
+				go_to(CONTROLLER);
+				touching = false;
+				swallow_up = true;
+
+				return;
+			}
+
 			if (hotkey_jump_visible() && hotkey_jump_box(screen).contains(position))
 			{
 				go_to(HOTKEYS);
@@ -1263,17 +1583,16 @@ namespace ms
 				{
 					// The keys page is drawn BY the panel rather than hosted,
 					// so there is no window to hand a scroll to. It keeps its
-					// own offset - which is also why it can be clamped to its
-					// own table length instead of guessing at a row count.
+					// own offset, in rows.
 					if (current == KEYBINDS)
 					{
-						key_scroll = static_cast<int16_t>(key_scroll - step / 12);
+						key_scroll = static_cast<int16_t>(
+							key_scroll - step / KEY_CELL_H);
 
 						if (key_scroll < 0)
 							key_scroll = 0;
 
-						int16_t last = static_cast<int16_t>(
-							bindable_count() > 4 ? bindable_count() - 4 : 0);
+						int16_t last = key_scroll_max(screen);
 
 						if (key_scroll > last)
 							key_scroll = last;
@@ -1299,7 +1618,8 @@ namespace ms
 		// The pages that host the game's own windows are not here: those have
 		// their own sliders and send_scroll already reaches them.
 		if (!up && touching
-			&& (current == GIFT || current == NEARBY || current == ROOMCHAT))
+			&& (current == GIFT || current == NEARBY || current == ROOMCHAT
+				|| current == MONSTERBOOK))
 		{
 			int16_t dx = static_cast<int16_t>(position.x() - touch_start.x());
 			int16_t dy = static_cast<int16_t>(position.y() - touch_start.y());
@@ -1742,15 +2062,77 @@ namespace ms
 				clock_text = Text(Text::Font::A12M, Text::Alignment::RIGHT,
 					Color::Name::WHITE);
 
+			// ⚠ HARD INTO THE CORNER. This sat four pixels off the gauge and
+			// a full chrome-row down from the top, which left a visible margin
+			// of dead space wrapping the whole cluster. The status readings
+			// are glanceable furniture, not content: the closer they sit to
+			// the corner the less of the page they interrupt.
+			constexpr int16_t CORNER_IN = 1;
+			constexpr int16_t CORNER_UP = 1;
+
 			clock_text.change_text(when);
 			clock_text.draw(Point<int16_t>(
-				static_cast<int16_t>(W - VITAL_W - 4), CHROME_TOP));
+				static_cast<int16_t>(W - VITAL_W - CORNER_IN),
+				CORNER_UP));
+
+			int16_t strip = CORNER_UP;
+
+			int16_t icon_right = static_cast<int16_t>(W - VITAL_W - CORNER_IN - 46);
 
 			draw_art(clock_icon, Rectangle<int16_t>(
-				Point<int16_t>(static_cast<int16_t>(W - VITAL_W - 4 - 46 - CRUMB),
-					CHROME_TOP),
-				Point<int16_t>(static_cast<int16_t>(W - VITAL_W - 4 - 46),
-					static_cast<int16_t>(CHROME_TOP + CRUMB))), 0);
+				Point<int16_t>(static_cast<int16_t>(icon_right - CRUMB_BASE), strip),
+				Point<int16_t>(icon_right,
+					static_cast<int16_t>(strip + CRUMB_BASE))), 0);
+
+			// THE BATTERY, LEFT OF THE CLOCK.
+			//
+			// Asked for once every few seconds. On a handheld the charge is
+			// the one number the game cannot get from the map, the server or
+			// the character, and the Android status bar is not on screen to
+			// carry it.
+			if (battery_wait <= 0)
+			{
+				battery_pct = read_battery();
+				battery_wait = 1200;   // ~10s at the client's 125 a second
+			}
+			else
+			{
+				battery_wait--;
+			}
+
+			if (battery_pct >= 0)
+			{
+				if (!battery_icon.is_valid())
+					battery_icon = nl::nx::map001["Custom"]["IconBattery"];
+
+				// ⚠ DRAWN LIKE THE CLOCK, scaled into the strip.
+				//
+				// The first attempt rotated it here with
+				// `DrawArgument(point, 90.0f)`, which is the OPACITY overload
+				// - so the angle became an opacity of 90, the icon stayed
+				// upright, and it was drawn at full size sticking out of the
+				// chrome row. The artwork is turned on its side at build time
+				// instead (tools/make_assets.py), which is exact and needs no
+				// rotation at all here.
+				if (battery_icon.is_valid())
+				{
+					int16_t right = static_cast<int16_t>(icon_right - CRUMB_BASE - 52);
+
+					draw_art(battery_icon, Rectangle<int16_t>(
+						Point<int16_t>(
+							static_cast<int16_t>(right - CRUMB_BASE), strip),
+						Point<int16_t>(right,
+							static_cast<int16_t>(strip + CRUMB_BASE))), 0);
+				}
+
+				if (battery_text.get_text().empty())
+					battery_text = Text(Text::Font::A12M, Text::Alignment::RIGHT,
+						Color::Name::WHITE);
+
+				battery_text.change_text(std::to_string(battery_pct) + "%");
+				battery_text.draw(Point<int16_t>(
+					static_cast<int16_t>(icon_right - CRUMB_BASE - 6), strip));
+			}
 		}
 
 		// THE EXPERIENCE BAR, ALONG THE BOTTOM.
@@ -1868,6 +2250,34 @@ namespace ms
 		// The two caps, inset so the corners are bitten off.
 		GraphicsGL::get().drawrectangle(x + R, y, w - R * 2, R, r, g, b, a);
 		GraphicsGL::get().drawrectangle(x + R, y + h - R, w - R * 2, R, r, g, b, a);
+	}
+
+	int16_t SecondScreenPanel::read_battery() const
+	{
+		// sysfs, not JNI. Every Android device exposes the charge here, it
+		// needs no permission and no Java round trip, and a missing file
+		// simply means no battery to report - a desktop build, an emulator -
+		// which is answered with -1 and nothing drawn.
+		static const char* WHERE[] = {
+			"/sys/class/power_supply/battery/capacity",
+			"/sys/class/power_supply/bms/capacity"
+		};
+
+		for (const char* path : WHERE)
+		{
+			if (FILE* f = std::fopen(path, "r"))
+			{
+				int value = -1;
+				int got = std::fscanf(f, "%d", &value);
+
+				std::fclose(f);
+
+				if (got == 1 && value >= 0 && value <= 100)
+					return static_cast<int16_t>(value);
+			}
+		}
+
+		return -1;
 	}
 
 	Point<int16_t> SecondScreenPanel::draw_art(const Texture& art,
@@ -2432,6 +2842,28 @@ namespace ms
 			Point<int16_t>(box.right(), static_cast<int16_t>(y + H)));
 	}
 
+	Rectangle<int16_t> SecondScreenPanel::shot_box(Point<int16_t> screen,
+		bool top_screen) const
+	{
+		// The pair of screen choices, side by side directly above SAVE.
+		Rectangle<int16_t> box = content_area(screen);
+		Rectangle<int16_t> act = report_box(screen);
+
+		constexpr int16_t H = 26;
+		constexpr int16_t GAP = 6;
+
+		int16_t bottom = static_cast<int16_t>(act.top() - GAP);
+		int16_t half = static_cast<int16_t>((box.width() - GAP) / 2);
+
+		int16_t left = top_screen
+			? box.left()
+			: static_cast<int16_t>(box.left() + half + GAP);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(left, static_cast<int16_t>(bottom - H)),
+			Point<int16_t>(static_cast<int16_t>(left + half), bottom));
+	}
+
 	Rectangle<int16_t> SecondScreenPanel::report_box(Point<int16_t> screen) const
 	{
 		// FROM THE CONTENT BOX, like every other footer on the panel.
@@ -2446,6 +2878,26 @@ namespace ms
 		return Rectangle<int16_t>(
 			Point<int16_t>(box.left(), static_cast<int16_t>(box.bottom() - H)),
 			Point<int16_t>(box.right(), box.bottom()));
+	}
+
+	std::string SecondScreenPanel::device_name() const
+	{
+#if defined(PLATFORM_ANDROID)
+		char model[PROP_VALUE_MAX] = { 0 };
+		char release[PROP_VALUE_MAX] = { 0 };
+
+		__system_property_get("ro.product.model", model);
+		__system_property_get("ro.build.version.release", release);
+
+		std::string out = model[0] ? model : "unknown";
+
+		if (release[0])
+			out += std::string(", Android ") + release;
+
+		return out;
+#else
+		return "desktop";
+#endif
 	}
 
 	void SecondScreenPanel::write_report() const
@@ -2489,6 +2941,20 @@ namespace ms
 
 		std::fprintf(out, "================ %s ================\n", when);
 
+		// ⚠ THE FILE SAYS WHAT IT CONTAINS, IN PLAIN WORDS.
+		//
+		// It is about to be sent to somebody the player has never met, and
+		// they are entitled to know what they are handing over without
+		// reading C++ to find out. It also settles it for whoever RECEIVES
+		// it: a maintainer who can point at this line has an answer when
+		// somebody asks what the reports collect.
+		std::fprintf(out,
+			"This file was made by pressing SAVE A REPORT in the game.\n"
+			"It holds: the build, this device, which map and page you were\n"
+			"on, your character's stats and gear, and the game's own error\n"
+			"notices. It does NOT hold your password, your account name,\n"
+			"your chat, or anybody else's messages.\n\n");
+
 		// THE BUILD. Without this every other line is guesswork - half the
 		// reports in this project were about code that was not running.
 		std::fprintf(out, "client   %s  (built %s %s)\n",
@@ -2498,7 +2964,33 @@ namespace ms
 			Setting<Width>::get().load(), Setting<Height>::get().load(),
 			panel_screen.x(), panel_screen.y());
 
-		std::fprintf(out, "server   %s\n", Setting<ServerIP>::get().load().c_str());
+		// ⚠ WHETHER, NOT WHERE.
+		//
+		// The raw address was written here while reports only ever travelled
+		// between two handhelds in one house. Sent to a stranger it is
+		// somebody's home network - or, once the relay is in use, their
+		// public address. What actually helps a fix is whether they were
+		// hosting or joining, and that is all this says now.
+		{
+			std::string server = Setting<ServerIP>::get().load();
+
+			bool own = server.empty()
+				|| server == "127.0.0.1" || server == "localhost";
+
+			bool lan = server.rfind("192.168.", 0) == 0
+				|| server.rfind("10.", 0) == 0
+				|| server.rfind("172.", 0) == 0;
+
+			std::fprintf(out, "server   %s\n",
+				own ? "this device" : (lan ? "another device on the LAN"
+					: "remote"));
+		}
+
+		// The handheld and the Android it is on. Half the reports in any
+		// project are one device behaving unlike the rest, and asking after
+		// the fact never gets an answer.
+		std::fprintf(out, "device   %s\n", device_name().c_str());
+
 		std::fprintf(out, "page     %s\n",
 			page_name(current) ? page_name(current) : "?");
 
@@ -2574,21 +3066,82 @@ namespace ms
 					ItemData::get(id).get_name().c_str());
 		}
 
-		// AND THE LAST THING ANYONE SAID. Server notices, warnings and system
-		// messages all arrive in the chat log, so the tail of it is usually
-		// the closest thing to an error message the player ever saw.
-		std::fprintf(out, "\n-- last said --\n");
+		// ⚠ NOTICES ONLY - NOT THE CONVERSATION.
+		//
+		// This used to copy the last twelve chat lines wholesale. That was
+		// fine while the only people sending reports were family on a LAN.
+		// It is not fine now: this file goes to a stranger, and the chat log
+		// is where OTHER people's words end up - names, whispers, whatever
+		// was being talked about. None of that is ours to forward, and
+		// nobody sending a bug report expects to be sending it.
+		//
+		// The debugging value was never in the conversation anyway. It was in
+		// the server's own notices, which arrive in red and yellow: "you may
+		// not do that", "the quest cannot be completed", the messages that
+		// are the closest thing to an error the player ever sees. Those are
+		// kept and the rest is dropped.
+		std::fprintf(out, "\n-- notices --\n");
 
 		const std::deque<UIChatbar::Line>& said = UIChatbar::history();
-		size_t from = said.size() > 12 ? said.size() - 12 : 0;
+		int32_t shown = 0;
 
-		for (size_t i = from; i < said.size(); i++)
+		for (size_t i = said.size(); i-- > 0 && shown < 12; )
+		{
+			if (said[i].type != UIChatbar::LineType::RED
+				&& said[i].type != UIChatbar::LineType::YELLOW)
+				continue;
+
 			std::fprintf(out, "  %s\n", said[i].text.c_str());
+			shown++;
+		}
+
+		if (!shown)
+			std::fprintf(out, "  (none - the game said nothing unusual)\n");
 
 		std::fprintf(out, "\n");
 		std::fclose(out);
 
-		report_state = "Saved. Report " + std::to_string(++report_count);
+		finish_report();
+	}
+
+	void SecondScreenPanel::finish_report() const
+	{
+		// THE PICTURE, AND THEN THE SHARE SHEET.
+		//
+		// A report that sits on the device is a report nobody reads. Getting
+		// it off has to cost the player nothing: no file manager, no cable,
+		// no typing, no account. Android's share sheet is exactly that - it
+		// offers whatever they already have and they pick one.
+		//
+		// The capture cannot happen here; see Util/Shot.h. It is asked for
+		// now and taken by the renderer on the next frame that draws the
+		// wanted screen, which is why the share is armed rather than sent.
+		char stamp[32];
+		std::time_t now = std::time(nullptr);
+		std::tm local {};
+
+#ifdef _WIN32
+		localtime_s(&local, &now);
+#else
+		localtime_r(&now, &local);
+#endif
+
+		std::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", &local);
+
+		std::string picture = std::string("report-") + stamp + ".png";
+
+		Shot::request(shot_top ? Shot::Which::TOP : Shot::Which::BOTTOM,
+			picture);
+
+		// Hand over the report and the picture together, plus the play log,
+		// which is the part that usually names the fault.
+		share_wanted = true;
+		share_picture = picture;
+
+		report_state = std::string("Saved + picture of the ")
+			+ (shot_top ? "game" : "panel");
+
+		report_count++;
 	}
 
 	void SecondScreenPanel::draw_report(Point<int16_t> screen) const
@@ -2607,20 +3160,53 @@ namespace ms
 		GraphicsGL::get().drawrectangle(left, top, width, 104,
 			1.0f, 1.0f, 1.0f, 0.10f);
 
+		// WHAT THEY ARE ABOUT TO HAND OVER, BEFORE THEY HAND IT OVER.
+		//
+		// This used to say only that it saved a file, which was fine when the
+		// file went to somebody in the same house. It now goes to a stranger
+		// on the internet, and a person is owed the list before they press
+		// the button - not after, and not in a changelog they will not read.
 		report_text.change_text("Something wrong?");
 		report_text.draw(Point<int16_t>(mid, top + 10));
 
-		report_text.change_text("This saves where you were and");
-		report_text.draw(Point<int16_t>(mid, top + 34));
+		report_text.change_text("Sends: the build, this device, the map,");
+		report_text.draw(Point<int16_t>(mid, top + 30));
 
-		report_text.change_text("what you were doing to a file.");
-		report_text.draw(Point<int16_t>(mid, top + 54));
+		report_text.change_text("your stats and gear, error notices,");
+		report_text.draw(Point<int16_t>(mid, top + 48));
+
+		report_text.change_text("and a picture. No chat, no password.");
+		report_text.draw(Point<int16_t>(mid, top + 66));
 
 		if (!report_state.empty())
 		{
 			report_text.change_text(report_state);
 			report_text.draw(Point<int16_t>(mid, top + 80));
 		}
+
+		// WHICH SCREEN THE PICTURE IS OF.
+		//
+		// The two screens show different things and only the player knows
+		// which one looked wrong - the game, or the panel they were working
+		// in. Asking is one tap and saves the guess.
+		Rectangle<int16_t> pick_top = shot_box(screen, true);
+		Rectangle<int16_t> pick_bot = shot_box(screen, false);
+
+		auto choice = [&](Rectangle<int16_t> at, const char* label, bool on)
+		{
+			GraphicsGL::get().drawrectangle(
+				at.left(), at.top(), at.width(), at.height(),
+				on ? 0.18f : 0.14f, on ? 0.40f : 0.14f, on ? 0.52f : 0.14f,
+				on ? 0.92f : 0.55f);
+
+			report_text.change_text(label);
+			report_text.draw(Point<int16_t>(
+				static_cast<int16_t>(at.left() + at.width() / 2),
+				static_cast<int16_t>(at.top() + 6)));
+		};
+
+		choice(pick_top, "PICTURE: GAME", shot_top);
+		choice(pick_bot, "PICTURE: PANEL", !shot_top);
 
 		Rectangle<int16_t> act = report_box(screen);
 
@@ -2642,41 +3228,51 @@ namespace ms
 		// leaves out the dozens of later-version entries (Legion, Profession,
 		// Soul Weapon) that exist in the enum and do nothing in v83: a list
 		// of sixty rows where forty are dead is not a list anybody can use.
-		struct Bindable { const char* name; KeyAction::Id action; };
+		// `icon` is the index into StatusBar3.img/KeyConfig/icon - the SAME
+		// artwork the game's own key-mapping window drags around, so the two
+		// screens show a player the same picture for the same action. The
+		// numbers are not sequential and are not ours to choose; they are
+		// Nexon's, and UIKeyConfig::load_action_icons is where they come from.
+		struct Bindable
+		{
+			const char* name;
+			KeyAction::Id action;
+			int32_t icon;
+		};
 
 		const Bindable BINDABLE[] = {
-			{ "Attack",         KeyAction::Id::ATTACK },
-			{ "Jump",           KeyAction::Id::JUMP },
-			{ "Pick up",        KeyAction::Id::PICKUP },
-			{ "Sit",            KeyAction::Id::SIT },
-			{ "Interact",       KeyAction::Id::INTERACT_HARVEST },
+			{ "Attack", KeyAction::Id::ATTACK, 52 },
+			{ "Jump", KeyAction::Id::JUMP, 53 },
+			{ "Pick up", KeyAction::Id::PICKUP, 50 },
+			{ "Sit", KeyAction::Id::SIT, 51 },
+			{ "Interact", KeyAction::Id::INTERACT_HARVEST, 54 },
 
-			{ "Inventory",      KeyAction::Id::ITEMS },
-			{ "Equipment",      KeyAction::Id::EQUIPMENT },
-			{ "Stats",          KeyAction::Id::STATS },
-			{ "Skills",         KeyAction::Id::SKILLS },
-			{ "Quest log",      KeyAction::Id::QUESTLOG },
-			{ "World map",      KeyAction::Id::WORLDMAP },
-			{ "Mini map",       KeyAction::Id::MINIMAP },
-			{ "Key bindings",   KeyAction::Id::KEYBINDINGS },
-			{ "Quick slots",    KeyAction::Id::QUICKSLOTS },
-			{ "Menu",           KeyAction::Id::MENU },
-			{ "Cash shop",      KeyAction::Id::CASHSHOP },
+			{ "Inventory", KeyAction::Id::ITEMS, 1 },
+			{ "Equipment", KeyAction::Id::EQUIPMENT, 0 },
+			{ "Stats", KeyAction::Id::STATS, 2 },
+			{ "Skills", KeyAction::Id::SKILLS, 3 },
+			{ "Quest log", KeyAction::Id::QUESTLOG, 8 },
+			{ "World map", KeyAction::Id::WORLDMAP, 5 },
+			{ "Mini map", KeyAction::Id::MINIMAP, 7 },
+			{ "Key bindings", KeyAction::Id::KEYBINDINGS, 9 },
+			{ "Quick slots", KeyAction::Id::QUICKSLOTS, 15 },
+			{ "Menu", KeyAction::Id::MENU, 14 },
+			{ "Cash shop", KeyAction::Id::CASHSHOP, 22 },
 
-			{ "Friends",        KeyAction::Id::FRIENDS },
-			{ "Party",          KeyAction::Id::PARTY },
-			{ "Say",            KeyAction::Id::SAY },
-			{ "Whisper",        KeyAction::Id::WHISPER },
-			{ "Party chat",     KeyAction::Id::PARTYCHAT },
-			{ "Toggle chat",    KeyAction::Id::TOGGLECHAT },
+			{ "Friends", KeyAction::Id::FRIENDS, 4 },
+			{ "Party", KeyAction::Id::PARTY, 19 },
+			{ "Say", KeyAction::Id::SAY, 10 },
+			{ "Whisper", KeyAction::Id::WHISPER, 11 },
+			{ "Party chat", KeyAction::Id::PARTYCHAT, 12 },
+			{ "Toggle chat", KeyAction::Id::TOGGLECHAT, 16 },
 
-			{ "Face: blink",    KeyAction::Id::FACE1 },
-			{ "Face: hit",      KeyAction::Id::FACE2 },
-			{ "Face: smile",    KeyAction::Id::FACE3 },
-			{ "Face: troubled", KeyAction::Id::FACE4 },
-			{ "Face: cry",      KeyAction::Id::FACE5 },
-			{ "Face: angry",    KeyAction::Id::FACE6 },
-			{ "Face: puzzled",  KeyAction::Id::FACE7 },
+			{ "Face: blink", KeyAction::Id::FACE1, 100 },
+			{ "Face: hit", KeyAction::Id::FACE2, 101 },
+			{ "Face: smile", KeyAction::Id::FACE3, 102 },
+			{ "Face: troubled", KeyAction::Id::FACE4, 103 },
+			{ "Face: cry", KeyAction::Id::FACE5, 104 },
+			{ "Face: angry", KeyAction::Id::FACE6, 105 },
+			{ "Face: puzzled", KeyAction::Id::FACE7, 106 },
 		};
 
 		constexpr size_t BINDABLE_COUNT = sizeof(BINDABLE) / sizeof(BINDABLE[0]);
@@ -2721,18 +3317,64 @@ namespace ms
 		return BINDABLE_COUNT;
 	}
 
-	Rectangle<int16_t> SecondScreenPanel::key_row_box(size_t row,
+	// EIGHT ACROSS, AND AS MANY ROWS AS THE PANEL HAS ROOM FOR.
+	//
+	// The panel's design space is 300 high whatever the real screen is, but it
+	// is not the only panel: the RP5 draws this as an overlay at a different
+	// shape, so "it all fits" is true of one device and cannot be assumed. The
+	// visible rows are measured, the rest scroll, and key_scroll is kept in
+	// ROWS so a stick nudge moves a whole line of icons rather than a fraction.
+	int16_t SecondScreenPanel::key_rows_visible(Point<int16_t> screen) const
+	{
+		Rectangle<int16_t> box = content_area(screen);
+
+		int16_t grid = static_cast<int16_t>(box.height() - KEY_FOOT - 2);
+		int16_t n = static_cast<int16_t>((grid + KEY_GAP) / (KEY_CELL_H + KEY_GAP));
+
+		return n < 1 ? 1 : n;
+	}
+
+	int16_t SecondScreenPanel::key_rows_total()
+	{
+		return static_cast<int16_t>(
+			(BINDABLE_COUNT + KEY_COLS - 1) / KEY_COLS);
+	}
+
+	int16_t SecondScreenPanel::key_scroll_max(Point<int16_t> screen) const
+	{
+		int16_t over = static_cast<int16_t>(
+			key_rows_total() - key_rows_visible(screen));
+
+		return over > 0 ? over : 0;
+	}
+
+	// The cell an action occupies, or an empty rectangle when the scroll has
+	// taken it off the top or the bottom. Empty rather than absent so the draw
+	// and the hit test can share one function and cannot disagree about which
+	// icons are on the screen - the whole reason the highlight and the icons
+	// were allowed to part company in the first place.
+	Rectangle<int16_t> SecondScreenPanel::key_cell_box(size_t index,
 		Point<int16_t> screen) const
 	{
 		Rectangle<int16_t> box = content_area(screen);
 
-		constexpr int16_t ROW_H = 26;
+		int16_t w = static_cast<int16_t>(
+			(box.width() - KEY_GAP * (KEY_COLS - 1)) / KEY_COLS);
 
-		int16_t y = static_cast<int16_t>(box.top() + 4 + row * ROW_H);
+		int16_t col = static_cast<int16_t>(index % KEY_COLS);
+		int16_t row = static_cast<int16_t>(index / KEY_COLS - key_scroll);
+
+		if (row < 0 || row >= key_rows_visible(screen))
+			return Rectangle<int16_t>();
+
+		int16_t x = static_cast<int16_t>(box.left() + col * (w + KEY_GAP));
+		int16_t y = static_cast<int16_t>(
+			box.top() + 2 + row * (KEY_CELL_H + KEY_GAP));
 
 		return Rectangle<int16_t>(
-			Point<int16_t>(box.left(), y),
-			Point<int16_t>(box.right(), static_cast<int16_t>(y + ROW_H - 3)));
+			Point<int16_t>(x, y),
+			Point<int16_t>(static_cast<int16_t>(x + w),
+				static_cast<int16_t>(y + KEY_CELL_H)));
 	}
 
 	Rectangle<int16_t> SecondScreenPanel::key_hotkey_box(Point<int16_t> screen) const
@@ -2763,56 +3405,96 @@ namespace ms
 	{
 		if (key_text.get_text().empty())
 		{
-			key_text = Text(Text::Font::A12M, Text::Alignment::LEFT,
+			key_text = Text(Text::Font::A11M, Text::Alignment::CENTER,
 				Color::Name::WHITE);
 			key_label = Text(Text::Font::A12M, Text::Alignment::CENTER,
 				Color::Name::WHITE);
 		}
 
-		Rectangle<int16_t> box = content_area(screen);
-
-		// How many rows fit above the two buttons.
-		constexpr int16_t ROW_H = 26;
-
-		int16_t rows = static_cast<int16_t>((box.height() - 36) / ROW_H);
-
-		if (rows < 1)
-			rows = 1;
-
-		const std::map<int32_t, Keyboard::Mapping>& bound =
-			UI::get().get_keyboard().get_maplekeys();
-
-		for (int16_t i = 0; i < rows; i++)
+		// THE GAME'S OWN KEY-CONFIG ARTWORK, fetched once.
+		//
+		// A failed lookup costs the same as a good one and this runs every
+		// frame, so the whole set is taken on the first draw and an icon that
+		// is not in the data simply stays invalid - the cell then falls back to
+		// the action's name, which is what the page used to show for all of
+		// them anyway.
+		if (!key_icons_tried)
 		{
-			size_t index = static_cast<size_t>(key_scroll + i);
+			key_icons_tried = true;
+			key_icons.resize(BINDABLE_COUNT);
 
-			if (index >= BINDABLE_COUNT)
-				break;
+			nl::node icons = nl::nx::ui["StatusBar3.img"]["KeyConfig"]["icon"];
 
-			Rectangle<int16_t> row = key_row_box(i, screen);
-			bool picked = (static_cast<int16_t>(index) == key_selected);
+			for (size_t i = 0; i < BINDABLE_COUNT; i++)
+				key_icons[i] = Texture(icons[BINDABLE[i].icon]);
+		}
+
+		// ⚠ THE GLFW-INDEXED MAP, because key_name below reads a GLFW code.
+		// Scanning the maple-keyed one printed the wrong letter against every
+		// action on the page.
+		const std::map<int32_t, Keyboard::Mapping> bound =
+			UI::get().get_keyboard().get_keymap();
+
+		for (size_t i = 0; i < BINDABLE_COUNT; i++)
+		{
+			Rectangle<int16_t> cell = key_cell_box(i, screen);
+
+			// Scrolled off. key_cell_box returns an empty rectangle for these
+			// so that drawing and touching agree without either of them
+			// working out the range for itself.
+			if (cell.width() <= 0)
+				continue;
+
+			bool picked = (static_cast<int16_t>(i) == key_selected);
 
 			GraphicsGL::get().drawrectangle(
-				row.left(), row.top(), row.width(), row.height(),
+				cell.left(), cell.top(), cell.width(), cell.height(),
 				picked ? 0.86f : 1.0f, picked ? 0.74f : 1.0f,
-				picked ? 0.36f : 1.0f, picked ? 0.55f : 0.12f);
+				picked ? 0.36f : 1.0f, picked ? 0.55f : 0.10f);
 
-			key_text.change_text(BINDABLE[index].name);
-			key_text.draw(Point<int16_t>(row.left() + 8, row.top() + 3));
+			int16_t mid = static_cast<int16_t>(cell.left() + cell.width() / 2);
+
+			if (key_icons[i].is_valid())
+			{
+				// ⚠ A TEXTURE IS POSITIONED BY ITS ORIGIN, NOT ITS CORNER.
+				//
+				// Texture::draw works out its rectangle as
+				// `pos - center - origin`, and every one of these icons
+				// carries an origin from the WZ. Passing the corner and
+				// assuming 32x32 therefore put each icon a DIFFERENT distance
+				// from the cell that highlights it - which is exactly how the
+				// icons and the highlight came apart.
+				//
+				// Measure the icon, centre it in the cell, then add the origin
+				// back so the top-left lands where it was asked to.
+				Point<int16_t> size = key_icons[i].get_dimensions();
+				Point<int16_t> org = key_icons[i].get_origin();
+
+				Point<int16_t> corner(
+					static_cast<int16_t>(mid - size.x() / 2),
+					static_cast<int16_t>(cell.top() + 2));
+
+				key_icons[i].draw(DrawArgument(corner + org));
+			}
+			else
+			{
+				key_text.change_text(BINDABLE[i].name);
+				key_text.draw(Point<int16_t>(mid, cell.top() + 10));
+			}
 
 			// WHAT IT IS BOUND TO NOW. Searched rather than looked up: the
 			// keymap is key -> action, and this page reads action -> key.
 			std::string on = "-";
 
-			KeyType::Id want = UIKeyConfig::get_keytype(BINDABLE[index].action);
+			KeyType::Id want = UIKeyConfig::get_keytype(BINDABLE[i].action);
 
 			for (const auto& entry : bound)
 			{
 				// Matched on the action's REAL type. Comparing against MENU
-				// meant every ACTION and FACE row showed a dash however it
-				// was bound - Jump and Attack read as unbound while sitting
-				// on perfectly good keys.
-				if (entry.second.action == BINDABLE[index].action
+				// meant every ACTION and FACE cell showed a dash however it was
+				// bound - Jump and Attack read as unbound while sitting on
+				// perfectly good keys.
+				if (entry.second.action == BINDABLE[i].action
 					&& entry.second.type == want)
 				{
 					on = key_name(entry.first);
@@ -2821,8 +3503,8 @@ namespace ms
 			}
 
 			key_text.change_text(on);
-			key_text.draw(Point<int16_t>(
-				static_cast<int16_t>(row.right() - 70), row.top() + 3));
+			key_text.draw(Point<int16_t>(mid,
+				static_cast<int16_t>(cell.top() + 34)));
 		}
 
 		// THE TWO THINGS YOU CAN DO WITH THE ONE YOU PICKED.
@@ -2842,41 +3524,297 @@ namespace ms
 				static_cast<int16_t>(at.top() + 6)));
 		};
 
-		button(key_hotkey_box(screen), "TO HOTKEY", have, 0.18f, 0.44f, 0.20f);
-
-		// The capture happens several layers below the UI, so this is where
-		// the page finds out it succeeded.
-		if (key_binding && PadBind::just_bound())
+		// WHICH ONE IS PICKED, in words, because the icons are pictures and a
+		// picture with a highlight round it does not say its own name.
+		if (have)
 		{
-			PadBind::clear_bound();
-			key_binding = false;
+			Rectangle<int16_t> box = content_area(screen);
+
+			key_label.change_text(BINDABLE[key_selected].name);
+			key_label.draw(Point<int16_t>(
+				static_cast<int16_t>(box.left() + box.width() / 2),
+				static_cast<int16_t>(box.bottom() - KEY_FOOT + 4)));
 		}
 
-		button(key_bind_box(screen),
-			key_binding ? "PRESS A BUTTON" : "CONTROLLER BIND",
-			have || key_binding,
-			key_binding ? 0.70f : 0.24f,
-			key_binding ? 0.18f : 0.30f,
-			key_binding ? 0.18f : 0.46f);
+		button(key_hotkey_box(screen), "TO HOTKEY", have, 0.18f, 0.44f, 0.20f);
+
+		// NAMED FOR WHERE IT GOES, not for what it used to try to do.
+		//
+		// "CONTROLLER BIND" described a capture that happened on this page and
+		// was invisible while it waited. It now opens the pad, which is a
+		// place, and a button that names a place is one whose result you can
+		// predict before pressing it.
+		button(key_bind_box(screen), "TO CONTROLLER", have,
+			0.24f, 0.30f, 0.46f);
+	}
+
+	// THE CONTROLLER PAGE IS THE QUICKSLOT PAD BAR, AND NOTHING ELSE.
+	//
+	// It was a diagram of my own for one build: its own layout, its own nine
+	// slots, its own idea of what "bound" meant - it wrote Joystick_* settings
+	// directly instead of going through UIStatusbar::bind_padslot. So a
+	// binding made here did not appear on the bar, and the button did nothing,
+	// because the bar and the game read the KEYMAP and this had only changed
+	// which key the button sent. Two controller menus that disagreed.
+	//
+	// There is one now. Every cell, its label and its binding come from
+	// UIStatusbar's own padslots, and a tap goes through the same
+	// bind_padslot the bar itself uses, so the two cannot drift apart again.
+	Rectangle<int16_t> SecondScreenPanel::pad_slot_box(size_t slot,
+		Point<int16_t> screen) const
+	{
+		Rectangle<int16_t> box = content_area(screen);
+
+		// Six across and two down - taken from the bar's own PAD_COLS and
+		// PAD_COUNT rather than written out again, so a change to the bar's
+		// shape moves this page with it.
+		constexpr int16_t COLS = static_cast<int16_t>(UIStatusbar::PAD_COLS);
+		const int16_t ROWS = static_cast<int16_t>(UIStatusbar::PAD_COUNT / COLS);
+		constexpr int16_t GAP = 4;
+
+		int16_t w = static_cast<int16_t>((box.width() - GAP * (COLS - 1)) / COLS);
+		int16_t h = static_cast<int16_t>((box.height() - 34 - GAP) / ROWS);
+
+		int16_t col = static_cast<int16_t>(slot % COLS);
+		int16_t row = static_cast<int16_t>(slot / COLS);
+
+		if (row >= ROWS)
+			return Rectangle<int16_t>();
+
+		int16_t x = static_cast<int16_t>(box.left() + col * (w + GAP));
+		int16_t y = static_cast<int16_t>(box.top() + 2 + row * (h + GAP));
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(x, y),
+			Point<int16_t>(static_cast<int16_t>(x + w),
+				static_cast<int16_t>(y + h)));
+	}
+
+	void SecondScreenPanel::draw_controller(Point<int16_t> screen) const
+	{
+		if (pad_text.get_text().empty())
+		{
+			pad_text = Text(Text::Font::A11M, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+			pad_label = Text(Text::Font::A12M, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+		}
+
+		auto bar = UI::get().get_element<UIStatusbar>();
+
+		if (!bar)
+			return;
+
+		for (size_t i = 0; i < UIStatusbar::PAD_COUNT; i++)
+		{
+			Rectangle<int16_t> cell = pad_slot_box(i, screen);
+
+			if (cell.width() <= 0)
+				continue;
+
+			GraphicsGL::get().drawrectangle(
+				cell.left(), cell.top(), cell.width(), cell.height(),
+				1.0f, 1.0f, 1.0f, 0.12f);
+
+			int16_t mid = static_cast<int16_t>(cell.left() + cell.width() / 2);
+
+			pad_label.change_text(bar->padslot_name(i));
+			pad_label.draw(Point<int16_t>(mid, cell.top() + 3));
+
+			// WHAT THE BUTTON DOES.
+			//
+			// ⚠ padslot_keycode is a GLFW key code, so it must be looked up
+			// in the GLFW-indexed map. It was being searched in the MAPLE-key
+			// one, which is a different numbering entirely - so every cell
+			// reported whatever binding happened to live at that number, and
+			// A came out as "Face: puzzled".
+			int16_t code = bar->padslot_keycode(i);
+
+			Keyboard::Mapping on_key =
+				UI::get().get_keyboard().get_mapping(code);
+
+			std::string on = "-";
+
+			if (on_key.type == KeyType::Id::SKILL)
+			{
+				// A skill names itself; it is not in the bindable table.
+				on = SkillData::get(on_key.action).get_name();
+			}
+			else if (on_key.type == KeyType::Id::ITEM
+				|| on_key.type == KeyType::Id::CASH)
+			{
+				// ⚠ AND SO DOES AN ITEM. This fell through to the table below,
+				// which holds only the fixed ACTION/FACE/MENU verbs - an item
+				// id can never match one, so the cell kept saying "-" while
+				// the binding underneath it was perfectly good. Putting a
+				// chair on a button worked and looked like it had not.
+				//
+				// CASH is a separate type on the wire because the quickslot
+				// bar and the server distinguish the two inventories, but both
+				// name themselves the same way.
+				on = ItemData::get(on_key.action).get_name();
+			}
+			else if (on_key.type != KeyType::Id::NONE)
+			{
+				for (size_t b = 0; b < BINDABLE_COUNT; b++)
+					if (BINDABLE[b].action == on_key.action
+						&& UIKeyConfig::get_keytype(BINDABLE[b].action)
+							== on_key.type)
+					{
+						on = BINDABLE[b].name;
+						break;
+					}
+			}
+
+			// ⚠ ONE WORD PER LINE, DOWN THE CELL.
+			//
+			// A binding's name is whatever the item or skill is called, and a
+			// long one used to run straight across its neighbours - "Recovery"
+			// and "Nimble Feet" met in the middle and read as one word.
+			// Trimming with an ellipsis fixed the collision but threw away the
+			// half of the name that says which item it is.
+			//
+			// The cells are far taller than one line needs, so the space to
+			// solve this in was already there, going the other way. Only a
+			// single word that is itself too wide gets trimmed now, and that
+			// is rare enough to be the exception rather than the rule.
+			int16_t line_y = static_cast<int16_t>(cell.top() + 20);
+
+			for (size_t start = 0; start < on.size(); )
+			{
+				size_t space = on.find(' ', start);
+				std::string word = on.substr(start,
+					space == std::string::npos ? std::string::npos
+						: space - start);
+
+				pad_text.change_text(word);
+
+				// A single word wider than the cell still has to give.
+				while (word.size() > 1 && pad_text.width() > cell.width() - 4)
+				{
+					word.pop_back();
+					pad_text.change_text(word + "..");
+				}
+
+				pad_text.draw(Point<int16_t>(mid, line_y));
+
+				line_y = static_cast<int16_t>(line_y + PAD_LINE_H);
+
+				if (space == std::string::npos)
+					break;
+
+				start = space + 1;
+			}
+		}
+
+		Rectangle<int16_t> box = content_area(screen);
+
+		Keyboard::Mapping picked = pad_placing_mapping();
+
+		// NAME EVERY WAY IN. The hint said "the Keys page" only, which was the
+		// whole truth while the pad could be reached from nowhere else. There
+		// are three sources now - actions from the Keys grid, skills from the
+		// skill page and ITEMS from any of the five inventory tabs - and a
+		// hint that lists two of the three is a hint that says the third does
+		// not work.
+		pad_label.change_text(picked.action
+			? "Tap a button to put the picked action on it"
+			: "Pick a key, skill or item, then TO CONTROLLER");
+
+		pad_label.draw(Point<int16_t>(
+			static_cast<int16_t>(box.left() + box.width() / 2),
+			static_cast<int16_t>(box.bottom() - 24)));
+	}
+
+	bool SecondScreenPanel::controller_pressed(Point<int16_t> at,
+		Point<int16_t> screen)
+	{
+		auto bar = UI::get().get_element<UIStatusbar>();
+
+		if (!bar)
+			return false;
+
+		for (size_t i = 0; i < UIStatusbar::PAD_COUNT; i++)
+		{
+			if (!pad_slot_box(i, screen).contains(at))
+				continue;
+
+			Keyboard::Mapping picked = pad_placing_mapping();
+
+			// THE BAR'S OWN BIND, not a settings write of our own. It sends
+			// ChangeKeyMap to the server and updates the live keymap, which is
+			// what actually makes the button do the thing.
+			if (picked.action)
+			{
+				if (!bar->bind_padslot_public(i, picked))
+					Silent::report("controller",
+						"pad slot " + std::to_string(i) + " refused "
+						+ std::to_string(picked.action)
+						+ " (type " + std::to_string((int)picked.type) + ")");
+
+				// Put down once placed, or the next cell tapped is handed the
+				// same thing all over again.
+				carried = Keyboard::Mapping();
+			}
+			else
+			{
+				// ⚠ ARRIVED EMPTY-HANDED. The page that sent us here had
+				// nothing selected, or refused to hand over what was. Without
+				// this the pad is simply inert and says nothing about why.
+				Silent::report("controller",
+					"pad slot " + std::to_string(i)
+					+ " tapped while carrying nothing");
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	// What the keys page has picked, as a keymap entry. The action's OWN type,
+	// never MENU for everything: Jump and Attack are ACTION and the faces are
+	// FACE, and a mapping filed under the wrong type binds a menu that does
+	// not exist.
+	void SecondScreenPanel::megaphone_heard(const std::string& said)
+	{
+		if (said.empty())
+			return;
+
+		if (!mega_words.empty())
+			mega_words.push_back(' ');
+
+		mega_words += said;
+	}
+
+	Keyboard::Mapping SecondScreenPanel::pad_placing_mapping() const
+	{
+		// Whatever was carried here, and only failing that the Keys page's
+		// own selection - which is what it is when the pad was opened from
+		// the Keys page and nothing was picked up on the way.
+		if (carried.type != KeyType::Id::NONE)
+			return carried;
+
+		return keys_selected_mapping();
+	}
+
+	Keyboard::Mapping SecondScreenPanel::keys_selected_mapping() const
+	{
+		if (key_selected < 0 || key_selected >= static_cast<int16_t>(BINDABLE_COUNT))
+			return Keyboard::Mapping();
+
+		return Keyboard::Mapping(
+			UIKeyConfig::get_keytype(BINDABLE[key_selected].action),
+			BINDABLE[key_selected].action);
 	}
 
 	bool SecondScreenPanel::keys_pressed(Point<int16_t> at, Point<int16_t> screen)
 	{
-		constexpr int16_t ROW_H = 26;
-
-		Rectangle<int16_t> box = content_area(screen);
-		int16_t rows = static_cast<int16_t>((box.height() - 36) / ROW_H);
-
-		for (int16_t i = 0; i < rows; i++)
+		for (size_t i = 0; i < BINDABLE_COUNT; i++)
 		{
-			size_t index = static_cast<size_t>(key_scroll + i);
-
-			if (index >= BINDABLE_COUNT)
-				break;
-
-			if (key_row_box(i, screen).contains(at))
+			if (key_cell_box(i, screen).contains(at))
 			{
-				key_selected = static_cast<int16_t>(index);
+				key_selected = static_cast<int16_t>(i);
 				key_binding = false;
 
 				return true;
@@ -2920,42 +3858,21 @@ namespace ms
 		{
 			if (key_selected >= 0)
 			{
-				if (key_binding)
-				{
-					PadBind::cancel();
-					key_binding = false;
-				}
-				else
-				{
-					// WHICH KEY THIS ACTION IS ON.
-					//
-					// A pad button holds a KEY CODE, not an action - the pad
-					// is a keyboard in disguise. So binding "Jump" to A means
-					// finding the key Jump is on and giving A that. An action
-					// with no key cannot be bound to a button at all, which
-					// is worth saying rather than arming a capture that can
-					// never succeed.
-					KeyType::Id want =
-						UIKeyConfig::get_keytype(BINDABLE[key_selected].action);
+				// TO THE PAD, which is the quickslot bar and nothing else.
+				//
+				// The selection travels by itself: selected_mapping() answers
+				// for the keys page now, and both the pad page here and the
+				// bar on the top screen ask exactly that before binding. So
+				// the action can be dropped on a button in either place and
+				// the two cannot disagree about what was picked.
+				carried = keys_selected_mapping();
 
-					int32_t code = 0;
+				go_to(CONTROLLER);
 
-					for (const auto& entry : UI::get().get_keyboard().get_maplekeys())
-					{
-						if (entry.second.action == BINDABLE[key_selected].action
-							&& entry.second.type == want)
-						{
-							code = entry.first;
-							break;
-						}
-					}
-
-					if (code != 0)
-					{
-						PadBind::arm(code);
-						key_binding = true;
-					}
-				}
+				// The release belongs to this press - see TO HOTKEY above.
+				// Without it the UP lands on the pad and drops the action onto
+				// whichever button the finger happens to be over.
+				swallow_up = true;
 			}
 
 			return true;
@@ -3012,7 +3929,9 @@ namespace ms
 		// The page exists to be read, and the keyboard covers its lower half.
 		// It appears when WRITE is pressed and goes again when the message is
 		// sent or abandoned.
-		return current == SAY;
+		// AND ON THE MEGAPHONE, but only when TYPE has been pressed - the
+		// page's own rows need the space the rest of the time.
+		return current == SAY || (current == SHOUT && mega_typing);
 	}
 
 	int16_t SecondScreenPanel::keyboard_top(Point<int16_t> screen) const
@@ -3109,6 +4028,27 @@ namespace ms
 				static_cast<int16_t>(y + h)));
 	}
 
+	Rectangle<int16_t> SecondScreenPanel::kb_line_box(Point<int16_t> screen) const
+	{
+		// Directly above the keys, full width, clear of the DONE button.
+		int16_t top = static_cast<int16_t>(keyboard_top(screen) - 6 - 30);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(4, top),
+			Point<int16_t>(static_cast<int16_t>(screen.x() - 84),
+				static_cast<int16_t>(top + 26)));
+	}
+
+	Rectangle<int16_t> SecondScreenPanel::kb_done_box(Point<int16_t> screen) const
+	{
+		int16_t top = static_cast<int16_t>(keyboard_top(screen) - 6 - 30);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(static_cast<int16_t>(screen.x() - 80), top),
+			Point<int16_t>(static_cast<int16_t>(screen.x() - 4),
+				static_cast<int16_t>(top + 26)));
+	}
+
 	void SecondScreenPanel::draw_keyboard(Point<int16_t> screen) const
 	{
 		if (kb_text.get_text().empty())
@@ -3127,6 +4067,72 @@ namespace ms
 		//
 		// Laying paper down first means the contrast no longer depends on
 		// where you happen to be standing.
+		// WHAT HAS BEEN TYPED SO FAR, above the keys.
+		{
+			if (kb_line_text.get_text().empty())
+				// Dark letters: the login plate is pale, and white on it is
+				// the fault the keyboard's own caps were changed to fix.
+				kb_line_text = Text(Text::Font::A12M, Text::Alignment::LEFT,
+					Color::Name::MINESHAFT);
+
+			// ⚠ THE LOGIN'S LOOK, NOT THE LOGIN'S BITMAPS.
+			//
+			// Login.img/Title/ID has the word "ID" painted into it and
+			// BtLogin has "Login" - they are not blank plates, they are
+			// labelled ones, so reusing them put the wrong word on the panel.
+			//
+			// The colours below are SAMPLED from those two bitmaps, so this
+			// is the same tan plate with the same border and the same button
+			// face, carrying our own words.
+			Rectangle<int16_t> line = kb_line_box(screen);
+
+			// Border, then the fill inset by one, which is how the login
+			// plate is built.
+			GraphicsGL::get().drawrectangle(
+				line.left(), line.top(), line.width(), line.height(),
+				0.667f, 0.533f, 0.400f, 1.0f);
+
+			GraphicsGL::get().drawrectangle(
+				static_cast<int16_t>(line.left() + 1),
+				static_cast<int16_t>(line.top() + 1),
+				static_cast<int16_t>(line.width() - 2),
+				static_cast<int16_t>(line.height() - 2),
+				0.733f, 0.667f, 0.467f, 1.0f);
+
+			const std::string& shown =
+				(current == SHOUT) ? mega_words : say_line;
+
+			// The tail, not the head: a long message runs off the right and
+			// the end is the part being typed.
+			std::string tail = shown.size() > 46
+				? shown.substr(shown.size() - 46) : shown;
+
+			kb_line_text.change_text(tail + "_");
+			kb_line_text.draw(Point<int16_t>(
+				static_cast<int16_t>(line.left() + 6),
+				static_cast<int16_t>(line.top() + 4)));
+
+			Rectangle<int16_t> done = kb_done_box(screen);
+
+			// The same button face BtLogin has, and the word we actually want
+			// on it.
+			GraphicsGL::get().drawrectangle(
+				done.left(), done.top(), done.width(), done.height(),
+				0.733f, 0.600f, 0.400f, 1.0f);
+
+			GraphicsGL::get().drawrectangle(
+				static_cast<int16_t>(done.left() + 1),
+				static_cast<int16_t>(done.top() + 1),
+				static_cast<int16_t>(done.width() - 2),
+				static_cast<int16_t>(done.height() - 2),
+				0.667f, 0.467f, 0.333f, 1.0f);
+
+			kb_text.change_text("DONE");
+			kb_text.draw(Point<int16_t>(
+				static_cast<int16_t>(done.left() + done.width() / 2),
+				static_cast<int16_t>(done.top() + 4)));
+		}
+
 		int16_t plate = static_cast<int16_t>(keyboard_top(screen) - 6);
 		int16_t deep = static_cast<int16_t>(screen.y() - plate);
 
@@ -3205,8 +4211,31 @@ namespace ms
 		// At the login there is no page and no line: the characters go the
 		// way SDL's own text input goes, to whichever field has focus over
 		// there.
+		// ⚠ THE MEGAPHONE PAGE TYPES INTO THE PANEL TOO. Left out of this
+		// test, every key it produced went to whatever had focus on the OTHER
+		// screen - so the megaphone's box stayed empty however much was typed.
 		const bool to_panel = Stage::get().is_active()
-			&& current == SAY;
+			&& (current == SAY || current == SHOUT);
+
+		// DONE, above the keys. The only way to put the keyboard away on a
+		// page that has something else underneath it.
+		if (kb_done_box(screen).contains(at))
+		{
+			if (current == SHOUT)
+				mega_typing = false;
+			else if (auto chat = UI::get().get_element<UIChatbar>())
+			{
+				chat->say(say_line);
+				say_line.clear();
+			}
+
+			return true;
+		}
+
+		// A press on the line itself is not a key - swallowed so it does not
+		// fall through to the page underneath.
+		if (kb_line_box(screen).contains(at))
+			return true;
 		// A CHARACTER IS NOT A KEYCODE.
 		//
 		// send_key runs a code through the KEYMAP and comes out with an
@@ -3227,8 +4256,18 @@ namespace ms
 				// A line long enough to run off the box is a line nobody can
 				// check before sending. The game's own field stops at about
 				// this too.
-				if (say_line.size() < 70)
-					say_line.push_back(c);
+				// ⚠ WHICH LINE IS BEING TYPED. The megaphone gathers into its
+				// own box, because its words do not leave until SEND - the
+				// chat page's do the moment ENTER is pressed.
+				std::string& into = (current == SHOUT) ? mega_words : say_line;
+
+				// A line long enough to run off the box is a line nobody can
+				// check before sending. The banner carries four lines of
+				// forty, so the megaphone is allowed the whole of that.
+				size_t room = (current == SHOUT) ? 160 : 70;
+
+				if (into.size() < room)
+					into.push_back(c);
 
 				return;
 			}
@@ -3246,11 +4285,26 @@ namespace ms
 				switch (code)
 				{
 				case GLFW_KEY_BACKSPACE:
-					if (!say_line.empty())
-						say_line.pop_back();
+				{
+					std::string& into =
+						(current == SHOUT) ? mega_words : say_line;
+
+					if (!into.empty())
+						into.pop_back();
 
 					return;
+				}
 				case GLFW_KEY_ENTER:
+					// ⚠ ENTER DOES NOT SEND A MEGAPHONE. One send, on the
+					// SEND button - so this only puts the keyboard away and
+					// leaves the words where they are.
+					if (current == SHOUT)
+					{
+						mega_typing = false;
+
+						return;
+					}
+
 					if (auto chat = UI::get().get_element<UIChatbar>())
 						chat->say(say_line);
 
@@ -3660,6 +4714,84 @@ namespace ms
 		GraphicsGL::get().drawrectangle(
 			x, static_cast<int16_t>(box.top() + at), W, thumb,
 			0.85f, 0.80f, 0.45f, 0.85f);
+	}
+
+
+	// ------------------------------------------------------------ the monster book
+
+	void SecondScreenPanel::draw_monsterbook(Point<int16_t> screen) const
+	{
+		if (book_text.get_text().empty())
+		{
+			book_text = Text(Text::Font::A12M, Text::Alignment::LEFT,
+				Color::Name::WHITE);
+			book_small = Text(Text::Font::A11M, Text::Alignment::LEFT,
+				Color::Name::WHITE);
+		}
+
+		Rectangle<int16_t> box = content_area(screen);
+
+		if (!Stage::get().is_active())
+			return;
+
+		const Monsterbook& book =
+			Stage::get().get_player().get_monsterbook();
+
+		const std::map<int16_t, int8_t>& cards = book.get_cards();
+
+		book_text.change_text(cards.empty()
+			? std::string("No cards yet - monsters drop them.")
+			: std::to_string(cards.size()) + " kinds recorded");
+		book_text.draw(Point<int16_t>(box.left(), box.top()));
+
+		// A CARD IS A MONSTER, SO SHOW THE MONSTER.
+		//
+		// The card id is the monster id with its leading digit dropped, which
+		// is how the book has always been keyed - so the mob's own name comes
+		// back by putting a 9 in front. Anything the string table does not
+		// know is drawn by number rather than skipped: a card you cannot name
+		// is still a card you have.
+		int16_t y = static_cast<int16_t>(box.top() + HEAD_H - list_scroll);
+
+		constexpr int16_t ROW = 20;
+
+		int16_t drawn = 0;
+
+		for (const auto& entry : cards)
+		{
+			int16_t row_y = static_cast<int16_t>(y + drawn * ROW);
+
+			drawn++;
+
+			if (row_y + ROW <= box.top() + HEAD_H || row_y >= box.bottom())
+				continue;
+
+			// Straight out of String.nx, the way Face and Hair read theirs.
+			// There is no MobData in this client - mobs are loaded from
+			// Mob.nx by id and have never needed a name until now.
+			std::string name = nl::nx::string["Mob.img"]
+				[std::to_string(9000000 + entry.first)]["name"];
+
+			if (name.empty())
+				name = "#" + std::to_string(entry.first);
+
+			book_text.change_text(name);
+			book_text.draw(Point<int16_t>(box.left() + 4, row_y));
+
+			// HOW MANY OF THAT CARD, out of the five that complete a set.
+			// The number is the point - a set finished is the thing being
+			// collected, not the card itself.
+			book_small.change_text(
+				std::to_string(entry.second) + " / 5");
+			book_small.draw(Point<int16_t>(
+				static_cast<int16_t>(box.right() - 46), row_y));
+		}
+
+		draw_scrollbar(
+			Rectangle<int16_t>(
+				Point<int16_t>(box.left(), static_cast<int16_t>(box.top() + HEAD_H)),
+				Point<int16_t>(box.right(), box.bottom())),
+			static_cast<int16_t>(cards.size() * ROW));
 	}
 
 	// ------------------------------------------------------------ duey's counter
@@ -4094,6 +5226,68 @@ namespace ms
 			static_cast<int16_t>(say.top() + 4)));
 	}
 
+	// The five banners across one row, the seven faces across the next, then
+	// SPEAK / TYPE, then SEND. Everything is measured off content_area so the
+	// page cannot reach over the gauges or the EXP bar.
+	Rectangle<int16_t> SecondScreenPanel::mega_box(size_t which,
+		Point<int16_t> screen) const
+	{
+		Rectangle<int16_t> box = content_area(screen);
+
+		int16_t w = static_cast<int16_t>((box.width() - 4 * 4) / MEGA_COUNT);
+		int16_t x = static_cast<int16_t>(box.left() + which * (w + 4));
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(x, static_cast<int16_t>(box.top() + 4)),
+			Point<int16_t>(static_cast<int16_t>(x + w),
+				static_cast<int16_t>(box.top() + 32)));
+	}
+
+	Rectangle<int16_t> SecondScreenPanel::mega_face_box(size_t which,
+		Point<int16_t> screen) const
+	{
+		Rectangle<int16_t> box = content_area(screen);
+
+		int16_t w = static_cast<int16_t>((box.width() - 6 * 3) / MEGA_FACES);
+		int16_t x = static_cast<int16_t>(box.left() + which * (w + 3));
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(x, static_cast<int16_t>(box.top() + 40)),
+			Point<int16_t>(static_cast<int16_t>(x + w),
+				static_cast<int16_t>(box.top() + 66)));
+	}
+
+	Rectangle<int16_t> SecondScreenPanel::mega_speak_box(Point<int16_t> screen) const
+	{
+		Rectangle<int16_t> box = content_area(screen);
+		int16_t half = static_cast<int16_t>(box.width() / 2 - 3);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(box.left(), static_cast<int16_t>(box.top() + 74)),
+			Point<int16_t>(static_cast<int16_t>(box.left() + half),
+				static_cast<int16_t>(box.top() + 108)));
+	}
+
+	Rectangle<int16_t> SecondScreenPanel::mega_type_box(Point<int16_t> screen) const
+	{
+		Rectangle<int16_t> box = content_area(screen);
+		int16_t half = static_cast<int16_t>(box.width() / 2 - 3);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(static_cast<int16_t>(box.right() - half),
+				static_cast<int16_t>(box.top() + 74)),
+			Point<int16_t>(box.right(), static_cast<int16_t>(box.top() + 108)));
+	}
+
+	Rectangle<int16_t> SecondScreenPanel::mega_send_box(Point<int16_t> screen) const
+	{
+		Rectangle<int16_t> box = content_area(screen);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(box.left(), static_cast<int16_t>(box.bottom() - 36)),
+			Point<int16_t>(box.right(), static_cast<int16_t>(box.bottom() - 4)));
+	}
+
 	Rectangle<int16_t> SecondScreenPanel::talk_box(Point<int16_t> screen) const
 	{
 		// Most of the page, low down, where a thumb already is - but inside
@@ -4103,6 +5297,59 @@ namespace ms
 		return Rectangle<int16_t>(
 			Point<int16_t>(box.left(), static_cast<int16_t>(box.top() + 30)),
 			Point<int16_t>(box.right(), box.bottom()));
+	}
+
+	void SecondScreenPanel::draw_megaphone(Point<int16_t> screen) const
+	{
+		if (voice_text.get_text().empty())
+		{
+			voice_text = Text(Text::Font::A12M, Text::Alignment::CENTER,
+				Color::Name::WHITE);
+			voice_hint = Text(Text::Font::A11M, Text::Alignment::LEFT,
+				Color::Name::WHITE);
+		}
+
+		auto cell = [&](Rectangle<int16_t> at, const char* label, bool on)
+		{
+			GraphicsGL::get().drawrectangle(
+				at.left(), at.top(), at.width(), at.height(),
+				on ? 0.86f : 1.0f, on ? 0.74f : 1.0f, on ? 0.36f : 1.0f,
+				on ? 0.55f : 0.12f);
+
+			voice_text.change_text(label);
+			voice_text.draw(Point<int16_t>(
+				static_cast<int16_t>(at.left() + at.width() / 2),
+				static_cast<int16_t>(at.top() + 4)));
+		};
+
+		// WHICH BANNER.
+		for (size_t i = 0; i < MEGA_COUNT; i++)
+			cell(mega_box(i, screen), MEGAPHONES[i].name, i == mega_choice);
+
+		// WHICH FACE. The sender's expression travels with the look, so this
+		// is what the character on the banner is doing.
+		for (size_t i = 0; i < MEGA_FACES; i++)
+			cell(mega_face_box(i, screen), MEGA_FACE_NAMES[i], i == mega_face);
+
+		cell(mega_speak_box(screen), "SPEAK", false);
+		cell(mega_type_box(screen), mega_typing ? "TYPING" : "TYPE", mega_typing);
+
+		// WHAT WILL GO OUT, so it can be checked before it does. Only drawn
+		// when the keyboard is down, because the keyboard covers this band.
+		if (!mega_typing)
+		{
+			Rectangle<int16_t> box = content_area(screen);
+
+			voice_hint.change_text(mega_words.empty()
+				? std::string("Nothing to send yet.")
+				: mega_words);
+
+			voice_hint.draw(Point<int16_t>(
+				box.left(), static_cast<int16_t>(box.top() + 116)));
+		}
+
+		cell(mega_send_box(screen),
+			mega_words.empty() ? "SEND" : "SEND IT", !mega_words.empty());
 	}
 
 	void SecondScreenPanel::draw_voice(Point<int16_t> screen) const
@@ -4213,14 +5460,19 @@ namespace ms
 		// wherever you are, so they share one line - one at each end of it.
 		// It starts inboard of VITAL_W because the HP gauge runs the full
 		// height of the left edge now and home was sitting on top of it.
-		constexpr int16_t GAP = 4;
+		int16_t k = chrome_scale(panel_screen.y());
+		int16_t crumb = static_cast<int16_t>(CRUMB_BASE * k);
+		int16_t top = static_cast<int16_t>(CHROME_BASE * k + (k - 1) * 6);
 
-		int16_t x = static_cast<int16_t>(VITAL_W + 4 + index * (CRUMB + GAP));
+		int16_t gap = static_cast<int16_t>(4 * k);
+
+		int16_t x = static_cast<int16_t>(VITAL_W + 4 + (k - 1) * 8
+			+ index * (crumb + gap));
 
 		return Rectangle<int16_t>(
-			Point<int16_t>(x, CHROME_TOP),
-			Point<int16_t>(static_cast<int16_t>(x + CRUMB),
-				static_cast<int16_t>(CHROME_TOP + CRUMB)));
+			Point<int16_t>(x, top),
+			Point<int16_t>(static_cast<int16_t>(x + crumb),
+				static_cast<int16_t>(top + crumb)));
 	}
 
 	Texture SecondScreenPanel::page_art(Page page) const
@@ -4245,6 +5497,7 @@ namespace ms
 		case CASHSHOP:  art = custom["IconCashShop"]; break;
 		// IconDoll, freed when the Mail page went.
 		case GIFT:      art = custom["IconDoll"]; break;
+		case MONSTERBOOK: art = custom["IconMonsterBook"]; break;
 		case CHARACTER: art = custom["IconCharacter"]; break;
 		case ADVENTURE: art = custom["IconAdventure"]; break;
 		case INVENTORY: art = custom["IconInventory"]; break;
@@ -4257,7 +5510,17 @@ namespace ms
 		case HOTKEYS:   art = custom["IconHotkeys"]; break;
 		case CHAT:      art = custom["IconSocial"]; break;
 		case WORLDMAP:  art = custom["IconMap"]; break;
-		case MINIMAP:   art = custom["IconScroll"]; break;
+		case MINIMAP:
+			// Its own artwork if the data has been rebuilt, the old scroll if
+			// not. A node that is not there yet must not leave a blank square
+			// on the menu - the art and the client ship separately, and the
+			// client always arrives first.
+			art = custom["IconMinimap"];
+
+			if (!Texture(art).is_valid())
+				art = custom["IconScroll"];
+
+			break;
 		case SETTINGS:  art = custom["IconSettings"]; break;
 		case OPTIONS:   art = custom["IconSettings"]; break;
 		// The gamepad, which is what it always looked like.
@@ -4276,7 +5539,15 @@ namespace ms
 		case PVP:       art = custom["IconPvP"]; break;
 		case SKILLS:    art = custom["IconSkills"]; break;
 		case EMOTIONS:  art = custom["IconEmotions"]; break;
-		case SHOUT:     art = custom["IconShout"]; break;
+		case SHOUT:
+			// The megaphone, falling back to the old envelope until the data
+			// has been rebuilt - the client ships before the art does.
+			art = custom["IconMegaphone"];
+
+			if (!Texture(art).is_valid())
+				art = custom["IconShout"];
+
+			break;
 		case ROOMCHAT:  art = custom["IconRoomMessage"]; break;
 		case SAY:       art = custom["IconChat"]; break;
 		// The trade icon on the page that STARTS one, because that is the
@@ -4306,11 +5577,12 @@ namespace ms
 		case EQ_CASH:   return "Cosmetic";
 		case EQ_PET:    return "Pet";
 		case ABILITY:   return "Stats";
+		case MONSTERBOOK: return "Monsters";
 		case QUESTS:    return "Quests";
 		// WORLDMAP was missing entirely, so the Map button drew no label at
 		// all while every other button had one.
-		case WORLDMAP:  return "World";
-		case MINIMAP:   return "Map";
+		case WORLDMAP:  return "Worldmap";
+		case MINIMAP:   return "Minimap";
 		case HOTKEYS:   return "Hotkeys";
 		case CHAT:      return "Social";
 		case CASHSHOP: return "Cash Shop";
@@ -4331,7 +5603,7 @@ namespace ms
 		case INV_ETC:    return "Etc";
 		case INV_CASH:   return "Cash";
 		case EXITGAME:   return "Quit";
-		case SHOUT:     return "Voice";
+		case SHOUT:     return "Megaphone";
 		case ROOMCHAT:  return "Message";
 		case SAY:       return "Chat";
 		case NEARBY:    return "Trade";
@@ -4350,38 +5622,70 @@ namespace ms
 		// became a menu of three, so the button sat on a screen of buttons
 		// where nothing can be picked up - and was missing from the three
 		// pages where something actually can be.
+		// ⚠ THE EQUIPMENT PAGES ARE BACK. They were taken off because
+		// UIEquipInventory had no selected_mapping(), so both buttons were
+		// inert there - a button that cannot succeed being worse than no
+		// button. That was the right call for a page that could not answer;
+		// it now can, so the reason is gone.
+		//
+		// Wanted for loadout swapping: a key or a pad button that puts a
+		// specific piece of gear back on.
+		//
+		// EVERY PAGE THAT CAN PICK SOMETHING IS HERE. Anything interactive -
+		// an item in any of the five bags, a worn piece, a skill - is a
+		// legitimate thing to want under a thumb, and the rule is simply
+		// whether the page can name what it has selected.
 		return current == INV_EQUIP || current == INV_USE
 			|| current == INV_SETUP || current == INV_ETC || current == INV_CASH
 			|| current == EQ_GEAR || current == EQ_CASH || current == EQ_PET
 			|| current == SKILLS;
 	}
 
-	Rectangle<int16_t> SecondScreenPanel::hotkey_jump_box(Point<int16_t> screen) const
+	Rectangle<int16_t> SecondScreenPanel::jump_strip(Point<int16_t> screen) const
 	{
-		// Bigger than a mouse button wants to be: this is a thumb, on a panel
-		// held at arm's length.
-		// Against a 344x300 panel, not the backdrop bitmap's 620x540.
-		constexpr int16_t W = 104;
-		constexpr int16_t H = 28;
-
-		// BOTTOM right. It was at the top, beside the page title, which is
-		// where a mouse would look for it and the furthest point from where a
-		// thumb already rests.
+		// THE BAND THE TWO JUMP BUTTONS OWN, and nothing else may enter.
 		//
-		// ABOVE THE NUMBERS, not on top of them. Sitting 10 from the bottom
-		// put it across the MP figure, which draw_vitals puts at
-		// (VITAL_W + 17) up from the foot - the button covered the one thing
-		// on that side of the panel you might be reading while deciding what
-		// to put on a key. Measured off the same two constants, so the two
-		// cannot drift apart again.
+		// Directly above the three numbers draw_vitals puts at (VITAL_W + 17)
+		// off the foot, which sit on the EXP bar. Measured off that same
+		// constant so the two cannot drift apart.
+		//
+		// content_area() subtracts this band on any page that shows the
+		// buttons, so page content stops above it instead of sliding beneath.
 		constexpr int16_t NUMBERS = VITAL_W + 17;
-		constexpr int16_t CLEAR = 6;
 
-		int16_t bottom = static_cast<int16_t>(screen.y() - NUMBERS - CLEAR);
+		int16_t bottom = static_cast<int16_t>(screen.y() - NUMBERS - JUMP_CLEAR);
+		int16_t side = static_cast<int16_t>(VITAL_W + 4);
 
 		return Rectangle<int16_t>(
-			Point<int16_t>(screen.x() - W - 10, static_cast<int16_t>(bottom - H)),
-			Point<int16_t>(screen.x() - 10, bottom));
+			Point<int16_t>(side, static_cast<int16_t>(bottom - JUMP_H)),
+			Point<int16_t>(static_cast<int16_t>(screen.x() - side), bottom));
+	}
+
+	Rectangle<int16_t> SecondScreenPanel::hotkey_jump_box(Point<int16_t> screen) const
+	{
+		// LEFT HALF of the strip. Side by side rather than stacked: two rows
+		// of buttons cost twice the height on a panel that has none to spare,
+		// and the pair is one question - which destination - so one row reads
+		// as one choice.
+		Rectangle<int16_t> strip = jump_strip(screen);
+		int16_t mid = static_cast<int16_t>(
+			strip.left() + strip.width() / 2 - JUMP_GAP / 2);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(strip.left(), strip.top()),
+			Point<int16_t>(mid, strip.bottom()));
+	}
+
+	Rectangle<int16_t> SecondScreenPanel::pad_jump_box(Point<int16_t> screen) const
+	{
+		// RIGHT HALF of the same strip - see hotkey_jump_box.
+		Rectangle<int16_t> strip = jump_strip(screen);
+		int16_t mid = static_cast<int16_t>(
+			strip.left() + strip.width() / 2 + JUMP_GAP / 2);
+
+		return Rectangle<int16_t>(
+			Point<int16_t>(mid, strip.top()),
+			Point<int16_t>(strip.right(), strip.bottom()));
 	}
 
 	void SecondScreenPanel::draw_chrome(Point<int16_t> screen) const
@@ -4425,7 +5729,8 @@ namespace ms
 
 				crumb_label.change_text(here);
 				crumb_label.draw(Point<int16_t>(
-					static_cast<int16_t>(last.right() + 6), CHROME_TOP + 2));
+					static_cast<int16_t>(last.right() + 6),
+					static_cast<int16_t>(last.top() + 2)));
 			}
 		}
 
@@ -4450,7 +5755,33 @@ namespace ms
 
 			hotkey_jump.draw(Point<int16_t>(
 				box.left() + box.width() / 2, box.top() + 6));
+
+			// AND THE PAD. A skill is put on a controller button exactly as
+			// often as on a key, and until now that could only be reached by
+			// going to the Keys page and finding the action in a grid.
+			Rectangle<int16_t> pad = pad_jump_box(screen);
+
+			GraphicsGL::get().drawrectangle(
+				pad.left(), pad.top(), pad.width(), pad.height(),
+				0.09f, 0.10f, 0.13f, 0.85f);
+
+			if (pad_jump.get_text().empty())
+				pad_jump = Text(Text::Font::A11B, Text::Alignment::CENTER,
+					Color::Name::WHITE, "TO CONTROLLER");
+
+			pad_jump.draw(Point<int16_t>(
+				pad.left() + pad.width() / 2, pad.top() + 6));
 		}
+
+		// ⚠ THE WORLD MAP IS THE MAP AND THE ADDRESS BAR, AND NOTHING ELSE.
+		//
+		// Every other page wants the gauges and the menu within reach. This
+		// one wants the room: it is a picture you are trying to read, the
+		// numbers are already on the other screen, and the menu is one swipe
+		// away. Returning here also skips the side arrows below, which used
+		// to sit on top of the map.
+		if (current == WORLDMAP)
+			return;
 
 		// No page dots and no arrows. Both belonged to a deck you swiped
 		// through; this is a tree you press into and swipe out of, and a row
@@ -4620,7 +5951,7 @@ namespace ms
 		}
 		else if (current == SHOUT)
 		{
-			draw_voice(screen);
+			draw_megaphone(screen);
 		}
 		else if (current == SAY)
 			draw_chat(screen);
@@ -4628,6 +5959,8 @@ namespace ms
 			draw_nearby(screen);
 		else if (current == GIFT)
 			draw_gift(screen);
+		else if (current == MONSTERBOOK)
+			draw_monsterbook(screen);
 		else if (current == ROOMCHAT)
 		{
 			draw_messages(screen);
@@ -4639,6 +5972,10 @@ namespace ms
 		else if (current == KEYBINDS)
 		{
 			draw_keys(screen);
+		}
+		else if (current == CONTROLLER)
+		{
+			draw_controller(screen);
 		}
 		else
 		{
@@ -4706,6 +6043,47 @@ namespace ms
 
 				levelup.draw(DrawArgument(at, to), 1.0f);
 			}
+		}
+
+		// AND DYING, over even that. Same covering scale as the level-up, for
+		// the same reason - no bands down the sides.
+		if (died_playing)
+		{
+			// A black ground first. The card is the whole panel while it is
+			// up, and a frame that happens to be dark at the edges should not
+			// let the quest log show through around it.
+			GraphicsGL::get().drawrectangle(
+				0, 0, screen.x(), screen.y(), 0.0f, 0.0f, 0.0f, 1.0f);
+
+			Point<int16_t> size = died.get_dimensions();
+
+			if (size.x() > 0 && size.y() > 0)
+			{
+				float across = static_cast<float>(screen.x()) / size.x();
+				float down = static_cast<float>(screen.y()) / size.y();
+				float scale = across > down ? across : down;
+
+				Point<int16_t> to(
+					static_cast<int16_t>(size.x() * scale),
+					static_cast<int16_t>(size.y() * scale));
+
+				Point<int16_t> at(
+					(screen.x() - to.x()) / 2,
+					(screen.y() - to.y()) / 2);
+
+				died.draw(DrawArgument(at, to), 1.0f);
+			}
+
+			// THE WORDS, drawn rather than burnt into the video - see the
+			// note on `died_text`. Centred on the panel, not on the frame,
+			// because the frame is cropped and the panel is not.
+			if (died_text.get_text().empty())
+				died_text = Text(Text::Font::A18M, Text::Alignment::CENTER,
+					Color::Name::WHITE, "You Died");
+
+			died_text.draw(Point<int16_t>(
+				screen.x() / 2,
+				static_cast<int16_t>(screen.y() / 2 - 12)));
 		}
 
 		// Over everything else, because it is the thing being aimed with.

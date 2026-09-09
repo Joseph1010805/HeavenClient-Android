@@ -16,6 +16,8 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "MessagingHandlers.h"
+#include "../IO/UITypes/UIAvatarMega.h"
+#include "Helpers/LoginParser.h"
 
 #include "../Util/Silent.h"
 
@@ -27,6 +29,7 @@
 
 #include "../IO/UITypes/UIStatusMessenger.h"
 #include "../IO/UITypes/UIChatbar.h"
+#include "../IO/UITypes/UINotice.h"
 
 namespace ms
 {
@@ -328,6 +331,25 @@ namespace ms
 		if (message.empty())
 			return;
 
+		// ⚠ A POPUP IS A POPUP. TYPE 1 MEANS STOP AND READ THIS.
+		//
+		// It was being folded in with the rest and printed as one more white
+		// line in the chat log - which is where a shout belongs, and exactly
+		// the wrong place for the server explaining why something you just
+		// tried did not work.
+		//
+		// The storage keeper is the case that found this: Cosmic refuses the
+		// bank below level 15 and says so, in a type 1, and every one of
+		// those sentences scrolled past unread. Four separate investigations
+		// went looking for a broken NPC that was working correctly and
+		// telling us so.
+		if (type == 1)
+		{
+			UI::get().emplace<UIOk>(message, [](bool) {});
+
+			return;
+		}
+
 		// The chat log, because these are things somebody SAID, and chat is
 		// where you look for those - and because it stays readable after the
 		// moment has passed, which a floating message does not.
@@ -552,5 +574,44 @@ namespace ms
 			// More bytes, but we don't need them
 			Stage::get().get_combat().show_player_buff(skillid);
 		}
+	}
+
+	void SetAvatarMegaphoneHandler::handle(InPacket& recv) const
+	{
+		int32_t itemid = recv.read_int();
+		std::string who = recv.read_string();
+
+		// FOUR, ALWAYS. The sender writes four whether or not it had four
+		// things to say, so four have to be read or the look below starts
+		// from the wrong byte.
+		std::string lines[4];
+
+		for (size_t i = 0; i < 4; i++)
+			lines[i] = recv.read_string();
+
+		recv.read_int();    // the channel it came from
+		recv.read_bool();   // the ear flag, which only the sender chose
+
+		// The same blob every character on the map arrives in.
+		LookEntry look = LoginParser::parse_look(recv);
+
+		// One banner at a time: a second messenger replaces the first rather
+		// than stacking on top of it.
+		if (auto up = UI::get().get_element<UIAvatarMega>())
+			up->expire();
+
+		// DEFAULT here on purpose: the packet has no expression in it. The
+		// banner claims the sender's own choice for itself - see
+		// UIAvatarMega::remember_face.
+		UI::get().emplace<UIAvatarMega>(itemid, who, lines, look,
+			Expression::Id::DEFAULT);
+	}
+
+	void ClearAvatarMegaphoneHandler::handle(InPacket& recv) const
+	{
+		recv.read_byte();
+
+		if (auto up = UI::get().get_element<UIAvatarMega>())
+			up->expire();
 	}
 }

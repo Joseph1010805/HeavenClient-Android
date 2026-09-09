@@ -33,6 +33,21 @@ namespace ms
 		dead = false;
 		hittable = false;
 
+		// ⚠ A REACTOR DOES NOT FALL. The map says where it is, exactly, and
+		// that is where it stays for its whole life.
+		//
+		// It inherits a NORMAL physics body from MapObject, so update() was
+		// handing it to gravity every frame. That went unnoticed for as long
+		// as the spawn snapped each reactor down onto the foothold beneath it,
+		// because gravity then had nothing left to do. Take the snap away -
+		// which had to go, since it overrode the exact position the map gives
+		// and dropped chests onto the wrong platform - and every reactor on
+		// the map visibly fell out of the sky on arrival.
+		//
+		// FIXATED is the fix, and it is also the honest description: the
+		// object was never meant to be simulated at all.
+		phobj.type = PhysicsObject::Type::FIXATED;
+
 		// A reactor is hittable if ANY of its states defines an `event` block -
 		// the data's flag for "reacts to being hit". This used to look only at
 		// the SPAWN state, so a reactor the server spawned in a state whose
@@ -100,7 +115,27 @@ namespace ms
 	void Reactor::draw(double viewx, double viewy, float alpha) const
 	{
 		Point<int16_t> absp = phobj.get_absolute(viewx, viewy, alpha);
-		Point<int16_t> shift = Point<int16_t>(0, normal.get_origin().y());
+		// ⚠ NO SHIFT. THE ORIGIN IS THE WHOLE ANSWER.
+		//
+		// This had a correction on it twice, and both were guesses about what
+		// a reactor origin means. An audit of all 1135 reactor sprites in
+		// Reactor.nx settles it:
+		//
+		//     "other" - neither centre nor bottom   634  (55%)
+		//     centre  - origin.y == h/2             351  (30%)
+		//     bottom  - origin.y == h               147  (12%)
+		//     top     - origin.y == 0                 3
+		//
+		// and SEVENTY-SIX of them have an origin that cannot be a foot at all
+		// - origin.y of 60 on a sprite 26 pixels tall, or -9. So origin.y is
+		// not "how high the art sits above its feet"; it is simply the
+		// sprite's anchor, and the map's y is where that anchor belongs.
+		//
+		// draw() already subtracts the origin. Anything added on top of that
+		// is a second opinion about data that was never ambiguous - and every
+		// version of it was right for one convention and wrong for the other
+		// two, which is why the chests floated by exactly their own height.
+		Point<int16_t> shift = Point<int16_t>(0, 0);
 
 		if (animation_ended)
 		{
@@ -159,6 +194,22 @@ namespace ms
 		state++;
 		dead = true;
 		animation_ended = false;
+	}
+
+	void Reactor::revive(int8_t s, Point<int16_t> position)
+	{
+		// Back to how the constructor would have left it. The break animation
+		// is cleared as well as the flags: a chest that reopens while still
+		// holding its own smash frames would play them again the next time
+		// anything touched it.
+		state = s;
+		dead = false;
+		animation_ended = true;
+		animations.clear();
+
+		set_position(position.x(), position.y());
+
+		makeactive();
 	}
 
 	void Reactor::play_state_sound(int8_t which)

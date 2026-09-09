@@ -16,6 +16,7 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "MapObjectHandlers.h"
+#include "../../Util/Silent.h"
 
 #include "Helpers/LoginParser.h"
 #include "Helpers/MovementParser.h"
@@ -295,6 +296,22 @@ namespace ms
 
 		recv.skip(4);
 
+		// WHERE THE CLIENT THINKS IT PUT THEM.
+		//
+		// The count says four arrived; it cannot say whether they arrived
+		// somewhere real. A mis-skipped status block shifts the position,
+		// stance and foothold together, and the mob is then held at a
+		// nonsense coordinate on a nonsense foothold - which looks exactly
+		// like it never spawned: nothing drawn, nothing to walk into and
+		// nothing moving. This is the line that tells those two apart.
+		Silent::report("SPAWN", "mob " + std::to_string(id)
+			+ " oid " + std::to_string(oid)
+			+ " at " + std::to_string(position.x())
+			+ "," + std::to_string(position.y())
+			+ " fh " + std::to_string(fh)
+			+ " stance " + std::to_string(stance)
+			+ " mode " + std::to_string(0));
+
 		Stage::get().get_mobs().spawn(
 			{ oid, id, 0, stance, fh, newspawn == -2, team, position }
 		);
@@ -336,6 +353,17 @@ namespace ms
 		// that has drifted, and every one of them should be accounted for.
 		recv.read_byte();
 
+		// WHICH KIND OF GOING-AWAY THIS IS.
+		//
+		// The same packet carries three quite different events and they look
+		// alike from the map: 0 means the server is dropping the mob from
+		// THIS client's view because it is out of range - no death, no sound;
+		// 1 is a real death with its animation; 2 is a fade. "They appeared
+		// and vanished" is 0 or 1 and the two lead opposite ways, so the byte
+		// is worth a line.
+		Silent::report("KILLMOB", "oid " + std::to_string(oid)
+			+ " animation " + std::to_string(animation));
+
 		Stage::get().get_mobs().remove(oid, animation);
 	}
 
@@ -373,6 +401,22 @@ namespace ms
 				int8_t team = recv.read_byte();
 
 				recv.skip(4);
+
+				// WHERE THE CLIENT THINKS IT PUT THEM.
+				//
+				// The count says four arrived; it cannot say whether they arrived
+				// somewhere real. A mis-skipped status block shifts the position,
+				// stance and foothold together, and the mob is then held at a
+				// nonsense coordinate on a nonsense foothold - which looks exactly
+				// like it never spawned: nothing drawn, nothing to walk into and
+				// nothing moving. This is the line that tells those two apart.
+				Silent::report("SPAWN", "mob " + std::to_string(id)
+					+ " oid " + std::to_string(oid)
+					+ " at " + std::to_string(position.x())
+					+ "," + std::to_string(position.y())
+					+ " fh " + std::to_string(fh)
+					+ " stance " + std::to_string(stance)
+					+ " mode " + std::to_string(mode));
 
 				Stage::get().get_mobs().spawn(
 					{ oid, id, mode, stance, fh, newspawn == -2, team, position }

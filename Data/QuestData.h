@@ -73,6 +73,26 @@ namespace ms
 			std::map<int32_t, int16_t> items;
 			std::map<int32_t, int16_t> mobs;
 
+			// ⚠ THE WINDOW THIS QUEST WAS EVER OFFERED IN, as "YYYYMMDDHH".
+			//
+			// 1,030 of the 2,799 quests carry one and almost every one of
+			// them CLOSED IN 2009 - they are Nexon's event quests, still in
+			// the data with their dates attached. The client ignored them
+			// completely and cheerfully offered every single one, which is a
+			// third of the game's NPCs wearing a quest balloon that leads to
+			// nothing.
+			//
+			// Empty means no limit, which is the ordinary case.
+			std::string opens;
+			std::string closes;
+
+			// ⚠ STARTS BY ITSELF, NEVER BY ASKING.
+			//
+			// 228 quests. The server hands these out on its own - entering a
+			// map, reaching a level - and refuses point blank when a client
+			// asks for one by number. Quest 10015 in the log is exactly this.
+			bool auto_start = false;
+
 			// Whether this phase runs an NPC script rather than a plain
 			// exchange. It decides which action byte QUEST_ACTION carries:
 			// scripted is 4 and 5, plain is 1 and 2. Getting it wrong means
@@ -122,6 +142,10 @@ namespace ms
 		// between a list that opens and one that hangs. Only `lvmin` and
 		// `lvmax` are read here, which is two integer lookups apiece.
 		static std::vector<int16_t> candidates(int16_t level);
+
+		// An NPC's name, for saying WHO rather than which number. Empty
+		// string for an id the string table does not know.
+		static std::string npc_name(int32_t npcid);
 
 		// Quest text carries the same markup NPC dialogue does. This strips
 		// the colour and style switches and resolves the item and map names,

@@ -34,8 +34,11 @@ namespace ms
 
 			int32_t oid = spawn.get_oid();
 
-			if (auto reactor = reactors.get(oid))
-				reactor->makeactive();
+			// A second spawn for an oid we already hold is a RESPAWN, not a
+			// duplicate - the server reuses the id when a reactor's timer
+			// brings it back. It has to be reset, not merely reactivated.
+			if (Optional<Reactor> reactor = reactors.get(oid))
+				reactor->revive(spawn.get_state(), spawn.get_position());
 			else
 				reactors.add(spawn.instantiate(physics));
 		}

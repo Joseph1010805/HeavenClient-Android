@@ -213,6 +213,11 @@ namespace ms
 		}
 	}
 
+	std::map<int32_t, Keyboard::Mapping> Keyboard::get_keymap() const
+	{
+		return keymap;
+	}
+
 	Keyboard::Mapping Keyboard::get_mapping(int32_t keycode) const
 	{
 		auto iter = keymap.find(keycode);

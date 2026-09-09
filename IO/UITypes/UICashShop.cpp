@@ -203,8 +203,44 @@ namespace ms
 		// vectors (e.g. BtExit origin = (-962,-10) → draws at (962,10)), so
 		// pass Point(0,0) and let the origin place them on the canvas.
 		buttons[Buttons::BtExit] = std::make_unique<MapleButton>(BaseFrame["BtExit"]);
-		buttons[Buttons::BtHelp] = std::make_unique<MapleButton>(BaseFrame["BtHelp"]);
-		buttons[Buttons::BtCoupon] = std::make_unique<MapleButton>(BaseFrame["BtCoupon"]);
+
+		// BIGGER, because it is the way out.
+		//
+		// This frame is worked with a cursor driven from the other screen,
+		// and the exit was a Nexon-sized target meant for a mouse sitting an
+		// inch from the pointer.
+		//
+		// ⚠ SCALING ALONE MOVES IT OFF THE SCREEN. These bitmaps carry their
+		// absolute 1024x768 position as a NEGATIVE ORIGIN - BtExit's is
+		// (-962,-10) - and both the draw and the bounds compute the top-left
+		// as `position - origin * scale`. Multiply the origin by 1.6 and the
+		// button lands at x 1539 on a 1024-wide canvas: not bigger, gone.
+		//
+		// So the position has to absorb the difference. Wanting the unscaled
+		// top-left (-origin) at scale s means position = origin * (s - 1),
+		// which is read from the artwork rather than written out, because the
+		// origin belongs to the data and not to us.
+		{
+			constexpr float EXIT_SCALE = 1.6f;
+
+			Point<int16_t> origin =
+				Texture(BaseFrame["BtExit"]["normal"]["0"]).get_origin();
+
+			buttons[Buttons::BtExit]->set_scale(EXIT_SCALE);
+			buttons[Buttons::BtExit]->set_position(Point<int16_t>(
+				static_cast<int16_t>(origin.x() * (EXIT_SCALE - 1.0f)),
+				static_cast<int16_t>(origin.y() * (EXIT_SCALE - 1.0f))));
+		}
+
+		// HELP AND COUPON ARE NOT BUILT.
+		//
+		// Help opens a Nexon support page that does not exist for this
+		// server, and a coupon is redeemed against a shop this one is not.
+		// Both were live buttons that could only ever disappoint, and the
+		// exit is the one control on this frame anybody actually needs.
+		//
+		// Left in the Buttons enum: it indexes into the button array and
+		// renumbering it would move every entry after them.
 
 		// Korean-only elements (CSTab/Tab menu banners, CSStatus/BtMileage,
 		// CSPromotionBanner, CSChar avatar buttons, CSMVPBanner) are
@@ -549,7 +585,31 @@ namespace ms
 		case KeyAction::Id::RIGHT:
 			key_right = pressed;
 			break;
+		case KeyAction::Id::UP:
+			key_up = pressed;
+
+			// Grab on. Only from the ground or mid-air over the rungs, which
+			// is what stops UP being a second jump button everywhere else.
+			if (pressed && on_ladder() && !char_climbing)
+			{
+				char_climbing = true;
+				char_jumping = false;
+				char_vy = 0.0f;
+			}
+			break;
+		case KeyAction::Id::DOWN:
+			key_down = pressed;
+			break;
 		case KeyAction::Id::JUMP:
+			// Jumping off a ladder lets go of it, the way it does in the game.
+			if (pressed && char_climbing)
+			{
+				char_climbing = false;
+				char_jumping = true;
+				char_vy = -4.5f;
+				break;
+			}
+
 			if (pressed && !char_jumping)
 			{
 				char_jumping = true;
@@ -604,6 +664,46 @@ namespace ms
 
 			if (char_x > static_cast<float>(STAGE_MAX_X))
 				char_x = static_cast<float>(STAGE_MAX_X);
+		}
+
+		// ⚠ ON THE RUNGS: no gravity, no walking, up and down only.
+		//
+		// char_yoff is measured UP from STAGE_Y as a negative number, so
+		// climbing subtracts. The top of the ladder is a hard stop rather
+		// than a platform - there is nothing drawn up there to stand on.
+		if (char_climbing)
+		{
+			constexpr float CLIMB = 1.4f;
+
+			if (key_up)
+				char_yoff -= CLIMB;
+
+			if (key_down)
+				char_yoff += CLIMB;
+
+			float ceiling = static_cast<float>(LADDER_TOP - STAGE_Y);
+
+			if (char_yoff < ceiling)
+				char_yoff = ceiling;
+
+			// Back on the ground - let go, so he stands rather than hanging
+			// at floor level.
+			if (char_yoff >= 0.0f)
+			{
+				char_yoff = 0.0f;
+				char_climbing = false;
+			}
+
+			// The climbing pose. CharLook advances the frames only while the
+			// stance is being driven, so standing still on the rungs holds
+			// one frame, which is what the game does.
+			if (cur_stance != Stance::Id::LADDER)
+			{
+				cur_stance = Stance::Id::LADDER;
+				preview_look.set_stance(Stance::Id::LADDER);
+			}
+
+			return;
 		}
 
 		// Jump arc

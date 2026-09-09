@@ -26,6 +26,7 @@
 #include "../IO/Messages.h"
 #include "../IO/UI.h"
 #include "../Util/Misc.h"
+#include "../Util/Silent.h"
 
 #include "../IO/UITypes/UIStatusbar.h"
 #include "../Net/Packets/AttackAndSkillPackets.h"
@@ -337,15 +338,55 @@ namespace ms
 		check_touch_portals();
 		camera.update(player.get_position());
 
+		// HOW MANY MOBS THIS CLIENT ACTUALLY HAS, reported when it changes.
+		//
+		// "The monsters are gone" has two causes that look identical from the
+		// map: the server never sent them, or this client has them and is not
+		// drawing them. One number separates those, and nothing on the screen
+		// does. Reported on CHANGE, not every frame, so a map with four is one
+		// line and a map with none is one line.
+		{
+			static size_t last_seen = static_cast<size_t>(-1);
+
+			size_t have = mobs.count();
+
+			if (have != last_seen)
+			{
+				last_seen = have;
+
+				Silent::report("MOBS",
+					"this client has " + std::to_string(have) + " on the map");
+			}
+		}
+
+		// ⚠ WHY NOTHING HURT, SAID OUT LOUD.
+		//
+		// "I am not being damaged" has at least three causes that are
+		// identical from the far side of the room: the whole block below is
+		// skipped because the player is invincible, no mob is ever found to
+		// be colliding, or one is found and has no touch attack. Silent
+		// de-duplicates by shape, so these cost one line each however many
+		// times a second this runs.
 		if (player.is_invincible())
+		{
+			Silent::report("DAMAGE", "skipped - the player is invincible");
+
 			return;
+		}
 
 		if (int32_t oid_id = mobs.find_colliding(player.get_phobj()))
 		{
 			if (MobAttack attack = mobs.create_attack(oid_id))
 			{
+				Silent::report("DAMAGE", "touching a mob - damage sent");
+
 				MobAttackResult result = player.damage(attack);
 				TakeDamagePacket(result, TakeDamagePacket::From::TOUCH).dispatch();
+			}
+			else
+			{
+				Silent::report("DAMAGE",
+					"touching a mob that has no touch attack");
 			}
 		}
 

@@ -82,6 +82,14 @@ namespace ms
 		static constexpr int16_t P_TAB_H = 22;
 		static constexpr int16_t P_ACTION_H = 28;
 
+		// ⚠ WHAT THE PANEL KEEPS FOR ITSELF ALONG THE BOTTOM.
+		//
+		// The EXP bar, and the HP/MP figures sitting on top of it. Measured
+		// against SecondScreenPanel's own VITAL_W(12) + 22, plus a gap: the
+		// action row was placed 16 up from the foot of the SCREEN and landed
+		// across those numbers, with SPEND itself half off the bottom edge.
+		static constexpr int16_t P_FOOT = 12 + 22 + 8;
+
 		// How far in from either edge anything on this page starts.
 		//
 		// The HP and MP gauges run the FULL HEIGHT of both edges of the panel
@@ -140,6 +148,7 @@ namespace ms
 		mutable Text panel_tab_text;
 		mutable Text panel_level_text;
 		mutable Text panel_name_text;
+		mutable Text panel_desc_text;
 		mutable Text panel_action_text;
 
 
@@ -187,6 +196,22 @@ namespace ms
 		void change_sp();
 		void change_tab(uint16_t new_tab);
 		void change_offset(uint16_t new_offset);
+
+		// ⚠ THE PANEL GRID SCROLLS SEPARATELY FROM THE BOOK'S SLIDER.
+		//
+		// The window on the main screen has a slider; the panel page draws a
+		// grid and had no way to move it at all, so a book longer than the
+		// three rows that fit simply ran off the bottom and under the action
+		// bar. A later job book is twenty-odd skills - this is one of the few
+		// pages that genuinely needs the stick.
+		//
+		// Counted in ROWS, so a nudge moves a whole line of icons rather than
+		// a fraction of one.
+		mutable int16_t panel_scroll = 0;
+
+		int16_t panel_rows_visible() const;
+		int16_t panel_rows_total() const;
+		int16_t panel_scroll_max() const;
 
 		void show_skill(int32_t skill_id);
 		void clear_tooltip();

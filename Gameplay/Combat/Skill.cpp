@@ -37,7 +37,7 @@ namespace ms
 		else
 			strid = std::to_string(skillid);
 
-		nl::node src = nl::nx::skill[strid.substr(0, 3) + ".img"]["skill"][strid];
+		nl::node src = nl::nx::skill[string_format::skill_file(skillid)]["skill"][strid];
 
 		projectile = true;
 		overregular = false;
@@ -200,6 +200,23 @@ namespace ms
 		attack.ignoredef += stats.ignoredef;
 		attack.mobcount = stats.mobcount;
 		attack.hrange = stats.hrange;
+
+		// ⚠ A SKILL THAT THROWS SOMETHING IS A RANGED ATTACK, WHATEVER YOU
+		// ARE HOLDING.
+		//
+		// Player::prepare_attack decides close-or-ranged from the WEAPON
+		// alone - bow, crossbow, claw and gun are ranged and everything else
+		// is close. That is right for a plain swing and wrong for a skill
+		// that produces its own projectile: Three Snails throws a shell with
+		// a sword in your hand, or with nothing.
+		//
+		// So the shells went out as CLOSE_ATTACK. Cosmic broadcast them as a
+		// close attack with projectile 0, and the watching client drew the
+		// swing and no shell - which is exactly what it looked like. Every
+		// fix aimed at RangedAttackHandler missed, because the packet never
+		// went near it.
+		if (projectile && attack.type == Attack::CLOSE)
+			attack.type = Attack::RANGED;
 
 		switch (attack.type)
 		{

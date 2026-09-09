@@ -721,12 +721,32 @@ namespace ms
 			{
 			case 0:
 			{
-				std::function<void()> onok = [&]()
+				// ⚠ THE CLIENT DOES NOT GET TO REFUSE THIS.
+				//
+				// 0 means "this account has no PIC set". The old behaviour
+				// was to show CHAR_DEL_FAIL_NO_PIC and stop - so on a server
+				// with PIC turned off, and nobody able to set one, NO
+				// CHARACTER COULD EVER BE DELETED. There was no way through
+				// from inside the game.
+				//
+				// The server is the authority: Client.checkPic returns true
+				// outright when ENABLE_PIC is false, and answers 0x14 when it
+				// genuinely wants one. So ask, and let it say no if it means
+				// no - a refusal we can show is better than a refusal we
+				// invented.
+				std::function<void()> oncancel = [&]()
 				{
 					chatslotlabel.change_text(get_slot_text());
 				};
 
-				UI::get().emplace<UILoginNotice>(UILoginNotice::Message::CHAR_DEL_FAIL_NO_PIC, onok);
+				std::function<void()> onok = [&, id]()
+				{
+					DeleteCharPacket(id).dispatch();
+					chatslotlabel.change_text(get_slot_text());
+				};
+
+				UI::get().emplace<UILoginNotice>(
+					UILoginNotice::Message::DELETE_CONFIRMATION, onok, oncancel);
 			}
 			break;
 			case 1:

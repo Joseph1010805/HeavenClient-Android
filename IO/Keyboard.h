@@ -61,6 +61,16 @@ namespace ms
 		int32_t leftctrlcode() const;
 		int32_t rightctrlcode() const;
 		std::map<int32_t, Mapping> get_maplekeys() const;
+
+		// ⚠ THE SAME BINDINGS, KEYED BY GLFW CODE.
+		//
+		// get_maplekeys is indexed by the MAPLE key number the server stores;
+		// this one by the key code everything on our side speaks - which is
+		// what the pad settings and key_name hold. Reading one with the
+		// other's index finds whatever action happens to sit at that number,
+		// and the panel did exactly that: the A button reported "Face:
+		// puzzled" and the Keys page showed Attack sitting on "0".
+		std::map<int32_t, Mapping> get_keymap() const;
 		KeyAction::Id get_ctrl_action(int32_t keycode) const;
 		Mapping get_mapping(int32_t keycode) const;
 		Mapping get_maple_mapping(int32_t keycode) const;

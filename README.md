@@ -16,6 +16,9 @@ device becomes the network and the others join it by name. See
 **You supply your own game files.** There are none in this repository and I
 can't give you any - see below.
 
+Once you have them, `tools/install.sh` does the rest in one command - see
+[Installing it](#installing-it).
+
 ## Getting the game files
 
 The client needs MapleStory's `.nx` data - the artwork, maps, music and sound.
@@ -54,9 +57,50 @@ converted from anything - `tools/make_assets.py` builds it from your own video
 and images, and CHANGES.md explains how. Without it those screens fall back to
 the stock artwork, which is what they used before.
 
-## Downloading a build
+## Installing it
 
-There's an APK on the [releases page](https://github.com/Joseph1010805/HeavenClient-Android/releases).
+**One command.** Plug the device in by USB and run:
+
+```
+tools/install.sh
+```
+
+It finds the device, downloads the latest APK, installs it, finds the game
+files you already have, converts them if they're still `.wz`, and copies them
+across. It asks before anything slow or destructive and it's safe to re-run -
+every file is checked against the device first, so an interrupted 4 GB copy
+picks up where it stopped rather than starting again.
+
+Add `--server` if you want the device to **host** as well as play, so you can
+run a game with no PC and no internet:
+
+```
+tools/install.sh --server
+```
+
+That one takes a while: it installs Java and MariaDB inside Termux, unpacks the
+server, and starts the database. Everything else is the same.
+
+If more than one device is plugged in it asks which; `--device SERIAL` skips
+the question.
+
+### What you need first
+
+- **The game files.** See [Getting the game files](#getting-the-game-files).
+  The installer will not download them and cannot help you find them - it only
+  works with a copy you already have.
+- **USB debugging on.** Settings → About → tap "Build number" seven times, then
+  Developer options → USB debugging. The installer tells you this if it can't
+  see the device.
+- **A cable that carries data.** Some charging cables don't, and the symptom is
+  a device that charges but never appears.
+
+You don't need adb, Android Studio, Python, or a Google account.
+
+### If you'd rather do it by hand
+
+There's an APK on the
+[releases page](https://github.com/Joseph1010805/HeavenClient-Android/releases).
 It's the app and nothing else - no game data, for the reason above - so you
 still need everything in the previous section before it will start.
 
@@ -68,7 +112,25 @@ You'll also have to let your device install it. It isn't from the Play Store, so
 Android blocks it the first time and offers you a settings screen - allow this
 source and press install again.
 
+Where the files go by hand is under
+[Putting the files on your device](#putting-the-files-on-your-device).
+
 If you'd rather build it yourself, that's the next section.
+
+## Something went wrong? Send a report
+
+There's a **Report** page in the game - lower screen, Settings → Report.
+
+Choose whether the picture should be of the **game** or the **panel**, press
+**SAVE A REPORT**, and the game writes a file, takes a screenshot, and offers
+to send them. Pick any app you like. Then open an
+[issue](https://github.com/Joseph1010805/HeavenClient-Android/issues/new/choose)
+and drag the files in.
+
+The report holds the build, your device, which map and page you were on, your
+character's stats and gear, and the game's own error notices. It does **not**
+hold your password, your account name, your chat, or anybody else's messages -
+the file says so in its own first lines, so you can check before you send it.
 
 ## What works, and what doesn't
 
@@ -328,8 +390,8 @@ isn't to reconcile worlds, it's to gather characters:
 
 ```
 python tools/character.py where pc <serial>            what is where
-python tools/character.py account joey pc <serial>     take a player with you
-python tools/character.py verify joey pc <serial>      prove it arrived whole
+python tools/character.py account alex pc <serial>     take a player with you
+python tools/character.py verify alex pc <serial>      prove it arrived whole
 ```
 
 The unit is an **account**, not a character, because Cosmic gives an account

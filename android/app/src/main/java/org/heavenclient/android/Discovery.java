@@ -18,7 +18,7 @@ import java.util.Map;
  *
  * Nobody should ever type an IP to play with their brother. A device hosting
  * a game shouts its name onto the local network; every other device listens
- * and shows a list. Tap "Joey's Thor" and you are in.
+ * and shows a list. Tap "Alex's Thor" and you are in.
  *
  * This is plain mDNS service discovery - the same mechanism a printer uses to
  * appear in a print dialog. It matters that it is NOT tied to Wi-Fi Direct:
@@ -36,6 +36,44 @@ public final class Discovery {
     private static NsdManager manager;
     private static NsdManager.RegistrationListener registration;
     private static NsdManager.DiscoveryListener discovery;
+
+    // ⚠ WHAT WE OURSELVES ARE ANNOUNCING.
+    //
+    // NSD reports our own service back to us, so a device that had hosted
+    // found ITSELF in the list of games nearby and offered to let the player
+    // join their own machine. Worse, it survived the game restarting: the
+    // announcement lives in the system's NSD daemon, not in this process, so
+    // the client came back from a restart browsing and still registered.
+    //
+    // Recorded from onServiceRegistered rather than from what we asked for,
+    // because Android RENAMES a clashing service - "alex" can come back as
+    // "alex (2)" - and the name it chose is the one that will be found.
+    private static volatile String mine;
+
+    // Every address this device has, for the same reason. A rename we did not
+    // see, or an announcement left over from a previous run under a different
+    // name, is still us if it resolves to one of our own addresses.
+    private static java.util.Set<String> ownAddresses() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> ifs =
+                    java.net.NetworkInterface.getNetworkInterfaces();
+
+            while (ifs != null && ifs.hasMoreElements()) {
+                java.util.Enumeration<InetAddress> addrs =
+                        ifs.nextElement().getInetAddresses();
+
+                while (addrs.hasMoreElements()) {
+                    out.add(addrs.nextElement().getHostAddress());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "could not list our own addresses - " + e);
+        }
+
+        return out;
+    }
 
     /** Found games, newest name wins. Keyed by name so a re-announce replaces. */
     private static final Map<String, String> found = new LinkedHashMap<>();
@@ -72,7 +110,15 @@ public final class Discovery {
         registration = new NsdManager.RegistrationListener() {
             @Override
             public void onServiceRegistered(NsdServiceInfo info) {
+                // The name the system SETTLED on, which may not be the one
+                // asked for - see `mine`.
+                mine = info.getServiceName();
+
                 Log.i(TAG, "hosting as '" + info.getServiceName() + "'");
+
+                synchronized (found) {
+                    found.remove(mine);
+                }
             }
 
             @Override
@@ -100,6 +146,8 @@ public final class Discovery {
     }
 
     public static void stopHosting(Context context) {
+        mine = null;
+
         NsdManager nsd = manager(context);
 
         if (nsd == null || registration == null) {
@@ -138,6 +186,13 @@ public final class Discovery {
 
             @Override
             public void onServiceFound(NsdServiceInfo info) {
+                // Not our own announcement. Checked here as well as after
+                // resolving, so the common case costs nothing.
+                if (info.getServiceName() != null
+                        && info.getServiceName().equals(mine)) {
+                    return;
+                }
+
                 // A find is only a NAME. The address needs a second step.
                 resolve(info);
             }
@@ -192,6 +247,19 @@ public final class Discovery {
                 InetAddress host = info.getHost();
 
                 if (host == null) {
+                    return;
+                }
+
+                // ⚠ AND NOT OURSELVES BY ADDRESS.
+                //
+                // The name test above catches the ordinary case. This catches
+                // the ones it cannot: a stale announcement from a previous run
+                // of this app, or one the system renamed while we were not
+                // listening. Either way, a game whose address is this very
+                // device is not a game anybody can join.
+                if (ownAddresses().contains(host.getHostAddress())) {
+                    Log.i(TAG, "ignoring our own announcement '"
+                            + info.getServiceName() + "'");
                     return;
                 }
 

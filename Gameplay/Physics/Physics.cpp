@@ -34,8 +34,9 @@ namespace ms
 	// observable result: see Player::get_walkforce, which is calibrated so
 	// terminal walking speed comes out at Nexon's 125 px/s.
 
-	// 2000 px/s^2 over 125 steps/s: 2000 / 125^2. Was 0.14, about 9% heavy.
-	const double GRAVFORCE = 0.128;
+	// GRAVFORCE now lives on the Physics class itself - see Physics.h. It was
+	// moved there so Drop can derive its launch speed from the same number
+	// instead of holding a second copy that could drift away from this one.
 
 	// 670 px/s terminal fall, as fallSpeed. Nothing capped falling speed
 	// before, so anything dropped accelerated indefinitely - which is why

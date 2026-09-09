@@ -16,6 +16,9 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UI.h"
+#include "../Gameplay/Stage.h"
+
+#include "../Util/Silent.h"
 
 #include "../Graphics/GraphicsGL.h"
 
@@ -75,6 +78,34 @@ namespace ms
 
 	void UI::update()
 	{
+		// NOTHING MAY SWITCH THE UI OFF FOR EVER.
+		//
+		// Five seconds is far longer than any answer this client waits on and
+		// far shorter than a person's patience. Past that, the wait is taken
+		// as lost rather than pending: whatever was asked is not coming, and
+		// a dead screen helps nobody.
+		//
+		// It reports itself, because silently recovering from a fault is how
+		// the fault survives - the log line is what turns "the buttons went
+		// funny for a moment" into something findable.
+		if (!enabled)
+		{
+			disabled_for += Constants::TIMESTEP;
+
+			if (disabled_for > 5000)
+			{
+				enabled = true;
+				disabled_for = 0;
+
+				Silent::report("UI",
+					"nothing re-enabled the interface - releasing it");
+			}
+		}
+		else
+		{
+			disabled_for = 0;
+		}
+
 		state->update();
 
 		scrollingnotice.update();
@@ -293,10 +324,38 @@ namespace ms
 
 			Keyboard::Mapping m = keyboard.get_mapping(keycode);
 
-			Console::get().print("key " + std::to_string(keycode)
-				+ " -> " + who
+			// INTO THE DURABLE LOG, not just the console.
+			//
+			// This has been the right diagnostic for three separate "the
+			// button does nothing" reports and been unreadable every time,
+			// because Console goes to logcat and logcat is empty the moment
+			// the device reboots. tools/playlog.py can read this.
+			//
+			// type 0 means NOTHING IS BOUND to that key, which is a different
+			// fault from the binding being wrong - and the two are impossible
+			// to tell apart from the sofa.
+			// ⚠ AND WHAT THE PLAYER WAS DOING.
+			//
+			// "-> game" already rules out a textfield, a dialogue and a menu,
+			// which is what this line was built for. It leaves one cause it
+			// cannot see: the key arrived, the game took it, and the PLAYER
+			// refused - because a state that cannot walk was never left.
+			// Sitting stands up on a direction key; climbing does not, and a
+			// ladder whose map has gone leaves nothing to climb off.
+			//
+			// Cheap to add and it closes the last gap: after this, "I cannot
+			// move" names its own cause instead of costing a session.
+			std::string doing = "no stage";
+
+			if (Stage::get().is_active())
+				doing = "state " + std::to_string(
+					static_cast<int32_t>(Stage::get().get_player().current_state()));
+
+			Silent::report("UI::send_key",
+				"key " + std::to_string(keycode) + " -> " + who
 				+ " (type " + std::to_string(m.type)
-				+ ", action " + std::to_string(m.action) + ")");
+				+ ", action " + std::to_string(m.action)
+				+ ", player " + doing + ")");
 		}
 
 		if (focusedtextfield)
@@ -401,7 +460,22 @@ namespace ms
 			else
 			{
 				// All
-				if (escape || tab || enter || arrows)
+				// ⚠ THE LOGIN SCREENS ONLY WHILE THERE IS NO GAME.
+				//
+				// Arrows are offered to this list BEFORE the player gets
+				// them. Every entry is a login-screen element and all of them
+				// should be gone once a character is in the world - but if
+				// one is left behind, it silently eats every arrow key and
+				// the character will not walk. Letters are unaffected, which
+				// is why "the controls do not work" arrived with attack and
+				// jump working perfectly.
+				//
+				// Going to the cash shop and back rebuilt the UI and took the
+				// leftover with it, which is a cure nobody should have to
+				// find. Stage being active is the honest test: in a world,
+				// these screens have no business claiming anything.
+				if ((escape || tab || enter || arrows)
+					&& !Stage::get().is_active())
 				{
 					// Login
 					types.emplace_back(UIElement::Type::WORLDSELECT);

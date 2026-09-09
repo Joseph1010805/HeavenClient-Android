@@ -59,6 +59,8 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
+
+#include "../Util/Shot.h"
 #include <unistd.h>
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "HeavenClient", __VA_ARGS__)
@@ -503,6 +505,7 @@ namespace ms
 		int32_t bind_to = 0;
 		bool bind_armed = false;
 		bool bind_done = false;
+
 
 		// Which setting each button lives in. Only the ones a person would
 		// ever rebind: the d-pad is movement and Back is quit, and offering
@@ -1076,30 +1079,17 @@ namespace ms
 					break;
 				}
 
-				// THE TWO STICK CLICKS ARE TALKING, AND ARE NOT REBINDABLE.
+				// ⚠ THE STICK CLICKS ARE ORDINARY BUTTONS AGAIN.
 				//
-				// A handheld has no keyboard, so the only way to say anything
-				// is to speak it. Both clicks start the SAME capture - the
-				// live balloon over your head, the pause that decides you have
-				// finished - and differ only in how far what you said travels:
+				// They used to be claimed here for dictation - R3 spoke over
+				// your head, L3 across the world - and being claimed BEFORE
+				// the rebinder meant they could never be bound to anything
+				// else. That was the right call while they were the only way
+				// to talk; speaking now lives on the Voice page instead, so
+				// holding these two back only costs two hotkeys.
 				//
-				//   R3  the map you are standing on. A bubble over your head
-				//       and a line in the running chat.
-				//   L3  the whole world, as a banner across every screen.
-				//
-				// Taken before the rebinder, like Back above: these are what
-				// the sticks mean, and a player who rebound them would have no
-				// way left to speak at all.
-				if (button == SDL_CONTROLLER_BUTTON_RIGHTSTICK
-					|| button == SDL_CONTROLLER_BUTTON_LEFTSTICK)
-				{
-					if (ev.type == SDL_CONTROLLERBUTTONDOWN)
-						if (auto chatbar = UI::get().get_element<UIChatbar>())
-							chatbar->start_dictation(
-								button == SDL_CONTROLLER_BUTTON_LEFTSTICK);
-
-					break;
-				}
+				// They fall through to the pad map below like every other
+				// button, and save_pad_binding already accepts both.
 
 				// BINDING? THEN THIS PRESS IS THE ANSWER, NOT AN ACTION.
 				//
@@ -1388,6 +1378,13 @@ namespace ms
 		// Before the swap: the default framebuffer still holds this frame.
 		maybe_screenshot();
 
+		// THE TOP SCREEN, FOR A BUG REPORT. Same moment and same reason as
+		// the line above - and the mirror of SecondScreen::end(), which takes
+		// the panel while ITS surface is current. A player asking for a
+		// picture of the game gets the game; asking for the panel gets the
+		// panel; neither can accidentally return the other.
+		Shot::collect(Shot::Which::TOP, panel_w, panel_h);
+
 		SDL_GL_SwapWindow(glwnd);
 	}
 
@@ -1457,6 +1454,7 @@ namespace ms
 		{
 			bind_done = false;
 		}
+
 	}
 
 }

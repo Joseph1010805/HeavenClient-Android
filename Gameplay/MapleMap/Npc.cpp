@@ -73,6 +73,12 @@ namespace ms
 
 		nl::node info = src["info"];
 
+		// The click box, straight from the data - see the note on dc_left.
+		dc_left = static_cast<int16_t>(info["dcLeft"].get_integer());
+		dc_right = static_cast<int16_t>(info["dcRight"].get_integer());
+		dc_top = static_cast<int16_t>(info["dcTop"].get_integer());
+		dc_bottom = static_cast<int16_t>(info["dcBottom"].get_integer());
+
 		hidename = info["hideName"].get_bool();
 		mouseonly = info["talkMouseOnly"].get_bool();
 		scripted = info["script"].size() > 0 || info["shop"].get_bool();
@@ -102,6 +108,18 @@ namespace ms
 		control = cnt;
 		stance = "stand";
 
+		// THE PORTRAIT, WHERE THE ANIMATION IS A PLACEHOLDER - see the note on
+		// default_art. Eight pixels is well below any real sprite and well
+		// above the 1x60 and 4x4 stubs these NPCs actually carry.
+		if (!animations.count(stance)
+			|| animations.at(stance).get_dimensions().x() < 8)
+		{
+			nl::node fallback = info["default"];
+
+			if (fallback.data_type() == nl::node::type::bitmap)
+				default_art = fallback;
+		}
+
 		phobj.fhid = f;
 		set_position(position);
 	}
@@ -110,7 +128,11 @@ namespace ms
 	{
 		Point<int16_t> absp = phobj.get_absolute(viewx, viewy, alpha);
 
-		if (animations.count(stance))
+		// The picture first where there is one - see default_art. Without this
+		// these NPCs drew as a one-pixel hairline and read as not being there.
+		if (default_art.is_valid())
+			default_art.draw(DrawArgument(absp, flip));
+		else if (animations.count(stance))
 			animations.at(stance).draw(DrawArgument(absp, flip), alpha);
 
 		if (!hidename)
@@ -146,6 +168,22 @@ namespace ms
 		return npcid;
 	}
 
+	// ONE SHARED PAIR OF BALLOONS, ADVANCED ONCE A FRAME.
+	//
+	// This used to live in Npc::update, which runs once per NPC - so the two
+	// animations were stepped once for EVERY npc on the map wearing a mark.
+	// Eight quest NPCs in a town meant eight steps a frame, and at a 150ms
+	// frame delay that is a strobe rather than a bob. It looked like the
+	// artwork was wrong; it was the same drawing being run eight times fast.
+	//
+	// They are shared on purpose - one copy for the whole map rather than a
+	// pair per NPC - so the update has to be shared too.
+	void Npc::update_markers()
+	{
+		markers().available.update();
+		markers().completable.update();
+	}
+
 	int8_t Npc::update(const Physics& physics)
 	{
 		if (!active)
@@ -153,11 +191,7 @@ namespace ms
 
 		physics.move_object(phobj);
 
-		if (questmark != QuestMark::NONE)
-		{
-			markers().available.update();
-			markers().completable.update();
-		}
+		// ⚠ THE BALLOONS ARE NOT UPDATED HERE. See Npc::update_markers.
 
 		if (animations.count(stance))
 		{
@@ -194,6 +228,26 @@ namespace ms
 		return scripted;
 	}
 
+	Point<int16_t> Npc::get_click_centre() const
+	{
+		Point<int16_t> at = get_position();
+
+		// The same box inrange() tests, so the two can never disagree about
+		// which NPC a tap belongs to.
+		if (dc_left != dc_right || dc_top != dc_bottom)
+			return Point<int16_t>(
+				static_cast<int16_t>(at.x() + (dc_left + dc_right) / 2),
+				static_cast<int16_t>(at.y() + (dc_top + dc_bottom) / 2));
+
+		Point<int16_t> dim =
+			animations.count(stance) ?
+			animations.at(stance).get_dimensions() :
+			Point<int16_t>();
+
+		return Point<int16_t>(
+			at.x(), static_cast<int16_t>(at.y() - dim.y() / 2));
+	}
+
 	bool Npc::inrange(Point<int16_t> cursorpos, Point<int16_t> viewpos) const
 	{
 		if (!active)
@@ -201,6 +255,22 @@ namespace ms
 
 		Point<int16_t> absp = get_position() + viewpos;
 
+		// ⚠ THE DATA'S OWN CLICK BOX FIRST. The artwork's size is a guess at
+		// it and a bad one: an NPC drawn from info/default with a placeholder
+		// animation frame - Empress Cygnus's is 1x60 - gets a hit box one
+		// pixel wide and becomes permanently unclickable while looking
+		// completely normal. dcLeft/dcRight/dcTop/dcBottom are what the real
+		// client tests, and they are correct by construction.
+		if (dc_left != dc_right || dc_top != dc_bottom)
+			return Rectangle<int16_t>(
+				static_cast<int16_t>(absp.x() + dc_left),
+				static_cast<int16_t>(absp.x() + dc_right),
+				static_cast<int16_t>(absp.y() + dc_top),
+				static_cast<int16_t>(absp.y() + dc_bottom)
+				).contains(cursorpos);
+
+		// Only where the data gave none. Most NPCs are drawn from a real
+		// animation and this has always been right for them.
 		Point<int16_t> dim =
 			animations.count(stance) ?
 			animations.at(stance).get_dimensions() :

@@ -70,6 +70,14 @@ namespace ms
 		Rectangle<int16_t> action_bounds() const;
 		void unequip_selected();
 
+		// ⚠ WHAT THE PANEL'S TO HOTKEYS / TO CONTROLLER BUTTONS CARRY AWAY.
+		//
+		// This class had no answer at all, so the base class returned an empty
+		// mapping and both buttons were inert on the three equipment pages -
+		// which is why they were taken off them. They are wanted back for
+		// loadout swapping, so the page now names what it has picked.
+		Keyboard::Mapping selected_mapping() const override;
+
 		OutlinedText action_text;
 
 		void draw(float inter) const override;

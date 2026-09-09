@@ -400,3 +400,44 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
+
+# ---------------------------------------------------------------------------
+# SESSION REPORTS
+#
+# @bug writes one of these per press - a counted summary plus the last few
+# hundred events in order. Collected here so an evening of play comes back in
+# one command alongside the logs.
+def reports(device=None):
+    """Pull every report-*.txt the device is holding."""
+    import glob
+    import subprocess
+
+    adb = find_adb()
+    where = ["-s", device] if device else []
+    folder = ("/sdcard/Android/data/org.heavenclient.android/files/"
+              "HeavenClient/")
+
+    listing = subprocess.run(
+        [adb] + where + ["shell", "ls " + folder + "report-*.txt 2>/dev/null"],
+        capture_output=True, text=True).stdout.split()
+
+    if not listing:
+        print("no session reports on the device")
+        return []
+
+    out = []
+
+    for path in listing:
+        name = path.strip().rsplit("/", 1)[-1]
+        text = subprocess.run(
+            [adb] + where + ["shell", "cat " + path.strip()],
+            capture_output=True, text=True).stdout
+
+        with open(name, "w", encoding="utf-8") as f:
+            f.write(text)
+
+        out.append(name)
+        print("wrote", name, "(%d lines)" % text.count("\n"))
+
+    return out

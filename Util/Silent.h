@@ -55,8 +55,22 @@ namespace ms
 		// numbers in it to act on: "tab=5 item=5211045 - no case for tab".
 		void report(const char* where, const std::string& what);
 
-		// How many distinct reports have been made. Somewhere to hang a
-		// summary later.
+		// How many distinct reports have been made.
 		size_t count();
+
+		// EVERYTHING THE SESSION NOTICED, WRITTEN OUT IN ONE GO.
+		//
+		// report() de-duplicates, which keeps an evening's log readable but
+		// throws away the two things these faults are usually found by: HOW
+		// OFTEN something happened, and WHAT HAPPENED JUST BEFORE IT. A
+		// snapshot carries both - a table of every distinct line with its
+		// count and its first and last sighting, then the last few hundred
+		// events in the order they actually occurred.
+		//
+		// `note` is whatever the player typed after @bug, so their words and
+		// the machine's sit in one file.
+		//
+		// Returns the path written, or empty if it could not be.
+		std::string snapshot(const std::string& note);
 	}
 }

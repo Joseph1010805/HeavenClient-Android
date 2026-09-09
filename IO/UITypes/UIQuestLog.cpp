@@ -19,6 +19,8 @@
 
 #include "../KeyAction.h"
 #include "../UI.h"
+#include "UIChatbar.h"
+#include "../../Util/Silent.h"
 
 #include "../Audio/Audio.h"
 #include "../Data/ItemData.h"
@@ -151,8 +153,15 @@ namespace ms
 		// panel can read it without a new packet - see DailyPve. It is a
 		// carrier, not a job, and listing it here would put a quest in the
 		// journal with no giver, no text and no way to finish it.
+		// AND THE RUSH'S CARRIER, 7771, WHICH I ADDED AND FORGOT TO FILTER.
+		//
+		// Same trick, next number along - DailyRush publishes its countdown
+		// through an info quest too. Left in the list it is a second quest
+		// with no giver, no text and no way to finish, and pressing navigate
+		// on it points the arrows at npc 0.
 		listed.erase(
-			std::remove(listed.begin(), listed.end(), static_cast<int16_t>(7770)),
+			std::remove_if(listed.begin(), listed.end(),
+				[](int16_t id) { return id == 7770 || id == 7771; }),
 			listed.end());
 
 		int16_t rows = static_cast<int16_t>(listed.size());
@@ -542,6 +551,24 @@ namespace ms
 			// The NPC the quest wants. Requirement set 0 is what STARTS it and
 			// 1 is what FINISHES it, so an accepted quest points at whoever
 			// takes it back rather than at whoever handed it out.
+			// NOWHERE TO GO ON A QUEST ALREADY DONE.
+			//
+			// Pressing navigate on a completed quest pointed the arrows at
+			// whoever GAVE it, because `started` is false for a finished
+			// quest exactly as it is for an untouched one - so the map sent
+			// you back across town to somebody with nothing left to say.
+			// That is the arrows that would not go away.
+			if (questlog.is_completed(opened))
+			{
+				QuestTracker::get().clear();
+
+				if (auto chat = UI::get().get_element<UIChatbar>())
+					chat->send_chatline("That one is already finished.",
+						UIChatbar::LineType::YELLOW);
+
+				return Cursor::State::IDLE;
+			}
+
 			const QuestData& data = QuestData::get(opened);
 			bool started = questlog.is_started(opened);
 
@@ -552,13 +579,20 @@ namespace ms
 			if (who == 0)
 				who = started ? data.to_start().npc : data.to_finish().npc;
 
-			// One line, on the press, so "nothing happens" can be told apart
-			// from "the quest names nobody" and from "he is on another map".
+			// ONE LINE, ON THE PRESS - and into the durable log, not just
+			// logcat, which is empty the moment the device reboots.
 			//
-			//   adb logcat -s HeavenClient | grep navigate
-			printf("[ ] navigate: quest %d started=%d npc=%d\n",
-				static_cast<int>(opened), started ? 1 : 0,
-				static_cast<int>(who));
+			// With the NAME as well as the number: "the arrows point at
+			// 1002104" takes a lookup to argue about and "the arrows point at
+			// Tru" does not. Note the arrows lead to a PORTAL when the target
+			// is on another map, so whoever you find at the end of them is not
+			// necessarily who they were aimed at - which is exactly the
+			// confusion this is here to settle.
+			Silent::report("QuestLog::navigate",
+				"quest " + std::to_string(opened)
+				+ (started ? " (started)" : " (not started)")
+				+ " -> npc " + std::to_string(who)
+				+ " " + QuestData::npc_name(who));
 
 			QuestTracker::get().track(opened, who);
 

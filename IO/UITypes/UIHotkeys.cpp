@@ -16,6 +16,8 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.		//
 //////////////////////////////////////////////////////////////////////////////////
 #include "UIHotkeys.h"
+
+#include "../../Util/Silent.h"
 #include "UIKeyConfig.h"
 
 #include "../../Net/Packets/InventoryPackets.h"
@@ -52,10 +54,83 @@ namespace ms
 		load();
 	}
 
+	// ⚠ HOTKEYS BELONG TO A CHARACTER, NOT TO A DEVICE.
+	//
+	// They were saved as one string in the device's Settings, so every
+	// character on that handheld shared one set of buttons. Sam bound a chair
+	// on his character; Alex logged in on the same device and saw Sam's
+	// hotkeys, pointing at a chair he does not own - and pressing it did
+	// nothing, because use_item correctly could not find it in his bag.
+	//
+	// That is the whole of "the chair does nothing": the code was right and
+	// the button belonged to somebody else.
+	//
+	// Prefixed with the character's name, so each keeps their own row and an
+	// old shared setting simply reads as empty for everybody.
+	std::string UIHotkeys::whose()
+	{
+		if (!Stage::get().is_active())
+			return "";
+
+		return Stage::get().get_player().get_name();
+	}
+
+	namespace
+	{
+		// The stored string is "name=slots;name=slots". A value with no '='
+		// at all is the OLD device-wide format - deliberately ignored rather
+		// than migrated, because those buttons belonged to whoever happened
+		// to bind them and handing them to everybody is the bug.
+		std::string section_for(const std::string& all, const std::string& who)
+		{
+			if (who.empty())
+				return "";
+
+			std::stringstream stream(all);
+			std::string part;
+
+			while (std::getline(stream, part, ';'))
+			{
+				size_t eq = part.find('=');
+
+				if (eq != std::string::npos && part.substr(0, eq) == who)
+					return part.substr(eq + 1);
+			}
+
+			return "";
+		}
+
+		// Replace one character's section, keeping everyone else's.
+		std::string with_section(const std::string& all, const std::string& who,
+			const std::string& mine)
+		{
+			if (who.empty())
+				return all;
+
+			std::string out;
+			std::stringstream stream(all);
+			std::string part;
+
+			while (std::getline(stream, part, ';'))
+			{
+				size_t eq = part.find('=');
+
+				if (eq == std::string::npos || part.substr(0, eq) == who)
+					continue;
+
+				out += part + ';';
+			}
+
+			return out + who + '=' + mine + ';';
+		}
+	}
+
 	void UIHotkeys::load()
 	{
-		// "type:action,type:action,..." - see Configuration::HotkeySlots.
-		std::string packed = Setting<HotkeySlots>::get().load();
+		// "name=type:action,...;name=type:action,..." - one section per
+		// character, see unpack below.
+		std::string packed = section_for(
+			Setting<HotkeySlots>::get().load(), whose());
 
 		std::stringstream stream(packed);
 		std::string field;
@@ -91,7 +166,10 @@ namespace ms
 				+ ':' + std::to_string(slots[i].action);
 		}
 
-		Setting<HotkeySlots>::get().save(packed);
+		// Merged back into whatever the other characters on this device have,
+		// rather than replacing the lot.
+		Setting<HotkeySlots>::get().save(
+			with_section(Setting<HotkeySlots>::get().load(), whose(), packed));
 
 		// AND WRITE THE FILE, NOW.
 		//
@@ -183,6 +261,17 @@ namespace ms
 
 	void UIHotkeys::fire(const Slot& slot) const
 	{
+		// WHAT WAS IN THE SLOT AND WHAT IS BEING DONE WITH IT.
+		//
+		// "The chair does nothing" has four candidate stopping points - the
+		// tap not reaching the grid, the slot holding the wrong type, this
+		// treating it as an equip, or use_item refusing it - and they are
+		// indistinguishable from the outside. One line here plus one in
+		// use_item tells them apart in a single press.
+		Silent::report("UIHotkeys::fire",
+			"slot type " + std::to_string(static_cast<int>(slot.type))
+			+ " action " + std::to_string(slot.action));
+
 		if (slot.type == KeyType::Id::NONE)
 			return;
 

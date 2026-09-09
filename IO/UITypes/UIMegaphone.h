@@ -58,6 +58,26 @@ namespace ms
 
 		UIElement::Type get_type() const override;
 
+		// ⚠ THE KEYBOARD IS BORROWED, AND MUST BE GIVEN BACK.
+		//
+		// This window focuses `message` the moment it opens, which points
+		// UI::focusedtextfield at it - and every key from then on goes into
+		// that box instead of to the game. Closing the window used to be a
+		// plain deactivate(), so the pointer was left aimed at a text field
+		// inside a window nobody could see. The character stopped walking, and
+		// stayed stopped: the ONLY thing in the whole client that cleared it
+		// was entering the cash shop, which is why a trip there and back
+		// looked like the cure.
+		//
+		// It is also a dangling pointer once the element is destroyed - the
+		// same fault UI::change_state already guards against for the character
+		// creation screen's name box.
+		//
+		// Both halves are overridden because toggle_active() drives them, and
+		// the SHOUT button toggles: the window is reopened, not rebuilt.
+		void makeactive() override;
+		void deactivate() override;
+
 		// Hands a finished phrase from the speech recogniser to the message
 		// box, so the microphone reaches this window the same way it reaches
 		// the chat bar.

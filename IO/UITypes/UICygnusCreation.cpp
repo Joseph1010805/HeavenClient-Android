@@ -97,6 +97,37 @@ namespace ms
 		buttons[Buttons::BT_CHARC_WEPL] = std::make_unique<MapleButton>(CustomizeChar["BtLeft"], Point<int16_t>(418, 81 + (8 * 18)));
 		buttons[Buttons::BT_CHARC_WEPR] = std::make_unique<MapleButton>(CustomizeChar["BtRight"], Point<int16_t>(415, 81 + (8 * 18)));
 
+		// THE ROWS THAT HAD NO ARROWS.
+		//
+		// Skin sits at button row 4 and its label at text row 2; weapon at 8
+		// and 6. So a row's arrows are always TWO steps further down in
+		// button space than the label is in text space, and the two spaces
+		// are a constant 101px apart. Everything below is placed off that
+		// relationship rather than off measured pixels, so a row cannot end
+		// up somewhere its label is not.
+		//
+		//   face  label -1  ->  arrows 1
+		//   hair  label  0  ->  arrows 2
+		//   top   label  3  ->  arrows 5
+		//   bot   label  4  ->  arrows 6
+		//   shoe  label  5  ->  arrows 7
+		auto arrows = [&](uint16_t left, uint16_t right, int row)
+		{
+			buttons[left] = std::make_unique<MapleButton>(
+				CustomizeChar["BtLeft"], Point<int16_t>(418, 81 + (row * 18)));
+			buttons[right] = std::make_unique<MapleButton>(
+				CustomizeChar["BtRight"], Point<int16_t>(415, 81 + (row * 18)));
+
+			buttons[left]->set_active(false);
+			buttons[right]->set_active(false);
+		};
+
+		arrows(Buttons::BT_CHARC_FACEL, Buttons::BT_CHARC_FACER, 1);
+		arrows(Buttons::BT_CHARC_HAIRL, Buttons::BT_CHARC_HAIRR, 2);
+		arrows(Buttons::BT_CHARC_TOPL,  Buttons::BT_CHARC_TOPR,  5);
+		arrows(Buttons::BT_CHARC_BOTL,  Buttons::BT_CHARC_BOTR,  6);
+		arrows(Buttons::BT_CHARC_SHOEL, Buttons::BT_CHARC_SHOER, 7);
+
 		for (size_t i = 0; i <= 7; i++)
 		{
 			buttons[Buttons::BT_CHARC_HAIRC0 + i] = std::make_unique<MapleButton>(CustomizeChar["hairSelect"][i], Point<int16_t>(553 + (i * 15), 238));
@@ -209,6 +240,59 @@ namespace ms
 					}
 				}
 			}
+		}
+
+		// ⚠ THE KNIGHTS' OWN SET, WHICH THE DATA DOES NOT CARRY.
+		//
+		// v83 shipped the class before it shipped the look: PremiumChar* in
+		// Etc.nx is the explorer list under a different name, so a Cygnus
+		// Knight came out looking like anybody else.
+		//
+		// These are chosen from art that IS in v83 - a restricted palette
+		// led by blond and BLUE, which is as close as this version gets to
+		// the blue-and-gold Ereve look, plus the neatest of the short cuts.
+		//
+		// ⚠ THE SERVER VALIDATES AGAINST ITS OWN COPY of MakeCharInfo
+		// (wz/Etc.wz/MakeCharInfo.img.xml, read by MakeCharInfoValidator).
+		// THESE TWO LISTS MUST AGREE or creation is refused with no
+		// explanation. Cosmic's copy was missing sections 0 and 4-7 for
+		// Premium entirely, which made Cygnus creation impossible - it has
+		// been filled in to match this.
+		{
+			static const int32_t M_FACE[] = { 20000, 20001, 20012 };
+			static const int32_t F_FACE[] = { 21000, 21001, 21012 };
+			static const int32_t M_HAIR[] = { 30300, 30030, 30830, 30930 };
+			static const int32_t F_HAIR[] = { 31050, 31000, 31150, 31410 };
+
+			// Blond and blue first - the two that read as a Knight.
+			static const uint8_t COLOURS[] = { 3, 5, 7, 0 };
+
+			// THE ROBE IS WHAT A KNIGHT STARTS IN.
+			//
+			// 1052177, the Fancy Noblesse Robe - the only top offered, so it
+			// is worn from the first second rather than randomised away.
+			//
+			// The HAT (1002869) is deliberately NOT here: Ereve's intro
+			// quests hand it over (20002, and 20011 with the robe), and
+			// giving it at creation would take the reward off the only
+			// quests that exist to give it.
+			static const int32_t ROBE[] = { 1052177 };
+
+			auto fill = [](std::vector<int32_t>& into, const int32_t* from, size_t n)
+			{
+				into.assign(from, from + n);
+			};
+
+			fill(faces[false], M_FACE, 3);
+			fill(faces[true],  F_FACE, 3);
+			fill(hairs[false], M_HAIR, 4);
+			fill(hairs[true],  F_HAIR, 4);
+
+			fill(tops[false], ROBE, 1);
+			fill(tops[true],  ROBE, 1);
+
+			for (size_t g = 0; g < 2; g++)
+				haircolors[g].assign(COLOURS, COLOURS + 4);
 		}
 
 		female = false;
@@ -445,8 +529,29 @@ namespace ms
 				buttons[Buttons::BT_CHARC_WEPL]->set_active(true);
 				buttons[Buttons::BT_CHARC_WEPR]->set_active(true);
 
+				for (uint16_t b : { Buttons::BT_CHARC_FACEL, Buttons::BT_CHARC_FACER,
+					Buttons::BT_CHARC_HAIRL, Buttons::BT_CHARC_HAIRR,
+					Buttons::BT_CHARC_TOPL, Buttons::BT_CHARC_TOPR,
+					Buttons::BT_CHARC_BOTL, Buttons::BT_CHARC_BOTR,
+					Buttons::BT_CHARC_SHOEL, Buttons::BT_CHARC_SHOER })
+					buttons[b]->set_active(true);
+
+				// ONLY THE COLOURS THIS CLASS ACTUALLY OFFERS.
+				//
+				// The eight swatches are one per colour 0-7 in the game's own
+				// order, and the artwork on swatch i IS colour i. Enabling
+				// all eight against a restricted palette gave four buttons
+				// that did nothing and four that produced a colour other than
+				// the one pictured - exactly how it looked on screen.
 				for (size_t i = 0; i <= 7; i++)
-					buttons[Buttons::BT_CHARC_HAIRC0 + i]->set_active(true);
+				{
+					bool offered = false;
+
+					for (uint8_t c : haircolors[female])
+						offered = offered || (c == i);
+
+					buttons[Buttons::BT_CHARC_HAIRC0 + i]->set_active(offered);
+				}
 
 				buttons[Buttons::BT_CHARC_OK]->set_position(Point<int16_t>(502, 381));
 				buttons[Buttons::BT_CHARC_CANCEL]->set_position(Point<int16_t>(607, 381));
@@ -558,8 +663,29 @@ namespace ms
 				buttons[Buttons::BT_CHARC_WEPL]->set_active(true);
 				buttons[Buttons::BT_CHARC_WEPR]->set_active(true);
 
+				for (uint16_t b : { Buttons::BT_CHARC_FACEL, Buttons::BT_CHARC_FACER,
+					Buttons::BT_CHARC_HAIRL, Buttons::BT_CHARC_HAIRR,
+					Buttons::BT_CHARC_TOPL, Buttons::BT_CHARC_TOPR,
+					Buttons::BT_CHARC_BOTL, Buttons::BT_CHARC_BOTR,
+					Buttons::BT_CHARC_SHOEL, Buttons::BT_CHARC_SHOER })
+					buttons[b]->set_active(true);
+
+				// ONLY THE COLOURS THIS CLASS ACTUALLY OFFERS.
+				//
+				// The eight swatches are one per colour 0-7 in the game's own
+				// order, and the artwork on swatch i IS colour i. Enabling
+				// all eight against a restricted palette gave four buttons
+				// that did nothing and four that produced a colour other than
+				// the one pictured - exactly how it looked on screen.
 				for (size_t i = 0; i <= 7; i++)
-					buttons[Buttons::BT_CHARC_HAIRC0 + i]->set_active(true);
+				{
+					bool offered = false;
+
+					for (uint8_t c : haircolors[female])
+						offered = offered || (c == i);
+
+					buttons[Buttons::BT_CHARC_HAIRC0 + i]->set_active(offered);
+				}
 
 				buttons[Buttons::BT_CHARC_OK]->set_position(Point<int16_t>(502, 381));
 				buttons[Buttons::BT_CHARC_CANCEL]->set_position(Point<int16_t>(607, 381));
@@ -614,13 +740,96 @@ namespace ms
 			// BACKWARDS through the list by one instead, so the colour you got
 			// depended on how many times you had clicked rather than on which
 			// you picked, and reaching a particular one meant counting.
-			size_t wanted = static_cast<size_t>(buttonid - Buttons::BT_CHARC_HAIRC0);
+			// THE SWATCH IS A COLOUR, NOT AN INDEX.
+			//
+			// This read the button number as a position in haircolors[] - so
+			// with a restricted palette of {3,5,7,0}, pressing the BLACK
+			// swatch produced blond and the last four did nothing. The swatch
+			// number IS the colour; find where that colour sits in the list.
+			uint8_t colour = static_cast<uint8_t>(buttonid - Buttons::BT_CHARC_HAIRC0);
+
+			size_t wanted = haircolors[female].size();
+
+			for (size_t i = 0; i < haircolors[female].size(); i++)
+				if (haircolors[female][i] == colour)
+					wanted = i;
 
 			if (wanted >= haircolors[female].size())
 				return Button::State::NORMAL;
 
 			haircolor = static_cast<int32_t>(wanted);
 			newchar.set_hair(hairs[female][hair] + haircolors[female][haircolor]);
+
+			return Button::State::NORMAL;
+		}
+		// STEPPING THE ROWS THAT COULD ONLY BE READ BEFORE.
+		//
+		// Same wrap-around walk the skin and weapon arrows already use. A
+		// list of one - the robe is the only Cygnus top - simply lands back
+		// on itself, so a fixed row costs nothing and stays consistent if
+		// more are offered later.
+		case Buttons::BT_CHARC_FACEL:
+		case Buttons::BT_CHARC_FACER:
+		{
+			size_t n = faces[female].size();
+			face = (buttonid == Buttons::BT_CHARC_FACEL)
+				? (face > 0 ? face - 1 : n - 1)
+				: (face + 1 < n ? face + 1 : 0);
+
+			newchar.set_face(faces[female][face]);
+			facename.change_text(newchar.get_face()->get_name());
+
+			return Button::State::NORMAL;
+		}
+		case Buttons::BT_CHARC_HAIRL:
+		case Buttons::BT_CHARC_HAIRR:
+		{
+			size_t n = hairs[female].size();
+			hair = (buttonid == Buttons::BT_CHARC_HAIRL)
+				? (hair > 0 ? hair - 1 : n - 1)
+				: (hair + 1 < n ? hair + 1 : 0);
+
+			newchar.set_hair(hairs[female][hair] + haircolors[female][haircolor]);
+			hairname.change_text(newchar.get_hair()->get_name());
+
+			return Button::State::NORMAL;
+		}
+		case Buttons::BT_CHARC_TOPL:
+		case Buttons::BT_CHARC_TOPR:
+		{
+			size_t n = tops[female].size();
+			top = (buttonid == Buttons::BT_CHARC_TOPL)
+				? (top > 0 ? top - 1 : n - 1)
+				: (top + 1 < n ? top + 1 : 0);
+
+			newchar.add_equip(tops[female][top]);
+			topname.change_text(get_equipname(Equipslot::Id::TOP));
+
+			return Button::State::NORMAL;
+		}
+		case Buttons::BT_CHARC_BOTL:
+		case Buttons::BT_CHARC_BOTR:
+		{
+			size_t n = bots[female].size();
+			bot = (buttonid == Buttons::BT_CHARC_BOTL)
+				? (bot > 0 ? bot - 1 : n - 1)
+				: (bot + 1 < n ? bot + 1 : 0);
+
+			newchar.add_equip(bots[female][bot]);
+			botname.change_text(get_equipname(Equipslot::Id::BOTTOM));
+
+			return Button::State::NORMAL;
+		}
+		case Buttons::BT_CHARC_SHOEL:
+		case Buttons::BT_CHARC_SHOER:
+		{
+			size_t n = shoes[female].size();
+			shoe = (buttonid == Buttons::BT_CHARC_SHOEL)
+				? (shoe > 0 ? shoe - 1 : n - 1)
+				: (shoe + 1 < n ? shoe + 1 : 0);
+
+			newchar.add_equip(shoes[female][shoe]);
+			shoename.change_text(get_equipname(Equipslot::Id::SHOES));
 
 			return Button::State::NORMAL;
 		}

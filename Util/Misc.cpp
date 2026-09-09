@@ -38,6 +38,11 @@ namespace ms
 
 			return strid;
 		}
+
+		std::string skill_file(int32_t skillid)
+		{
+			return extend_id(skillid / 10000, 3) + ".img";
+		}
 	}
 
 	namespace bytecode

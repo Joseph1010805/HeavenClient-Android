@@ -291,7 +291,13 @@ namespace ms
 	// have to be typed back in by hand.
 	struct HomeServerIP : public Configuration::StringEntry
 	{
-		HomeServerIP() : StringEntry("HomeServerIP", "192.168.1.71") {}
+		// ⚠ LOOPBACK, NOT A REAL ADDRESS. This was the author's own home
+		// server, which is fine on one LAN and wrong everywhere else: a
+		// stranger installing this had their client pointed at whatever
+		// machine happened to be .71 on THEIR network. Loopback means a
+		// fresh install talks to a server on the same device, which is what
+		// somebody with one handheld and no other device actually wants.
+		HomeServerIP() : StringEntry("HomeServerIP", "127.0.0.1") {}
 	};
 
 	// WHERE MESSAGES GO WHEN THE PERSON IS NOT ON THIS NETWORK.

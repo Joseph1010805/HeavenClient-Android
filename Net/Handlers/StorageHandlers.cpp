@@ -114,7 +114,22 @@ namespace ms
 
 			std::vector<UIStorage::Held> items = read_items(recv, count);
 
-			if (UIStorage* bank = bank_window(true))
+			UIStorage* bank = bank_window(true);
+
+			// THE LAST UNKNOWN IN THIS CHAIN.
+			//
+			// The server's script runs and sends this - the log says so - and
+			// the packet parses without complaint, so if the bank still does
+			// not appear the only thing left is the WINDOW not being obtained.
+			// On a device with a panel that means the panel refused to build
+			// or turn to its storage page.
+			Silent::report("StorageHandler",
+				"npc " + std::to_string(npc) + ", " + std::to_string(slots)
+				+ " slots, " + std::to_string(meso) + " mesos, "
+				+ std::to_string(items.size()) + " item(s) - window "
+				+ (bank ? "obtained" : "NOT OBTAINED"));
+
+			if (bank)
 				bank->opened(npc, slots, meso, std::move(items));
 
 			break;

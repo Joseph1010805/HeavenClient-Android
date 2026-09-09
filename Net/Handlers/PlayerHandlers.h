@@ -95,4 +95,23 @@ namespace ms
 	{
 		void handle(InPacket& recv) const override;
 	};
+
+	// A NEW MONSTER CARD, as it drops.
+	//
+	// The book was write-only: login filled it in and nothing ever added to
+	// it afterwards, so a card picked up mid-session did not appear until the
+	// next login - and there was no page to see it on either way.
+	//
+	// Opcode: MONSTER_BOOK_ADD_CARD(83)
+	class MonsterBookAddCardHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Which card is on the cover.
+	// Opcode: MONSTER_BOOK_SET_COVER(84)
+	class MonsterBookCoverHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
 }

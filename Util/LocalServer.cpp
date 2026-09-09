@@ -108,7 +108,9 @@ namespace ms
 			{
 				std::string home = home_address();
 
-				Setting<ServerIP>::get().save(home.empty() ? "192.168.1.71" : home);
+				// Loopback when no home address has been learned - see
+				// HomeServerIP. Never a guess at somebody else's network.
+				Setting<ServerIP>::get().save(home.empty() ? "127.0.0.1" : home);
 			}
 
 			// Written out now rather than at exit: the point of the switch is

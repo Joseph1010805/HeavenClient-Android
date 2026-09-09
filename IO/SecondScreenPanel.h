@@ -152,6 +152,14 @@ namespace ms
 			// skill page's action bar spent three sessions below the screen.
 			ABILITY,
 			SKILLS,
+
+			// EVERY MONSTER YOU HAVE A CARD FOR.
+			//
+			// The book has existed in this client since the port and been
+			// unreadable the whole time - filled in at login, never shown.
+			// Under Character, beside the stats and skills, because it is a
+			// fact about the player rather than somewhere to go.
+			MONSTERBOOK,
 			QUESTS,
 			HOTKEYS,
 			CHAT,
@@ -180,6 +188,9 @@ namespace ms
 
 		// Play the level-up flourish over whatever page is showing.
 		void play_levelup();
+
+		// The death card, over whatever the panel was showing.
+		void play_death();
 
 		// A touch in panel pixels.
 		void send_touch(Point<int16_t> position, Point<int16_t> screen, bool down, bool up);
@@ -244,6 +255,19 @@ namespace ms
 		// bound to. NONE when nothing is selected.
 		Keyboard::Mapping selected_mapping() const;
 
+		// The keys page's own answer to that. Separate because the keys page
+		// is painted by the panel and has no UIElement to ask.
+		Keyboard::Mapping keys_selected_mapping() const;
+
+		// WHAT THE PAD PAGE IS ABOUT TO PLACE.
+		//
+		// The pad is reached from two places - the Keys grid and the TO
+		// CONTROLLER button on the skill, item and equipment pages - and only
+		// the first of those has a selection of its own once the page has
+		// changed. So the thing being placed travels in `carried`, the same
+		// way it already does on the way to the hotkey grid.
+		Keyboard::Mapping pad_placing_mapping() const;
+
 		// The last thing any page had picked out, which SURVIVES a page turn.
 		//
 		// selected_mapping() only ever answers for the page showing now, so it
@@ -251,6 +275,14 @@ namespace ms
 		// up on one page to put it down on another is the whole point of the
 		// hotkey page.
 		Keyboard::Mapping carried_mapping() const { return carried; }
+
+		// A SPOKEN SENTENCE, FOR THE MEGAPHONE PAGE.
+		//
+		// The recogniser lives in UIChatbar and finishes whenever it finishes;
+		// this is where the words land so SEND can carry them later. Several
+		// sentences accumulate, which is the point - one send, however much
+		// was said.
+		void megaphone_heard(const std::string& said);
 
 		// PUT IT DOWN.
 		//
@@ -334,6 +366,25 @@ namespace ms
 		bool keyboard_wanted() const;
 
 		void draw_keyboard(Point<int16_t> screen) const;
+
+		// THE LINE BEING TYPED, AND THE WAY OUT.
+		//
+		// The keyboard covered the page and showed nothing of what it was
+		// producing - no line, and no button to put it away - so typing had
+		// no visible effect whatever and there was no way to tell it had
+		// worked. Both live directly above the keys.
+		Rectangle<int16_t> kb_line_box(Point<int16_t> screen) const;
+		Rectangle<int16_t> kb_done_box(Point<int16_t> screen) const;
+
+		mutable Text kb_line_text;
+
+		// The login screen's own field art and OK button, so the panel's
+		// keyboard looks like the one place in this client that already asks
+		// somebody to type. Looked up once - a failed lookup costs as much as
+		// a good one and this runs every frame.
+		mutable Texture kb_field_art;
+		mutable Texture kb_done_art;
+		mutable bool kb_art_tried = false;
 		bool keyboard_pressed(Point<int16_t> at, Point<int16_t> screen);
 
 		Rectangle<int16_t> key_cap_box(size_t row, size_t col,
@@ -365,7 +416,29 @@ namespace ms
 		// than rows on a panel this size.
 		void draw_keys(Point<int16_t> screen) const;
 		static size_t bindable_count();
-		Rectangle<int16_t> key_row_box(size_t row, Point<int16_t> screen) const;
+
+		// ONE CELL PER ACTION, laid out as a grid rather than a list.
+		//
+		// The list was thirty rows of words in a box that fits eight, so
+		// finding Jump meant scrolling and READING. The game's own key-mapping
+		// window has never done that - it shows the actions as the little
+		// icons you drag onto a keyboard, and those icons are already in the
+		// data we ship. Every one of them fits on this page at once, so the
+		// scrolling goes with the list.
+		Rectangle<int16_t> key_cell_box(size_t index, Point<int16_t> screen) const;
+
+		// How many rows of icons the panel has room for, how many there are,
+		// and how far the page may be scrolled. Measured rather than assumed:
+		// the RP5 draws this panel at a different shape from the Thor's, so a
+		// grid that fits one does not fit the other.
+		int16_t key_rows_visible(Point<int16_t> screen) const;
+		static int16_t key_rows_total();
+		int16_t key_scroll_max(Point<int16_t> screen) const;
+
+		// The key-config artwork, looked up once. Indexed the same way as
+		// BINDABLE, so a missing icon leaves a hole rather than a shift.
+		mutable std::vector<Texture> key_icons;
+		mutable bool key_icons_tried = false;
 		Rectangle<int16_t> key_hotkey_box(Point<int16_t> screen) const;
 		Rectangle<int16_t> key_bind_box(Point<int16_t> screen) const;
 		bool keys_pressed(Point<int16_t> at, Point<int16_t> screen);
@@ -374,6 +447,20 @@ namespace ms
 		// the list has been scrolled.
 		mutable int16_t key_selected = -1;
 		mutable int16_t key_scroll = 0;
+
+
+		// THE CONTROLLER PAGE: the quickslot pad bar, on the panel.
+		//
+		// Not a diagram of its own - the same twelve cells the bar draws on
+		// the top screen, read from UIStatusbar and bound through the bar's
+		// own bind_padslot. Anything else means two controller menus that can
+		// disagree, which is what the first attempt at this produced.
+		void draw_controller(Point<int16_t> screen) const;
+		Rectangle<int16_t> pad_slot_box(size_t slot, Point<int16_t> screen) const;
+		bool controller_pressed(Point<int16_t> at, Point<int16_t> screen);
+
+		mutable Text pad_text;
+		mutable Text pad_label;
 
 		// WAITING FOR A BUTTON.
 		//
@@ -427,6 +514,12 @@ namespace ms
 
 		// Duey's counter - what is waiting, and who it can be sent to.
 		void draw_gift(Point<int16_t> screen) const;
+
+		// The monster card collection.
+		void draw_monsterbook(Point<int16_t> screen) const;
+
+		mutable Text book_text;
+		mutable Text book_small;
 
 		// The rows on that page. Parcels first, then the people.
 		Rectangle<int16_t> gift_parcel_row(size_t index, Point<int16_t> screen) const;
@@ -508,7 +601,48 @@ namespace ms
 		// because it is pressed with a thumb on a screen at arm's length,
 		// while looking at the fight on the other screen and not at this.
 		void draw_voice(Point<int16_t> screen) const;
+
+		// The megaphone page that replaced it.
+		void draw_megaphone(Point<int16_t> screen) const;
 		Rectangle<int16_t> talk_box(Point<int16_t> screen) const;
+
+		// ⚠ THE FIVE AVATAR MESSENGERS, AND NOTHING ELSE.
+		//
+		// The plain megaphones are gone from this page. They are a line of
+		// text on a bar; these carry the sender's character, their name and
+		// four lines on a coloured banner, which is what anybody actually
+		// wants to send. All five are cash items nobody can buy on a family
+		// server, so the server makes them free - see UseCashItemHandler's
+		// freeMegaphone, which now covers item type 539 as well as 507.
+		static constexpr size_t MEGA_COUNT = 5;
+
+		// The seven faces the game already has, which is what "choose an
+		// emotion" means here - it is the sender's expression on the banner.
+		static constexpr size_t MEGA_FACES = 7;
+
+		Rectangle<int16_t> mega_box(size_t which, Point<int16_t> screen) const;
+		Rectangle<int16_t> mega_face_box(size_t which, Point<int16_t> screen) const;
+		Rectangle<int16_t> mega_speak_box(Point<int16_t> screen) const;
+		Rectangle<int16_t> mega_type_box(Point<int16_t> screen) const;
+		Rectangle<int16_t> mega_send_box(Point<int16_t> screen) const;
+
+		// Which banner and which face. Kept across visits, because somebody
+		// who sends one usually sends another the same way.
+		mutable size_t mega_choice = 3;
+		mutable size_t mega_face = 0;
+
+		// WHAT WILL BE SENT, held until SEND is pressed.
+		//
+		// One send, however many sentences - so the words are gathered here
+		// first, whether they were spoken or typed, and only leave when the
+		// button is pressed. Split across the four lines the packet carries
+		// at the moment of sending.
+		mutable std::string mega_words;
+
+		// TYPE was pressed. The keyboard is not on this page by default -
+		// the banner rows and the buttons need the room - so it is raised on
+		// request and put away when SEND is pressed.
+		mutable bool mega_typing = false;
 
 		mutable Text voice_text;
 		mutable Text voice_hint;
@@ -571,6 +705,22 @@ namespace ms
 		// hp_icon / mp_icon removed with the potion pips - see draw_vitals.
 		mutable Texture clock_icon;
 
+		// THE BATTERY, BESIDE THE CLOCK.
+		//
+		// A handheld that dies mid-fight loses the last minute of play, and
+		// this panel is the only chrome the game has - the Android status bar
+		// is not on screen. Drawn on its side, because the artwork is upright
+		// and a battery reads as a battery lying down.
+		mutable Texture battery_icon;
+		mutable Text battery_text;
+
+		// Read from sysfs, not every frame. The file is cheap but it is still
+		// a file, and the number moves once a minute at best.
+		mutable int16_t battery_pct = -1;
+		mutable int32_t battery_wait = 0;
+
+		int16_t read_battery() const;
+
 		mutable Text clock_text;
 
 		// The name of the page you are ON, drawn after the last crumb.
@@ -584,7 +734,31 @@ namespace ms
 		// THE REPORT PAGE: writes what went wrong to a file that can be sent.
 		void draw_report(Point<int16_t> screen) const;
 		Rectangle<int16_t> report_box(Point<int16_t> screen) const;
+		// The handheld and its Android version, for a report. "unknown" is
+		// an acceptable answer; guessing is not.
+		std::string device_name() const;
+
 		void write_report() const;
+
+		// Asks for the picture and arms the share sheet, once the text file
+		// is on disk. Split out because the capture is deferred a frame - see
+		// Util/Shot.h - so "saved" and "sent" are two different moments.
+		void finish_report() const;
+
+		// The two screen choices on the report page. `top_screen` picks which
+		// of the pair, so one function places both and they cannot drift.
+		Rectangle<int16_t> shot_box(Point<int16_t> screen, bool top_screen) const;
+
+		// Which screen the report's picture is of. The game by default: it is
+		// what most reports are about, and the panel is one tap away.
+		bool shot_top = true;
+
+		// Set when a report is finished, cleared once the share sheet has
+		// been offered. update() waits for the picture to actually exist
+		// before handing the pair over - sharing a file the renderer has not
+		// written yet attaches an empty one.
+		mutable bool share_wanted = false;
+		mutable std::string share_picture;
 
 		mutable Text emotion_text;
 
@@ -645,8 +819,18 @@ namespace ms
 		// A shortcut to the hotkey page, shown only on the pages you would be
 		// carrying something away from.
 		bool hotkey_jump_visible() const;
+		// The reserved band the two jump buttons share, directly above the
+		// EXP bar. content_area() subtracts it so no page can draw into it.
+		Rectangle<int16_t> jump_strip(Point<int16_t> screen) const;
+
 		Rectangle<int16_t> hotkey_jump_box(Point<int16_t> screen) const;
+
+		// The same jump, to the pad instead of the key grid. Beside it,
+		// because "put this on a button" and "put this on a key" are the same
+		// errand and were only ever offered on the keys page.
+		Rectangle<int16_t> pad_jump_box(Point<int16_t> screen) const;
 		mutable Text hotkey_jump;
+		mutable Text pad_jump;
 
 		// Which arrow a point is on: -1 back, 1 forward, 0 neither.
 		int16_t arrow_at(Point<int16_t> position, Point<int16_t> screen) const;
@@ -790,6 +974,17 @@ namespace ms
 		mutable Animation levelup;
 		mutable bool levelup_tried = false;
 		bool levelup_playing = false;
+
+		// The death card, and the words drawn over it. Loaded on first death
+		// for the same reason as the level-up: it is a lot of frames to hold
+		// in the atlas for a session that may never need them.
+		//
+		// The text is NOT part of the video - it is drawn here, so it stays
+		// sharp at any panel size and can be reworded without re-encoding.
+		mutable Animation died;
+		mutable bool died_tried = false;
+		bool died_playing = false;
+		mutable Text died_text;
 
 		// Shown while there is no map loaded and so no page to show.
 		mutable Texture logo;

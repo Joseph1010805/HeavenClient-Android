@@ -83,6 +83,9 @@ namespace ms
 		void load();
 		void save() const;
 
+		// Which character's row of hotkeys these are.
+		static std::string whose();
+
 		// THE PANEL IS 344 x 300, NOT 620 x 540.
 		//
 		// 620x540 is the size of the backdrop BITMAP; the panel is laid out in

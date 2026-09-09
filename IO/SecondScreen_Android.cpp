@@ -26,6 +26,8 @@
 #if defined(PLATFORM_ANDROID)
 
 #include <EGL/egl.h>
+
+#include "../Util/Shot.h"
 #include <GLES2/gl2.h>
 
 #include <android/log.h>
@@ -376,6 +378,14 @@ namespace ms
 			panel_ptr->play_levelup();
 		}
 
+		void play_death()
+		{
+			if (!available() || !panel_ptr)
+				return;
+
+			panel_ptr->play_death();
+		}
+
 		void draw_top_tooltip()
 		{
 			if (!available() || !panel_ptr)
@@ -389,6 +399,10 @@ namespace ms
 		namespace
 		{
 			bool overlay = false;
+
+			// See toggle_overlay: the finger that opened the overlay must not
+			// also press something on it.
+			bool swallow_release = false;
 
 			// The space the overlay lays out in: the main screen's own design
 			// pixels, so it lands exactly over the game and needs no scaling
@@ -408,9 +422,27 @@ namespace ms
 			}
 		}
 
-		bool overlay_supported()
+		bool overlay_device()
 		{
 			return !available();
+		}
+
+		bool overlay_supported()
+		{
+			// ⚠ NOT AT THE LOGIN SCREEN.
+			//
+			// The panel has a login mode - the wordmark and an account
+			// keyboard - and it exists for a device with a SECOND screen, so
+			// you can type down there while reading the login up here. Drawn
+			// as an overlay on a one-screen device it covers the login with a
+			// full-screen keyboard for no reason, and because that mode
+			// returns before the address bar is drawn, none of the
+			// breadcrumb buttons exist either. Nothing on it works because
+			// almost nothing on it is there.
+			//
+			// The one-screen login already has its own keyboard. This has no
+			// business over the top of it.
+			return !available() && Stage::get().is_active();
 		}
 
 		bool overlay_showing()
@@ -424,6 +456,16 @@ namespace ms
 				return;
 
 			overlay = !overlay;
+
+			// ⚠ THE RELEASE THAT OPENED IT IS NOT A PRESS INSIDE IT.
+			//
+			// MENU opens the overlay on the way DOWN; the finger then comes
+			// up somewhere over the panel that just appeared, and the panel
+			// takes it as a tap on whatever landed under it. With Cash Shop
+			// on the Home menu that meant pressing MENU dropped you straight
+			// into the cash shop.
+			if (overlay)
+				swallow_release = true;
 		}
 
 		bool overlay_alert()
@@ -441,6 +483,10 @@ namespace ms
 		{
 			if (!overlay_supported())
 				return false;
+
+			// Same reason as toggle_overlay - this is reached by pressing a
+			// button that the panel is about to be drawn over.
+			swallow_release = true;
 
 			SecondScreenPanel::Page page = SecondScreenPanel::HOME;
 
@@ -468,8 +514,52 @@ namespace ms
 			return true;
 		}
 
+		namespace
+		{
+			// THE WAY OUT, and the only one on a one-screen device.
+			//
+			// The overlay covers the game and takes every touch, including
+			// touches on the MENU icon underneath that opened it - so with
+			// the swipe gestures gone there was NOTHING that closed it. The
+			// controller's MENU key still worked, which is no help at all to
+			// somebody using the touchscreen.
+			//
+			// Top right, away from the breadcrumb trail on the left, and
+			// drawn last so nothing can cover it.
+			Rectangle<int16_t> back_to_game(Point<int16_t> screen)
+			{
+				// SIZED AND INSET FOR THE SPACE IT IS DRAWN IN.
+				//
+				// 74x26 eight pixels off the corner is a comfortable button on
+				// a 300-high panel and a fingernail hard against the bezel on
+				// a 600-high one - which is where a handheld's corner is worst,
+				// because that is exactly where the hand wraps round.
+				int16_t k = screen.y() / 300;
+
+				if (k < 1)
+					k = 1;
+
+				int16_t w = static_cast<int16_t>(74 * k);
+				int16_t h = static_cast<int16_t>(26 * k);
+				int16_t inset = static_cast<int16_t>(8 * k + (k - 1) * 8);
+
+				return Rectangle<int16_t>(
+					Point<int16_t>(static_cast<int16_t>(screen.x() - w - inset),
+						inset),
+					Point<int16_t>(static_cast<int16_t>(screen.x() - inset),
+						static_cast<int16_t>(inset + h)));
+			}
+
+			Text game_label;
+		}
+
 		void draw_overlay()
 		{
+			// Leaving the map - a cash shop trip, a logout - puts it away
+			// rather than leaving it hanging over whatever comes next.
+			if (overlay && !Stage::get().is_active())
+				overlay = false;
+
 			if (!overlay_showing())
 				return;
 
@@ -485,12 +575,44 @@ namespace ms
 
 			get_panel().update();
 			get_panel().draw(space);
+
+			// LAST, over the panel's own chrome. See back_to_game.
+			Rectangle<int16_t> out = back_to_game(space);
+
+			GraphicsGL::get().drawrectangle(
+				out.left(), out.top(), out.width(), out.height(),
+				0.16f, 0.34f, 0.20f, 0.94f);
+
+			if (game_label.get_text().empty())
+				game_label = Text(Text::Font::A13M, Text::Alignment::CENTER,
+					Color::Name::WHITE, "GAME");
+
+			game_label.draw(Point<int16_t>(
+				static_cast<int16_t>(out.left() + out.width() / 2),
+				static_cast<int16_t>(out.top() + out.height() / 2 - 10)));
 		}
 
 		bool overlay_send_cursor(Point<int16_t> position, bool pressed, bool released)
 		{
 			if (!overlay_showing())
 				return false;
+
+			if (released && swallow_release)
+			{
+				swallow_release = false;
+
+				return true;
+			}
+
+			// THE WAY OUT IS TESTED FIRST, before the panel gets a look. A
+			// page that swallows presses - the map, a grid - must not be able
+			// to swallow the button that closes the whole thing.
+			if (pressed && back_to_game(overlay_size()).contains(position))
+			{
+				overlay = false;
+
+				return true;
+			}
 
 			get_panel().send_touch(position, overlay_size(), pressed, released);
 
@@ -534,6 +656,12 @@ namespace ms
 		bool has_cursor()
 		{
 			return panel_ptr && panel_ptr->has_cursor();
+		}
+
+		void megaphone_heard(const std::string& said)
+		{
+			if (panel_ptr)
+				panel_ptr->megaphone_heard(said);
 		}
 
 		Keyboard::Mapping selected_mapping()
@@ -606,6 +734,14 @@ namespace ms
 
 		void end()
 		{
+			// THE PANEL, WHILE ITS SURFACE IS STILL THE ONE BEING READ.
+			//
+			// This is the only moment in the frame when glReadPixels returns
+			// the lower screen; a line later the main screen is current again
+			// and the same call would quietly return the wrong picture.
+			// Before the swap, so what is read is what was just drawn.
+			Shot::collect(Shot::Which::BOTTOM, width, height);
+
 			eglSwapBuffers(display, surface);
 
 			// Back to the main screen, or everything after this frame draws

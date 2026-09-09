@@ -80,4 +80,23 @@ namespace ms
 	{
 		void handle(InPacket& recv) const override;
 	};
+
+	// THE AVATAR MESSENGER ARRIVES.
+	//
+	// itemid, the sender's decorated name, FOUR lines, the channel, the ear
+	// flag, and then the sender's whole character look - which is the same
+	// blob LoginParser::parse_look already reads for every character on the
+	// map, so the avatar is drawn from the same code the world is.
+	//
+	// Opcode: SET_AVATAR_MEGAPHONE(111)
+	class SetAvatarMegaphoneHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
+
+	// Opcode: CLEAR_AVATAR_MEGAPHONE(112)
+	class ClearAvatarMegaphoneHandler : public PacketHandler
+	{
+		void handle(InPacket& recv) const override;
+	};
 }

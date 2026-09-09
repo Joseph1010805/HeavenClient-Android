@@ -18,6 +18,8 @@
 #include "MapNpcs.h"
 #include "Npc.h"
 
+#include "../../Util/Silent.h"
+
 #include "../Data/QuestData.h"
 #include "../Gameplay/Stage.h"
 #include "../Net/Packets/NpcInteractionPackets.h"
@@ -32,6 +34,11 @@ namespace ms
 
 	void MapNpcs::update(const Physics& physics)
 	{
+		// ONCE, HERE - not once per NPC inside Npc::update. The two balloons
+		// are one shared pair for the whole map, so stepping them per NPC ran
+		// them as many times faster as there were quest NPCs on screen.
+		Npc::update_markers();
+
 		for (; !spawns.empty(); spawns.pop())
 		{
 			const NpcSpawn& spawn = spawns.front();
@@ -130,54 +137,129 @@ namespace ms
 		int32_t npcid = npc.get_npcid();
 		Point<int16_t> at = player.get_position();
 
-		if (int16_t finishing = player.quest_to_finish(npcid))
-		{
-			const QuestData& data = QuestData::get(finishing);
+		// WHAT THIS CLIENT DECIDED TO SAY, and why.
+		//
+		// Talking is three different packets and the choice is made HERE,
+		// from the client's own reading of Check.img. When it guesses a quest
+		// the server will not honour, the NPC does something other than talk
+		// - so "he did nothing" and "he had nothing to say" and "I asked him
+		// for the wrong thing" are three different faults that look the same.
+		Silent::report("MapNpcs::talk_to",
+			"npc " + std::to_string(npcid)
+			+ " finish=" + std::to_string(player.quest_to_finish(npcid))
+			+ " start=" + std::to_string(player.quest_to_start(npcid)));
 
-			QuestActionPacket(data.to_finish().scripted
-				? QuestActionPacket::SCRIPTED_END
-				: QuestActionPacket::COMPLETE,
-				finishing, npcid, at).dispatch();
-
-			return;
-		}
-
-		if (int16_t starting = player.quest_to_start(npcid))
-		{
-			const QuestData& data = QuestData::get(starting);
-
-			QuestActionPacket(data.to_start().scripted
-				? QuestActionPacket::SCRIPTED_START
-				: QuestActionPacket::START,
-				starting, npcid, at).dispatch();
-
-			return;
-		}
-
+		// ⚠ WE DO NOT GUESS THE QUEST ANY MORE. THE SERVER DECIDES.
+		//
+		// This used to work out which quest the NPC was offering - from the
+		// client's own reading of Check.img - and send QUEST_ACTION instead
+		// of a conversation, returning either way. That is one guess made
+		// from SIX of the twenty requirements the server actually checks, and
+		// when it was wrong the NPC did nothing whatsoever: no talk, no shop,
+		// no script. One bad guess made an NPC permanently mute, because the
+		// same guess was made on every press.
+		//
+		// It is also why a storage keeper could go silent - a wrong quest
+		// guess meant his script never ran, so the bank never opened.
+		//
+		// OPENSTORY DOES NOT DO THIS. It sends a plain talk and lets the
+		// server sort it out, which is why it needs no requirement model at
+		// all. Our server already works that way too: QuestDialogue.tryTalk
+		// picks the quest, runs its dialogue, and falls through to the shop
+		// or the NPC's own script - it was written for exactly this.
+		//
+		// So the guess is deleted rather than improved. The quest BALLOONS
+		// still use the client's reading, but an optimistic balloon is
+		// cosmetic where a wrong packet was fatal.
 		TalkToNPCPacket(npc.get_oid()).dispatch();
 	}
 
 	Cursor::State MapNpcs::send_cursor(bool pressed, Point<int16_t> position, Point<int16_t> viewpos)
 	{
+		// ⚠ A PRESS THAT HITS NOTHING SAYS SO, WITH THE NUMBERS.
+		//
+		// Clicking Empress Cygnus did nothing at all, and talk_to's own report
+		// never fired - so the press was not being ignored, it was never
+		// matching an NPC in the first place. That leaves two candidates and
+		// no way to tell them apart from the sofa: the press is not reaching
+		// this function, or it is and every hit box misses.
+		//
+		// inrange() sizes its box from animations.at(stance), so an NPC whose
+		// current stance has no entry gets a ZERO-SIZED box and becomes
+		// permanently unclickable while still drawing perfectly. That is
+		// invisible from the outside and exactly what this prints.
+		if (pressed)
+		{
+			std::string seen;
+
+			for (auto& map_object : npcs)
+			{
+				Npc* npc = static_cast<Npc*>(map_object.second.get());
+
+				if (!npc)
+					continue;
+
+				Point<int16_t> at = npc->get_position() + viewpos;
+
+				seen += " [" + std::to_string(npc->get_npcid())
+					+ " at " + std::to_string(at.x())
+					+ "," + std::to_string(at.y())
+					+ (npc->is_active() ? "" : " INACTIVE")
+					+ (npc->inrange(position, viewpos) ? " HIT" : "")
+					+ "]";
+			}
+
+			Silent::report("MapNpcs",
+				"press at " + std::to_string(position.x())
+				+ "," + std::to_string(position.y())
+				+ " - npcs:" + (seen.empty() ? " none" : seen));
+		}
+
+		// ⚠ THE NEAREST ONE, NOT THE FIRST ONE.
+		//
+		// Click boxes OVERLAP, and taking whichever the map happened to store
+		// first is arbitrary. On Ereve, Shinsoo's box is 242 wide and reaches
+		// 680; Cygnus stands at 681 with a box starting at 618, so the two
+		// share a 62-pixel strip. A tap in that strip went to Shinsoo purely
+		// because she is stored first - and Cygnus, the one with the quest
+		// balloon over her head, could not be reached at all.
+		//
+		// Nearest CENTRE wins. It matches what the player meant - you aim at
+		// a character, not at a rectangle - and it settles overlaps without
+		// needing to know which is drawn on top.
+		Npc* best = nullptr;
+		int32_t best_distance = 0;
+
 		for (auto& map_object : npcs)
 		{
 			Npc* npc = static_cast<Npc*>(map_object.second.get());
 
-			if (npc && npc->is_active() && npc->inrange(position, viewpos))
-			{
-				if (pressed)
-				{
-					talk_to(*npc);
+			if (!npc || !npc->is_active() || !npc->inrange(position, viewpos))
+				continue;
 
-					return Cursor::State::IDLE;
-				}
-				else
-				{
-					return Cursor::State::CANCLICK;
-				}
+			Point<int16_t> centre = npc->get_click_centre() + viewpos;
+
+			int32_t dx = centre.x() - position.x();
+			int32_t dy = centre.y() - position.y();
+			int32_t distance = dx * dx + dy * dy;
+
+			if (!best || distance < best_distance)
+			{
+				best = npc;
+				best_distance = distance;
 			}
 		}
 
-		return Cursor::State::IDLE;
+		if (!best)
+			return Cursor::State::IDLE;
+
+		if (pressed)
+		{
+			talk_to(*best);
+
+			return Cursor::State::IDLE;
+		}
+
+		return Cursor::State::CANCLICK;
 	}
 }

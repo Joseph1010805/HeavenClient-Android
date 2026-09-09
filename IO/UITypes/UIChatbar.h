@@ -117,6 +117,11 @@ namespace ms
 		// whenever they next connect - from another state, if a relay is set.
 		void start_dictation_post(const std::string& to);
 
+		// Speak, and send it out through THIS megaphone. The item id is what
+		// decides how far it reaches - see UseCashItemHandler's switch on
+		// (id / 1000) % 10 - so the destination is the item, not a flag.
+		void start_dictation_mega(int32_t itemid);
+
 		// SAY A LINE THAT WAS TYPED SOMEWHERE ELSE.
 		//
 		// The lower panel has its own keyboard and its own chat page, and it
@@ -210,6 +215,15 @@ namespace ms
 		// Where the sentence being dictated is bound for - map chat, or a
 		// world banner. See start_dictation.
 		bool dictate_to_world = false;
+
+		// ⚠ GATHERING FOR THE MEGAPHONE PAGE.
+		//
+		// A bool rather than an item id. It was an id, tested with
+		// `!= 0`, and the page passed 0 because SEND supplies the banner
+		// later - so every spoken sentence fell through to the last branch
+		// and became a bubble over the speaker's head. "Nothing to send" and
+		// "send it as a bubble" must not be the same value.
+		bool dictate_gather = false;
 
 		// Who the sentence is addressed to. Empty means the map, which is
 		// every case except the Messages page.

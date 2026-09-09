@@ -22,6 +22,7 @@
 #include "../Gameplay/Stage.h"
 #include "../IO/UI.h"
 #include "../IO/Messages.h"
+#include "../Util/Silent.h"
 
 #include "../Character/Inventory/Inventory.h"
 #include "../IO/UITypes/UIEquipInventory.h"
@@ -205,5 +206,24 @@ namespace ms
 
 		Stage::get().get_player().recalc_stats(true);
 		UI::get().enable();
+	}
+
+	void InventoryGrowHandler::handle(InPacket& recv) const
+	{
+		// TWO BYTES AND NOTHING ELSE: which bag, and its new size.
+		int8_t type = recv.read_byte();
+		uint8_t slots = recv.read_byte();
+
+		InventoryType::Id id = InventoryType::by_value(type);
+
+		if (id == InventoryType::Id::NONE)
+		{
+			Silent::report("InventoryGrowHandler",
+				"inventory " + std::to_string(type) + " is not one I know");
+
+			return;
+		}
+
+		Stage::get().get_player().get_inventory().set_slotmax(id, slots);
 	}
 }
