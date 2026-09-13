@@ -76,6 +76,19 @@ namespace ms
 			bool server = false;
 			bool wifi_direct = false;
 
+			// ⚠ THE FIRST RUN IS AN INSTALL, NOT A START.
+			//
+			// Pressing HOST on a device that has never hosted runs the whole
+			// setup - packages, database, schema - and that takes about
+			// twenty minutes. A normal start takes seconds, so the wait
+			// screen calls it broken after twenty of them and offers to give
+			// up. On a first run that is a lie, and the player believes it.
+			//
+			// bootstrap.sh leaves .installing in the staging folder while it
+			// works. Shared storage, so this side can actually read it -
+			// Termux's own home cannot be seen from here at all.
+			bool installing = false;
+
 			// What has to be true before hosting can even be ATTEMPTED.
 			//
 			// ONLY that Termux exists. Everything else here is a STATUS.

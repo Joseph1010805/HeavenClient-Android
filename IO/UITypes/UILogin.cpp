@@ -1279,7 +1279,13 @@ namespace ms
 		if (waiting_for_server)
 		{
 			// Only pressable once it is on screen - see draw_server_wait.
-			if (clicked && waited > 2500
+			//
+			// ⚠ AND NEVER WHILE INSTALLING. The button appears only after the
+			// wait has clearly failed, and a first-time setup has not failed -
+			// it is twenty minutes of honest work. Offering a way out of it at
+			// twenty seconds is how somebody abandons a server that was about
+			// to come up, and the next press starts the whole install again.
+			if (clicked && waited > 2500 && !readiness.installing
 				&& wait_dismiss_bounds().contains(cursorpos))
 				waiting_for_server = false;
 
@@ -1690,7 +1696,20 @@ namespace ms
 		GraphicsGL::get().drawrectangle(mid - 190, top, 380, 124,
 			0.10f, 0.11f, 0.14f, 0.96f);
 
-		wait_title.change_text("Starting the game server");
+		// ⚠ AN INSTALL IS NOT A START, AND MUST NOT BE DESCRIBED AS ONE.
+		//
+		// The first press of HOST on a new device runs the whole setup -
+		// packages, database, schema - which is twenty MINUTES. Everything
+		// below was written for a start, which is seconds, so a first run got
+		// "The server is not starting" after twenty of them and a button
+		// offering to give up. The server was installing perfectly.
+		//
+		// bootstrap.sh says which is happening; see Readiness::installing.
+		const bool installing = readiness.installing;
+
+		wait_title.change_text(installing
+			? "Setting up the server"
+			: "Starting the game server");
 		wait_title.draw(Point<int16_t>(mid, top + 16));
 
 		// SOMETHING MOVING. A still box for ten seconds reads as a hang, and
@@ -1704,24 +1723,41 @@ namespace ms
 		// WAIT. The screen closes ITSELF the moment the server answers -
 		// it is asking every two seconds, not counting down - so there is
 		// nothing to press and nothing to decide.
-		if (waited > 2500)
+		if (installing)
+		{
+			// Roughly, and deliberately generous: a number that turns out to
+			// be optimistic is worse than no number, because the player
+			// concludes it has hung at the moment it passes.
+			wait_line.change_text("Installing Java, the database and the game");
+			wait_line.draw(Point<int16_t>(mid, top + 74));
+
+			wait_line.change_text("data. About 20 minutes, only this once.");
+			wait_line.draw(Point<int16_t>(mid, top + 96));
+		}
+		else if (waited > 2500)
 		{
 			wait_line.change_text("The server is not starting.");
 			wait_line.draw(Point<int16_t>(mid, top + 74));
+
+			wait_line.change_text("Log in will work the moment it answers.");
+			wait_line.draw(Point<int16_t>(mid, top + 96));
 		}
 		else if (waited > 900)
 		{
 			wait_line.change_text("The database takes a moment on a cold start.");
 			wait_line.draw(Point<int16_t>(mid, top + 74));
+
+			wait_line.change_text("Log in will work the moment it answers.");
+			wait_line.draw(Point<int16_t>(mid, top + 96));
 		}
 		else
 		{
 			wait_line.change_text("This takes a few seconds.");
 			wait_line.draw(Point<int16_t>(mid, top + 74));
-		}
 
-		wait_line.change_text("Log in will work the moment it answers.");
-		wait_line.draw(Point<int16_t>(mid, top + 96));
+			wait_line.change_text("Log in will work the moment it answers.");
+			wait_line.draw(Point<int16_t>(mid, top + 96));
+		}
 
 		// NO "CARRY ON" BUTTON.
 		//
@@ -1732,7 +1768,7 @@ namespace ms
 		// seconds, well past any real start - and then it says what is wrong
 		// rather than inviting you to ignore it. Waiting is not a decision
 		// the player should be asked to make; giving up is.
-		if (waited > 2500)
+		if (waited > 2500 && !installing)
 		{
 			Rectangle<int16_t> out = wait_dismiss_bounds();
 

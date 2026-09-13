@@ -153,6 +153,7 @@ namespace ms
 					out.permission  = (flags & 2) != 0;
 					out.server      = (flags & 4) != 0;
 					out.wifi_direct = (flags & 8) != 0;
+					out.installing  = (flags & 16) != 0;
 				}
 
 				env->DeleteLocalRef(cls);

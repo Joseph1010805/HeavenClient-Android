@@ -101,6 +101,19 @@ public final class LocalServer {
     /** The server is answering on this device right now. */
     public static final int HAS_SERVER     = 4;
     public static final int HAS_WIFI_DIRECT = 8;
+    /**
+     * The first-time setup is running right now.
+     *
+     * <p>bootstrap.sh drops {@code .installing} into the staging folder while
+     * it installs packages and builds the schema, and clears it in a trap so
+     * a setup that dies does not leave the flag set. Shared storage, because
+     * Termux's own home is private and this side cannot see into it.
+     *
+     * <p>It exists so the wait screen can tell a twenty-MINUTE install from a
+     * twenty-SECOND start. Without it the screen calls a healthy first run
+     * broken and offers to give up on it.
+     */
+    public static final int IS_INSTALLING = 16;
 
     private LocalServer() {
     }
@@ -129,6 +142,10 @@ public final class LocalServer {
 
         if (WifiDirect.isSupported(context)) {
             flags |= HAS_WIFI_DIRECT;
+        }
+
+        if (new java.io.File("/sdcard/Download/cosmic/.installing").exists()) {
+            flags |= IS_INSTALLING;
         }
 
         return flags;
