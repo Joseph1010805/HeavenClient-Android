@@ -42,8 +42,85 @@ echo
 echo "=================================================="
 echo "bootstrap at $(date)"
 
-cd "$HOME/cosmic" 2>/dev/null || {
-	echo "FAILED: no $HOME/cosmic - termux_setup.sh has never been run"
+# ⚠ THE FIRST PRESS OF HOST IS THE SETUP. IT USED TO BE A DEAD END.
+#
+# This said "FAILED: termux_setup.sh has never been run" and stopped - into a
+# log file, on a handheld, which nobody was ever going to read. So a device
+# that had Termux and the staged payload but had never been set up looked
+# exactly like a device where hosting was broken: press HOST, nothing happens,
+# no reason given anywhere the player can see.
+#
+# The setup is the ONLY thing standing between that state and a working
+# server, everything it needs is already sitting in $STAGE, and it is safe to
+# re-run. There was never a reason to demand somebody open a terminal and type
+# the one command this script could run itself.
+#
+# It takes about twenty minutes the first time - packages, then the schema -
+# and the game says so while it waits.
+#
+# ⚠ THE TEST IS run.sh, NOT THE DIRECTORY. The first version of this asked
+# whether $HOME/cosmic existed, and that is not the same question:
+# termux_setup.sh CREATES that directory early, to unpack wz/ and scripts/
+# into, and writes run.sh at the very end. So a setup that was interrupted -
+# or, as happened here, a directory made by bootstrap's own unpack steps -
+# leaves a $HOME/cosmic with no server in it. The old test saw the directory,
+# concluded setup had run, skipped it, and then died forty lines later on
+# "FAILED: no run.sh" having wasted several minutes unpacking 582 MB first.
+#
+# run.sh is written last and only on success, so its presence means the setup
+# genuinely finished. Asking for it also makes this self-repairing: a
+# half-finished install is now indistinguishable from no install, which is
+# exactly how it should be treated.
+if [ ! -f "$HOME/cosmic/run.sh" ]; then
+	echo "no server in $HOME/cosmic yet - running the first-time setup"
+
+	if [ ! -f "$STAGE/termux_setup.sh" ]; then
+		echo "FAILED: nothing staged at $STAGE."
+		echo "Run 'tools/install.sh --server' from a PC to deliver the server."
+		exit 1
+	fi
+
+	cp "$STAGE/termux_setup.sh" "$HOME/" || {
+		echo "FAILED: could not copy termux_setup.sh into $HOME."
+		echo "Storage permission is the usual reason - termux-setup-storage."
+		exit 1
+	}
+
+	# ⚠ A MARK THE GAME CAN SEE, because it cannot see anything else.
+	#
+	# Termux's home is private, so the app has no way to tell "installing for
+	# the first time, twenty minutes" from "started and hung". It matters:
+	# the wait screen calls it broken after twenty SECONDS and offers to give
+	# up, which on a first run is a lie that costs the player their server.
+	#
+	# $STAGE is on shared storage and both sides can read it. Removed in a
+	# trap rather than at the end, so a setup that dies still clears it and
+	# the game is never told an install is running that is not.
+	touch "$STAGE/.installing" 2>/dev/null
+	trap 'rm -f "$STAGE/.installing" 2>/dev/null' EXIT INT TERM
+
+	if ! bash "$HOME/termux_setup.sh"; then
+		echo "FAILED: the first-time setup did not finish. Its output is above."
+		exit 1
+	fi
+
+	rm -f "$STAGE/.installing" 2>/dev/null
+	trap - EXIT INT TERM
+
+	echo "first-time setup finished - carrying on"
+fi
+
+# ⚠ THE cd BELONGS HERE, NOT INSIDE THE BRANCH ABOVE.
+#
+# Everything after this point works relative to the current directory - the
+# unpacking, the version checks, the final `exec bash ./run.sh`. The original
+# code cd'd unconditionally; moving the first-run check up here nearly left
+# the ORDINARY path (setup already done, nothing to install) running the whole
+# script from Termux's home instead, where none of it would have found
+# anything. Cheap to get wrong, and it would have broken every start except
+# the very first one.
+cd "$HOME/cosmic" || {
+	echo "FAILED: no $HOME/cosmic to work in."
 	exit 1
 }
 

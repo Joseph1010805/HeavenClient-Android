@@ -4,7 +4,13 @@
 #
 #   tools/install.sh                  # find a device, ask, install
 #   tools/install.sh --device SERIAL  # skip the picking
+#   tools/install.sh --data DIR       # where your .nx or .wz files are
 #   tools/install.sh --server         # also put Cosmic on it, for offline play
+#   tools/install.sh --cosmic DIR     # where YOUR built Cosmic is
+#
+# --server looks for a built Cosmic in the usual places beside this checkout;
+# --cosmic says where when it is somewhere else. Both the jar and its wz files
+# are yours to supply, for the same reason the game data is.
 #
 # What this is for: somebody who has a Thor, an RP5 or any other Android
 # device, a USB cable, and no interest in learning what adb is.
@@ -124,11 +130,13 @@ fi
 DEV=""
 WANT_SERVER=0
 GIVEN_DATA=""
+GIVEN_COSMIC=""
 
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--device) DEV="${2:-}"; shift 2 ;;
 	--data)   GIVEN_DATA="${2:-}"; shift 2 ;;
+	--cosmic) GIVEN_COSMIC="${2:-}"; shift 2 ;;
 	--server) WANT_SERVER=1; shift ;;
 	*) bad "unknown option: $1"; exit 1 ;;
 	esac
@@ -449,11 +457,241 @@ if ! MAPLE_DATA="$(win_path "$DATA")" \
 fi
 
 # ---------------------------------------------------------------------------
+# Whose Cosmic, and where
+# ---------------------------------------------------------------------------
+#
+# The server half used to read one hardcoded path with the author's username
+# in it. That is fine on one machine and useless on anybody else's - the first
+# file it wanted did not exist and it stopped there.
+#
+# Same principle as the game data: FIND what the person already has, never
+# assume. A server is Cosmic BUILT (target/Cosmic.jar, from `mvnw package`)
+# plus its own wz/ directory, and neither is ours to hand out - the jar is
+# theirs to build and the wz files are Nexon's, exactly like the .nx files
+# this script already refuses to fetch.
+COSMIC=""
+
+find_cosmic() {
+	local tried=""
+
+	# What they told us, first and without argument.
+	if [ -n "$GIVEN_COSMIC" ]; then
+		if [ -f "$GIVEN_COSMIC/target/Cosmic.jar" ]; then
+			COSMIC="$GIVEN_COSMIC"
+			step "Cosmic: $COSMIC"
+			return 0
+		fi
+
+		bad "No Cosmic.jar under $GIVEN_COSMIC/target."
+		step "Build it there first:  ./mvnw -DskipTests package"
+		return 1
+	fi
+
+	# The usual places, relative to this checkout rather than to one machine.
+	local guess
+	for guess in \
+		"$HERE/../Cosmic" \
+		"$HERE/../../Cosmic" \
+		"$HOME/Cosmic" \
+		"$HOME/Documents/Programs/Cosmic"
+	do
+		tried="$tried
+    $guess"
+
+		if [ -f "$guess/target/Cosmic.jar" ]; then
+			COSMIC="$(cd "$guess" && pwd)"
+			step "Cosmic: $COSMIC"
+			return 0
+		fi
+	done
+
+	bad "Could not find a built Cosmic."
+	cat <<HELP
+
+  Hosting needs a Cosmic server that YOU have built. It is not in this
+  repository and cannot be downloaded from here - it is a separate project,
+  and its game data is Nexon's for the same reason the .nx files are.
+
+  Get one, build it, and point this at it:
+
+      git clone https://github.com/P0nk/Cosmic
+      cd Cosmic && ./mvnw -DskipTests package
+      tools/install.sh --server --cosmic /path/to/Cosmic
+
+  Looked in:$tried
+
+  Everything else has already been installed - the game itself is on the
+  device and will play against somebody else's server. This step is only
+  needed if you want THIS device to be the one hosting.
+HELP
+
+	return 1
+}
+
+# ---------------------------------------------------------------------------
+# Termux, prepared from here so the player types nothing
+# ---------------------------------------------------------------------------
+#
+# Setting a server up by hand is four commands in a terminal, and asking
+# somebody who wanted to play a game to type four commands is where most of
+# them stop. Two of those steps can be done from this side:
+#
+#   1. STORAGE. `termux-setup-storage` exists to raise a permission dialog.
+#      `pm grant` gives the same two permissions without one.
+#
+#   2. allow-external-apps. Termux refuses RUN_COMMAND from another app unless
+#      this is set, and it is what lets the GAME start and stop the server
+#      later - see LocalServer.java. It lives in Termux's private home, which
+#      is reachable only through `run-as`, and `run-as` only works on a
+#      DEBUGGABLE build.
+#
+# ⚠ THE SECOND ONE WILL FAIL FOR MOST PEOPLE, AND THAT IS CORRECT.
+# An ordinary F-Droid Termux is not debuggable; refusing to be driven by other
+# apps is the whole point of the setting. So this TRIES, says plainly whether
+# it worked, and prints the one line to paste when it did not. Never silently.
+prepare_termux() {
+	say "Preparing Termux"
+
+	if ! adb -s "$DEV" shell "pm list packages" 2>/dev/null | tr -d '\r' \
+		| grep -q "^package:com.termux$"; then
+		step "Termux is not installed - skipping."
+		step "Install it from F-DROID (not the Play Store; that build is"
+		step "years out of date and cannot run this), then re-run with --server."
+		return 0
+	fi
+
+	# 1. Storage, in place of termux-setup-storage.
+	adb -s "$DEV" shell \
+		"pm grant com.termux android.permission.READ_EXTERNAL_STORAGE" \
+		>/dev/null 2>&1
+	adb -s "$DEV" shell \
+		"pm grant com.termux android.permission.WRITE_EXTERNAL_STORAGE" \
+		>/dev/null 2>&1
+
+	if adb -s "$DEV" shell "dumpsys package com.termux" 2>/dev/null \
+		| tr -d '\r' | grep -q "READ_EXTERNAL_STORAGE: granted=true"; then
+		step "storage              granted (no termux-setup-storage needed)"
+	else
+		step "storage              COULD NOT GRANT - you will have to run"
+		step "                     termux-setup-storage in Termux yourself"
+	fi
+
+	# 2. allow-external-apps, so the game can start the server on its own.
+	#
+	# Read first, and only write when it is actually missing: the file is the
+	# player's, it may hold their own settings, and clobbering it to set one
+	# key would be a poor trade.
+	local props="files/home/.termux/termux.properties"
+
+	if adb -s "$DEV" shell "run-as com.termux cat $props" 2>/dev/null \
+		| tr -d '\r' | grep -qE "^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true"; then
+		step "allow-external-apps  already set"
+		return 0
+	fi
+
+	if ! adb -s "$DEV" shell "run-as com.termux id" >/dev/null 2>&1; then
+		step "allow-external-apps  CANNOT SET IT FROM HERE"
+		step ""
+		step "  This Termux is not a debuggable build, which is normal and is"
+		step "  deliberately what stops other apps driving it. Open Termux once"
+		step "  and paste this single line:"
+		step ""
+		step "    mkdir -p ~/.termux && echo 'allow-external-apps = true' >> ~/.termux/termux.properties"
+		step ""
+		step "  Without it the game cannot start or stop the server for you;"
+		step "  everything else still works and you can run it by hand."
+		return 0
+	fi
+
+	# Appended, never overwritten, and the directory made first - on a Termux
+	# that has never been opened, ~/.termux does not exist yet.
+	adb -s "$DEV" shell \
+		"run-as com.termux sh -c 'mkdir -p files/home/.termux && printf \"allow-external-apps = true\n\" >> files/home/.termux/termux.properties'" \
+		>/dev/null 2>&1
+
+	if adb -s "$DEV" shell "run-as com.termux cat $props" 2>/dev/null \
+		| tr -d '\r' | grep -qE "^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true"; then
+		step "allow-external-apps  set"
+	else
+		step "allow-external-apps  WRITE FAILED - set it by hand in Termux:"
+		step "    mkdir -p ~/.termux && echo 'allow-external-apps = true' >> ~/.termux/termux.properties"
+	fi
+}
+
+# ---------------------------------------------------------------------------
+# Running the setup itself, so nobody opens a terminal
+# ---------------------------------------------------------------------------
+#
+# ⚠ NOT THROUGH RUN_COMMAND. The obvious route is the intent the game already
+# uses (see LocalServer.java), and it does not work from here: Termux protects
+# `com.termux.RUN_COMMAND` at dangerous level and adb's shell user does not
+# hold it. Trying it gets a flat "Requires permission" and nothing runs.
+#
+# `run-as` is the way in. It executes as Termux's OWN uid, so Termux's bash,
+# pkg, apt and java are all simply there - no intent, no permission, no
+# dialog. What is NOT there is Termux's environment: a login shell sets PREFIX
+# and friends, and run-as does not, so `pkg` would be on no PATH and every
+# library lookup would fail. Exported below, which is the whole trick.
+#
+# Same debuggable-build limit as prepare_termux, and the same honest failure.
+TERMUX_HOME=/data/data/com.termux/files/home
+TERMUX_PREFIX=/data/data/com.termux/files/usr
+
+run_termux_setup() {
+	say "Setting the server up on the device"
+
+	if ! adb -s "$DEV" shell "run-as com.termux id" >/dev/null 2>&1; then
+		step "Cannot drive Termux from here - this build is not debuggable."
+		step "Open Termux on the device and run these two lines:"
+		step ""
+		step "    cp /sdcard/Download/cosmic/termux_setup.sh ~"
+		step "    bash ~/termux_setup.sh"
+		return 0
+	fi
+
+	step "This installs Java and MariaDB and unpacks the server."
+	step "Twenty minutes or so, most of it downloading. Leave it alone."
+	step ""
+
+	# The script is copied into Termux's home first, exactly as the by-hand
+	# instructions do - it expects to be run from there, and a copy on the SD
+	# card is on a filesystem with no execute bit.
+	#
+	# `set -o pipefail` matters: without it the exit status is `tee`'s, which
+	# is always 0, and a failed setup would report success.
+	adb -s "$DEV" shell "run-as com.termux files/usr/bin/bash -c '
+		set -o pipefail
+		export PREFIX=$TERMUX_PREFIX
+		export HOME=$TERMUX_HOME
+		export PATH=\$PREFIX/bin:\$PATH
+		export LD_LIBRARY_PATH=\$PREFIX/lib
+		export TMPDIR=\$PREFIX/tmp
+		cp /sdcard/Download/cosmic/termux_setup.sh \$HOME/ || exit 1
+		bash \$HOME/termux_setup.sh 2>&1 | tee \$HOME/setup.log
+	'" 2>&1 | tr -d '\r' | sed 's/^/  /'
+
+	# Asked of the device rather than trusted from the pipe above - adb shell
+	# does not forward the remote exit status, so the only honest way to know
+	# is to look for what a finished setup leaves behind.
+	if adb -s "$DEV" shell "run-as com.termux ls files/home/cosmic/run.sh" \
+		>/dev/null 2>&1; then
+		step ""
+		step "Server installed. The game can start it from the login screen."
+	else
+		bad "The setup did not finish."
+		step "What it printed is above, and on the device at ~/setup.log."
+	fi
+}
+
+# ---------------------------------------------------------------------------
 # The server, if they want to play with no network at all
 # ---------------------------------------------------------------------------
 if [ "$WANT_SERVER" -eq 1 ]; then
+	find_cosmic || exit 1
+	prepare_termux
 	say "Putting the server on the device"
-	bash "$HERE/tools/stage_server.sh" "$DEV" || exit 1
+	bash "$HERE/tools/stage_server.sh" "$DEV" "$COSMIC" || exit 1
+	run_termux_setup
 fi
 
 say "Done."
@@ -474,8 +712,25 @@ cat <<DONE
       and everyone else types them in. The device you create on is the one
       that has to stay switched on.
 
+DONE
+
+# ⚠ ONLY WHEN THERE IS NOT ALREADY ONE ON IT. This printed unconditionally,
+# so somebody who had just sat through the twenty-minute server install was
+# then told to go and run the thing they had only just finished. Advice that
+# contradicts what just happened reads as a failure, and the obvious response
+# is to run it a second time.
+if [ "$WANT_SERVER" -eq 1 ]; then
+	cat <<'HOSTING'
+  This device can host the game itself, so it can be the one the others
+  join. Tap SERVER at the top left of the login screen - it starts the
+  server for you and remembers the way back.
+
+HOSTING
+else
+	cat <<HOSTING
   To put a server on THIS device as well, so it can be the one hosting:
 
       tools/install.sh --device $DEV --server
 
-DONE
+HOSTING
+fi

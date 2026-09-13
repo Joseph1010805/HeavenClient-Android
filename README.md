@@ -376,10 +376,20 @@ Killing an app doesn't reliably close its sockets, so a client that isn't
 writing can otherwise sit forever on a character select it can no longer act
 on - which looks exactly like a broken Start button.
 
-**The server needs Termux**, which the app checks for and reports honestly
-rather than failing at the moment you press Host. `tools/stage_server.sh` and
-`tools/termux_setup.sh` put Cosmic on a device; `docs_OFFLINE.md` has the
-whole story.
+**The server needs Termux** (from **F-Droid** — the Play Store build is years
+old and its package repository no longer resolves). The app checks for it and
+reports honestly rather than failing at the moment you press Host.
+
+`tools/install.sh --server` does the whole thing: it grants Termux storage,
+delivers Cosmic, and **runs the setup for you** — Java, MariaDB, the database
+and the schema — without you opening a terminal. It takes about twenty
+minutes, most of it downloading.
+
+One caveat it will tell you about itself: driving Termux from the PC uses
+`run-as`, which only works on a **debuggable** Termux build. A stock F-Droid
+Termux is not, and refusing to be driven by other programs is precisely the
+point of that. When it cannot, it prints the two lines to paste instead of
+pretending it worked. `docs_OFFLINE.md` has the whole story.
 
 ### Carrying characters between devices
 

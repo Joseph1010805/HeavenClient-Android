@@ -325,9 +325,12 @@ fi
 cat <<'NEXT'
 Everything is on the device, in /sdcard/Download/cosmic.
 
-The rest happens in Termux, on the handheld itself - adb cannot reach
-Termux's home directory, which is why the files are parked on the SD card
-for it to collect.
+⚠ IF YOU RAN THIS THROUGH `tools/install.sh --server`, STOP HERE.
+It runs the setup below for you - see run_termux_setup there - and none of
+these steps are yours to do. This script only DELIVERS the files; it is the
+instructions for the case where somebody staged them by hand.
+
+Doing it yourself:
 
   1. Install Termux from F-Droid. NOT the Play Store version: it is years
      old and its package repository no longer resolves.
@@ -351,4 +354,10 @@ for it to collect.
 
      and nothing else changes. The same server still answers anyone else on
      the hotspot at the handheld's LAN address.
+
+A NOTE ON WHAT CHANGED, because the old text here said the opposite:
+adb CAN reach Termux, through `run-as`, on a DEBUGGABLE Termux build. That
+is how install.sh now does all of the above without anybody typing. A stock
+F-Droid Termux is not debuggable and falls back to these instructions, which
+is why they are still here and still correct.
 NEXT
