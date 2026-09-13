@@ -59,11 +59,26 @@ the stock artwork, which is what they used before.
 
 ## Installing it
 
-**One command.** Plug the device in by USB and run:
+**First, get these files.** The installer is a script in this repository, not
+something on the releases page. Either:
+
+```
+git clone --recursive https://github.com/Joseph1010805/HeavenClient-Android.git
+cd HeavenClient-Android
+```
+
+or, if you don't have git: press the green **Code** button at the top of this
+page, choose **Download ZIP**, and unzip it somewhere. You only need `tools/`
+to install - the rest is the source, and you don't have to build anything.
+
+**Then one command.** Plug the device in by USB and run:
 
 ```
 tools/install.sh
 ```
+
+On Windows, run that from **Git Bash** (it comes with git). On Mac or Linux any
+terminal will do.
 
 It finds the device, downloads the latest APK, installs it, finds the game
 files you already have, converts them if they're still `.wz`, and copies them
