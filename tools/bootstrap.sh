@@ -71,6 +71,18 @@ echo "bootstrap at $(date)"
 # genuinely finished. Asking for it also makes this self-repairing: a
 # half-finished install is now indistinguishable from no install, which is
 # exactly how it should be treated.
+# ⚠ A MARKER CAN OUTLIVE THE INSTALL THAT SET IT.
+#
+# The trap below clears .installing on a normal exit and on INT/TERM, but a
+# SIGKILL or a flat battery fires no trap. The flag then survives, nothing
+# below ever touches it again once the setup has finished, and the game says
+# "setting up, twenty minutes" on every launch for ever after.
+#
+# run.sh existing means the setup is done, whatever a stale flag claims.
+if [ -f "$HOME/cosmic/run.sh" ]; then
+	rm -f "$STAGE/.installing" 2>/dev/null
+fi
+
 if [ ! -f "$HOME/cosmic/run.sh" ]; then
 	echo "no server in $HOME/cosmic yet - running the first-time setup"
 
