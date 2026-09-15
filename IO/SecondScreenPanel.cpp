@@ -1010,6 +1010,23 @@ namespace ms
 		{
 			share_wanted = false;
 
+			// ⚠ THE COPY FIRST, THE SHARE SHEET SECOND.
+			//
+			// The report is written beside the game data, under
+			// Android/data/<package>/files, which since Android 11 no file
+			// manager shows and no cable exposes. That left the share sheet
+			// as the only way out - and on a handheld with no mail app in
+			// it, the sheet offers nothing useful. The report was correct,
+			// complete, and impossible to hand to anybody.
+			//
+			// So put a copy in Downloads, which is always reachable, and say
+			// where it went. The sheet is still offered after; it is the
+			// convenient path, not the only one.
+			std::string where = Shot::save_copy(share_picture);
+
+			if (!where.empty())
+				report_state = "Saved to " + where;
+
 			Shot::share(share_picture);
 		}
 

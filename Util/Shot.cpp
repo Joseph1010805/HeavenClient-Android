@@ -182,6 +182,66 @@ namespace ms
 
 			env->DeleteLocalRef(activity);
 		}
+
+		std::string save_copy(const std::string& picture)
+		{
+			JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+
+			if (!env)
+				return {};
+
+			jobject activity = static_cast<jobject>(SDL_AndroidGetActivity());
+
+			if (!activity)
+				return {};
+
+			std::string where;
+
+			jclass cls = env->FindClass("org/heavenclient/android/Report");
+
+			if (cls)
+			{
+				jmethodID id = env->GetStaticMethodID(cls, "saveToDownloads",
+					"(Landroid/app/Activity;Ljava/lang/String;)"
+					"Ljava/lang/String;");
+
+				if (id)
+				{
+					jstring name = env->NewStringUTF(picture.c_str());
+
+					jobject got = env->CallStaticObjectMethod(
+						cls, id, activity, name);
+
+					if (got)
+					{
+						jstring text = static_cast<jstring>(got);
+						const char* chars =
+							env->GetStringUTFChars(text, nullptr);
+
+						if (chars)
+						{
+							where = chars;
+							env->ReleaseStringUTFChars(text, chars);
+						}
+
+						env->DeleteLocalRef(got);
+					}
+
+					env->DeleteLocalRef(name);
+				}
+
+				env->DeleteLocalRef(cls);
+			}
+
+			// Anything thrown on the Java side has to be cleared, or the next
+			// JNI call on this thread fails for no visible reason.
+			if (env->ExceptionCheck())
+				env->ExceptionClear();
+
+			env->DeleteLocalRef(activity);
+
+			return where;
+		}
 	}
 }
 
@@ -192,6 +252,8 @@ namespace ms
 	namespace Shot
 	{
 		void share(const std::string&) {}
+
+		std::string save_copy(const std::string&) { return {}; }
 	}
 }
 

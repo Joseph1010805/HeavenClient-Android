@@ -62,5 +62,12 @@ namespace ms
 		// Offer the report, the play log and the picture to whatever app the
 		// player already has. Does nothing off Android.
 		void share(const std::string& picture);
+
+		// Copy the report and its picture into the public Downloads folder,
+		// where a file manager and a USB cable can both reach them. The
+		// share sheet is the nice path; this is the one that always works.
+		//
+		// Returns where it went, fit to show a player, or empty on failure.
+		std::string save_copy(const std::string& picture);
 	}
 }

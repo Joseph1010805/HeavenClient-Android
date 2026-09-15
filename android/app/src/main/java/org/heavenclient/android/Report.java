@@ -1,13 +1,21 @@
 package org.heavenclient.android;
 
 import android.app.Activity;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.Log;
 
 import androidx.core.content.FileProvider;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 
 /**
@@ -110,5 +118,156 @@ public final class Report {
 
         into.add(FileProvider.getUriForFile(
                 activity, activity.getPackageName() + ".reports", file));
+    }
+
+    /**
+     * PUT A COPY WHERE A PERSON CAN ACTUALLY FIND IT.
+     *
+     * The report is written next to the game data, under
+     * Android/data/<package>/files. Since Android 11 that directory is
+     * invisible: no file manager shows it and it does not appear over USB.
+     * So the share sheet was the only way out, and a handheld with no mail
+     * app installed offers nothing useful in it - the report exists, is
+     * correct, and cannot be handed to anybody.
+     *
+     * This copies it to the public Downloads folder, which every file
+     * manager shows and which appears over a cable. The share sheet is still
+     * offered; this is the floor under it.
+     *
+     * @return where it went, in words fit to show a player, or null.
+     */
+    public static String saveToDownloads(Activity activity, String picture) {
+        if (activity == null) {
+            return null;
+        }
+
+        try {
+            File dir = activity.getExternalFilesDir(null);
+
+            if (dir == null) {
+                return null;
+            }
+
+            File report = new File(dir, "report.txt");
+
+            if (!report.exists() || report.length() == 0) {
+                return null;
+            }
+
+            String stamp = picture != null && picture.startsWith("report-")
+                    ? picture.substring("report-".length()).replace(".png", "")
+                    : Long.toString(System.currentTimeMillis() / 1000L);
+
+            String name = "report-" + stamp + ".txt";
+
+            if (copy(activity, report, name, "text/plain") == null) {
+                return null;
+            }
+
+            // The picture too, when there is one - a screenshot is half of
+            // what makes a report readable.
+            if (picture != null && !picture.isEmpty()) {
+                File shot = new File(dir, picture);
+
+                if (shot.exists() && shot.length() > 0) {
+                    copy(activity, shot, picture, "image/png");
+                }
+            }
+
+            return "Download/" + FOLDER + "/" + name;
+        } catch (Exception e) {
+            Log.e(TAG, "could not copy the report to Downloads", e);
+            return null;
+        }
+    }
+
+    private static final String FOLDER = "BugsNBeans";
+
+    /**
+     * One file into public Downloads, by whichever route this Android allows.
+     *
+     * MediaStore on 29 and up - a direct write to Downloads is refused there
+     * and fails with nothing in the log worth reading. Below that there is no
+     * MediaStore Downloads collection, so the plain path is correct.
+     */
+    private static Uri copy(Activity activity, File src, String name,
+            String mime) throws Exception {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentResolver res = activity.getContentResolver();
+
+            ContentValues v = new ContentValues();
+            v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+            v.put(MediaStore.Downloads.MIME_TYPE, mime);
+            v.put(MediaStore.Downloads.RELATIVE_PATH,
+                    Environment.DIRECTORY_DOWNLOADS + "/" + FOLDER);
+
+            Uri out = res.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+
+            if (out == null) {
+                return null;
+            }
+
+            InputStream in = new FileInputStream(src);
+            OutputStream os = res.openOutputStream(out);
+
+            try {
+                pipe(in, os);
+            } finally {
+                close(in);
+                close(os);
+            }
+
+            return out;
+        }
+
+        File downloads = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS);
+        File folder = new File(downloads, FOLDER);
+
+        if (!folder.exists() && !folder.mkdirs()) {
+            return null;
+        }
+
+        File dst = new File(folder, name);
+
+        InputStream in = new FileInputStream(src);
+        OutputStream os = new java.io.FileOutputStream(dst);
+
+        try {
+            pipe(in, os);
+        } finally {
+            close(in);
+            close(os);
+        }
+
+        return Uri.fromFile(dst);
+    }
+
+    private static void pipe(InputStream in, OutputStream out)
+            throws Exception {
+        if (in == null || out == null) {
+            throw new IllegalStateException("no stream");
+        }
+
+        byte[] buf = new byte[65536];
+        int n;
+
+        while ((n = in.read(buf)) > 0) {
+            out.write(buf, 0, n);
+        }
+
+        out.flush();
+    }
+
+    private static void close(java.io.Closeable c) {
+        if (c == null) {
+            return;
+        }
+
+        try {
+            c.close();
+        } catch (Exception ignored) {
+            // Closing is not worth failing a bug report over.
+        }
     }
 }
