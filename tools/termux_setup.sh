@@ -221,14 +221,42 @@ if netstat -ltn 2>/dev/null | grep -q ':8484 '; then
 	exit 0
 fi
 
+# ⚠ A PROCESS IS NOT A SERVER. THIS COST AN EVENING.
+#
+# MariaDB stopped while Cosmic kept running. Cosmic cannot serve a login
+# without it - every query failed with "Connection refused" - so it never
+# bound 8484 and the port test above correctly said no. Then THIS test found
+# the process, declared the server up, and exited. Pressing HOST reported
+# success, changed nothing, and the login hung for ever with the reason in a
+# log inside Termux's private home, where nobody was ever going to read it.
+#
+# So a Cosmic without the login port only counts as "running" if the database
+# it needs is actually answering - in which case it is still starting up and
+# must be left alone. If the database is down, that Cosmic is doomed however
+# long it waits, and the honest thing is to clear it out and start again.
 if pgrep -f '[C]osmic\.jar' >/dev/null 2>&1; then
-	echo "the server is already running"
-	exit 0
+	if mariadb -u root -e "SELECT 1" >/dev/null 2>&1; then
+		echo "the server is still starting - leaving it alone"
+		exit 0
+	fi
+
+	echo "a server is running but the database is not - restarting it"
+	pkill -f '[C]osmic\.jar' >/dev/null 2>&1
+
+	# Let it go before the new one tries to take the port.
+	for i in $(seq 1 10); do
+		pgrep -f '[C]osmic\.jar' >/dev/null 2>&1 || break
+		sleep 1
+	done
 fi
 
 # The database has to be up before the server looks for it, and Termux does
 # not keep it running across a reboot.
-if ! pgrep -f mariadbd >/dev/null 2>&1; then
+#
+# ⚠ THE TEST IS A QUERY, NOT A PROCESS, for the same reason as above: a
+# mariadbd that is present but not answering is what the failure above
+# actually looked like from here.
+if ! mariadb -u root -e "SELECT 1" >/dev/null 2>&1; then
 	echo "starting the database..."
 	mariadbd-safe -u "$(whoami)" >/dev/null 2>&1 &
 
@@ -236,6 +264,12 @@ if ! pgrep -f mariadbd >/dev/null 2>&1; then
 		mariadb -u root -e "SELECT 1" >/dev/null 2>&1 && break
 		sleep 1
 	done
+
+	if ! mariadb -u root -e "SELECT 1" >/dev/null 2>&1; then
+		echo "FAILED: the database did not come up. The server cannot start"
+		echo "without it, and a login will hang rather than refuse."
+		exit 1
+	fi
 fi
 
 # Stops the phone sleeping the server out from under the game - and, more
