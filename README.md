@@ -22,18 +22,40 @@ none in this repository and I can't give you any; see
 
 ## Quick start
 
-Six things, if your game files are already `.nx`. (Still got `.wz` files?
-[Start here instead](#getting-it-running) - same steps, with the conversion
-in them.)
+Five things. You supply two MapleStory clients; the installer does the rest.
 
 | | |
 |---|---|
-| **1. Get the installer** | [**Download `LocalStory-installer-*.zip`**](../../releases/latest) - about 120 KB. Not the repository, not the APK. |
-| **2. Unzip it** | Anywhere. Your Desktop is fine. |
-| **3. Put your game files here** | ⚠ **They come from TWO different MapleStory clients** - 14 files from **v83**, one from **v178**.<br><br>• The 14 `.nx` files **from your v83 client** → `C:\Users\<you>\maple\wz-v83\`<br>• `UI.nx` **from a v178 client**, on its own → `C:\Users\<you>\maple\wz-v178\` |
-| **4. Turn on USB debugging** | On the handheld: **Settings → About → tap "Build number" seven times**. Then **Developer options → USB debugging → on**. ([Stuck? The long version.](#how-to-turn-on-usb-debugging)) |
-| **5. Plug it in and run the installer** | A USB cable **that carries data** - not a charging-only one. Tap **Allow** on the handheld when it asks about USB debugging, then double-click **`INSTALL.bat`**, check it names your device, and leave it. Ten minutes the first time. |
-| **6. Play** | Open **LocalStory** and tap **+ CREATE A GAME**. It asks **WHO CAN JOIN?** - **PUBLIC** (anyone nearby, nothing to type) or **PRIVATE** (you pick six digits and read them out). Then log in with any username and password - the account is made for you. |
+| **1. Get the installer** | [**Download `LocalStory-installer-*.zip`**](../../releases/latest) and unzip it anywhere - your Desktop is fine. About 120 KB. Not the repository, not the APK. |
+| **2. Install two MapleStory clients** | ⚠ **You need TWO.** A **v83** client for the game, and any **v178** client for one interface file. Install them both wherever they want to go and **leave them alone** - the installer goes looking. Don't launch either game afterwards; an official client can patch itself and stop being the version you need. |
+| **3. Turn on USB debugging** | On the handheld: **Settings → About → tap "Build number" seven times**. Then **Developer options → USB debugging → on**. ([Stuck? The long version.](#how-to-turn-on-usb-debugging)) |
+| **4. Plug it in and run the installer** | A USB cable **that carries data** - not a charging-only one. Tap **Allow** on the handheld when it asks about USB debugging, then double-click **`INSTALL.bat`**, check it names your device, and leave it. Ten minutes the first time. |
+| **5. Play** | Open **LocalStory** and tap **+ CREATE A GAME**. It asks **WHO CAN JOIN?** - **PUBLIC** (anyone nearby, nothing to type) or **PRIVATE** (you pick six digits and read them out). Then log in with any username and password - the account is made for you. |
+
+<details>
+<summary><b>What the installer is doing while you wait</b> - you do not have to do any of it</summary>
+
+Nothing in here is a step for you. It is written down because a ten-minute
+silence is easier to sit through when you know what is happening.
+
+- **It finds your clients.** It looks where MapleStory installs itself -
+  `C:\Nexon\MapleStory`, both `Wizet\MapleStory` folders - and in
+  `C:\Users\<you>\maple\`. If it cannot find the v178 one it asks you once,
+  because both clients call their folder MapleStory and there is no sensible
+  place to guess.
+- **It converts the game data.** The client reads `.nx`; MapleStory ships
+  `.wz`. It converts all fifteen files with the right flag and leaves the
+  originals alone. ⚠ This needs **NoLifeWzToNx**, which cannot be shipped with
+  the installer - it declares no licence - so if you have never built it, this
+  is the one thing it will stop and ask you for. Already have `.nx` files?
+  Nothing to do.
+- **It copies several gigabytes over USB**, checking each file against the
+  device afterwards, so an interrupted copy picks up where it stopped.
+- **It sets up a server on the handheld** - Java, MariaDB, Cosmic and its
+  database, inside Termux - so the device can host a game with no PC and no
+  internet.
+
+</details>
 
 **PUBLIC is the simple one if it is your own house.** Others just tap your
 game's name under **GAMES NEARBY** and they are in. **PRIVATE** adds a
@@ -51,7 +73,7 @@ filled in, including converting.
 
 ## Getting it running
 
-Five steps, and the installer does the work in all of them.
+Five steps. You install two MapleStory clients; the installer does the rest.
 
 ### What you need before you start
 
@@ -84,7 +106,35 @@ you do not need git, and you do not need to build anything.**
 > larger. Building the app yourself is [Building it](#building-it), and nobody
 > installing the game needs to.
 
-### 2. Put the files where the installer looks
+### 2. Install two MapleStory clients
+
+**Install them and leave them where they land.** The installer looks where
+MapleStory puts itself:
+
+```
+C:\Nexon\MapleStory\
+C:\Program Files (x86)\Wizet\MapleStory\
+C:\Program Files\Wizet\MapleStory\
+```
+
+⚠ **Do not launch either game once installed.** An official client that starts
+up can patch itself to the current version, and a patched client is no longer
+the version you needed. You install them to read their files, not to play them.
+
+The **v178** one it cannot guess - both clients call their folder MapleStory,
+so the second is either somewhere custom or has overwritten the first. If it
+does not find it, **it asks you once**:
+
+```
+Where is your v178 client?
+  v178 folder: _
+```
+
+Paste the folder and it takes `UI.nx` from there, converting `UI.wz` if that is
+what is in it.
+
+<details>
+<summary>Keeping the files somewhere of your own instead</summary>
 
 ⚠ **Two folders, because the files come from two different clients.** The
 folder names say which version belongs in them.
@@ -117,8 +167,10 @@ is found where it already sits.
 Anywhere else, point at it:
 
 ```
-INSTALL.bat --data D:\somewhere\wz-v83
+INSTALL.bat --data D:\somewhere\wz-v83  --ui D:\somewhere\wz-v178
 ```
+
+</details>
 
 ### 3. Turn on USB debugging
 
@@ -243,7 +295,7 @@ C:\Program Files (x86)\Wizet\MapleStory\
 
 **4. Copy them - do not move them.** Leave the client intact in case you need
 to do this again, and put the copies in
-[the two folders the installer looks in](#2-put-the-files-where-the-installer-looks).
+[a folder of your own](#2-install-two-maplestory-clients).
 
 > **You may not have to copy anything.** The installer already searches
 > `C:\Nexon\MapleStory` and both `Wizet\MapleStory` folders, so a client left
@@ -323,7 +375,7 @@ most likely to meet:
 | It says | It means |
 |---|---|
 | `Looking for a device ... none found` | Charge-only cable, or USB debugging is off. The cable is the usual one. |
-| `No game data found` | [Step 2](#2-put-the-files-where-the-installer-looks) - the `.nx` files are not in a folder it searches. Use `--data`. If you have never found any `.wz` files either, the client is probably still an uninstalled setup program: [where they live](#where-the-wz-files-actually-live). |
+| `No game data found` | [Step 2](#2-install-two-maplestory-clients) - no client where it looked. Point at it with `--data`. If you have never found any `.wz` files either, the client is probably still an uninstalled setup program: [where they live](#where-the-wz-files-actually-live). |
 | `UI.nx was not found` | That one file has to come from a **v178** client, not v83. It is the mistake everyone with a single client makes. |
 
 Everything else it prints is the device's own words rather than a guess. If the

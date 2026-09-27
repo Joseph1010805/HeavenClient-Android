@@ -8,6 +8,7 @@
 #   tools/install.sh --server         # also put Cosmic on it, for offline play
 #   tools/install.sh --cosmic DIR     # where YOUR built Cosmic is
 #   tools/install.sh --converter EXE # your built NoLifeWzToNx, to convert .wz
+#   tools/install.sh --ui DIR        # where your v178 client is (for UI.nx)
 #
 # --server looks for a built Cosmic in the usual places beside this checkout;
 # --cosmic says where when it is somewhere else. Both the jar and its wz files
@@ -145,6 +146,7 @@ WANT_SERVER=0
 GIVEN_DATA=""
 GIVEN_COSMIC=""
 GIVEN_CONV=""
+GIVEN_UI=""
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -152,6 +154,7 @@ while [ $# -gt 0 ]; do
 	--data)   GIVEN_DATA="${2:-}"; shift 2 ;;
 	--cosmic) GIVEN_COSMIC="${2:-}"; shift 2 ;;
 	--converter) GIVEN_CONV="${2:-}"; shift 2 ;;
+	--ui)        GIVEN_UI="${2:-}"; shift 2 ;;
 	--server) WANT_SERVER=1; shift ;;
 	*) bad "unknown option: $1"; exit 1 ;;
 	esac
@@ -624,18 +627,103 @@ fi
 # refuses to start on it, so it comes from a later client.
 UI_FROM=""
 
+# ⚠ THE SECOND CLIENT, AND WHY IT CANNOT BE GUESSED.
+#
+# UI.nx has to come from a LATER client - v178 - because the v83 interface is
+# too old for this client to start on. That means the player installed TWO
+# MapleStory clients, and there is no default path for the second: both name
+# their folder MapleStory, so the second one either went somewhere custom or
+# overwrote the first.
+#
+# So it is searched for, and then ASKED FOR. One question is a far better
+# experience than a page of instructions about arranging folders by hand.
+#
+# Takes .wz as readily as .nx, because a freshly installed client has .wz and
+# making somebody convert one file by hand to answer one question would be a
+# poor joke.
+ui_from_dir() {
+	local dir="$1"
+
+	[ -n "$dir" ] && [ -d "$dir" ] || return 1
+
+	if [ -f "$dir/UI.nx" ]; then
+		UI_FROM="$dir"
+		return 0
+	fi
+
+	[ -f "$dir/UI.wz" ] || return 1
+
+	# Only worth offering if there is something to convert with.
+	find_converter "$dir" || return 1
+
+	step "converting UI.wz from $dir"
+
+	"$CONVERTER" -c "$(win_path "$dir")/UI.wz" >/dev/null 2>&1
+
+	[ -f "$dir/UI.nx" ] || return 1
+
+	UI_FROM="$dir"
+	return 0
+}
+
 checking "Looking for UI.nx"
-for guess in "${HOME:-}/maple/wz-v178" "$(dirname "$DATA")/wz-v178" "$DATA"; do
-	[ -f "$guess/UI.nx" ] && UI_FROM="$guess" && break
+
+# ⚠ $DATA IS LAST, AND IT IS THE DANGEROUS ONE.
+#
+# A v83 client has a UI.nx of its own once converted, and it is exactly the
+# file that does not work. Taking it silently is how somebody ends up with a
+# client that will not start and fifteen files that all look correct.
+for guess in 	"$GIVEN_UI" 	"${HOME:-}/maple/wz-v178" 	"$(dirname "$DATA")/wz-v178" 	"$DATA"
+do
+	ui_from_dir "$guess" && break
 done
 
-[ -z "$UI_FROM" ] || ok "$UI_FROM"
+if [ -n "$UI_FROM" ]; then
+	ok "$UI_FROM"
+
+	if [ "$UI_FROM" = "$DATA" ]; then
+		step "⚠ that is the v83 folder - if the game opens to a black screen,"
+		step "  that UI.nx came from the wrong client. Use --ui to point at v178."
+	fi
+else
+	nope "not found"
+
+	say "Where is your v178 client?"
+	step "One file comes from it: UI.nx. The v83 interface is too old for this"
+	step "client to start on, which is why a second client is needed at all."
+	step ""
+	step "Paste the folder you installed it to, or press ENTER to stop."
+	step "Somewhere like C:\Nexon\MapleStoryV178"
+	step ""
+
+	while [ -z "$UI_FROM" ]; do
+		ask "  v178 folder:"
+
+		[ -n "$REPLY" ] || break
+
+		# Typed by a person, so it arrives in whatever form Windows gave
+		# them - and a dragged folder brings its quotes along.
+		REPLY="${REPLY%\"}"
+		REPLY="${REPLY#\"}"
+
+		if ui_from_dir "$REPLY"; then
+			ok "using $UI_FROM"
+			break
+		fi
+
+		bad "  No UI.nx or UI.wz in there. Look for the folder with the"
+		bad "  game's .exe in it."
+	done
+fi
 
 if [ -z "$UI_FROM" ]; then
-	nope "not found"
-	bad "UI.nx was not found."
-	step "v83's own interface is too old - the client needs UI.nx from a"
-	step "later client (v178 is what this project uses)."
+	bad "Cannot continue without UI.nx."
+	step "The app installs fine without it, but the client will not start -"
+	step "so this stops here rather than leaving you with a game that opens"
+	step "to nothing and says why nowhere."
+	step ""
+	step "Install any v178 client and run this again, or point straight at it:"
+	step "  INSTALL.bat --ui C:\path\to\v178client"
 	exit 1
 fi
 
