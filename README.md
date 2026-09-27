@@ -61,6 +61,9 @@ Five steps, and the installer does the work in all of them.
 - **TWO MapleStory clients of your own.** A **v83** client, which nearly
   everything comes from, and any **v178** client, which exactly one file comes
   from (`UI.nx` - the v83 interface is too old for this client to start on).
+  Both usually arrive as setup programs; the files you need appear once they
+  are installed - see
+  [Where the `.wz` files actually live](#where-the-wz-files-actually-live).
   The game data is Nexon's: it is not in this repository, it is not in the APK,
   and the installer will never download it - see
   [About the game files](#about-the-game-files) below.
@@ -99,9 +102,13 @@ C:\Users\<you>\maple\wz-v178\    <- UI.nx ONLY, and ONLY from a v178 client.
 
 Fifteen files in total, from two clients. Nothing else goes in either folder.
 
-> **Still got `.wz` files?** Put them in those same two folders and read
-> [If your files are still `.wz`](#if-your-files-are-still-wz) - the installer
-> converts them for you, once you have built the one tool it needs.
+> **Cannot find any `.wz` files?** They only exist once the client has been
+> installed - see
+> [Where the `.wz` files actually live](#where-the-wz-files-actually-live).
+>
+> **Got `.wz` files but not `.nx`?** Put them in those same two folders and
+> read [If your files are still `.wz`](#if-your-files-are-still-wz) - the
+> installer converts them for you, once you have built the one tool it needs.
 
 It also finds `Documents\maple\wz-v83`, `C:\maple\wz-v83`, `C:\Nexon\MapleStory`
 and both `Wizet\MapleStory` folders under Program Files, so an untouched install
@@ -203,6 +210,51 @@ Try the cable the device came with, or one you know copies files.
 
 ---
 
+### Where the `.wz` files actually live
+
+A MapleStory client does not arrive as a folder of `.wz` files. It arrives as a
+**setup program**, or a zip or rar of one, and the files you want only exist
+once it has been installed.
+
+**1. Run the client's own installer and let it finish.** It will ask where to
+put MapleStory. Note that folder - it is the only thing you need from the whole
+process.
+
+**2. Do NOT launch the game afterwards.** An official client that starts up may
+patch itself to the current version, and a patched client is no longer v83 -
+which is the one thing that makes its files useless here. You are installing it
+to read its files, not to play it.
+
+**3. Open that folder.** The `.wz` files are sitting in the top of it, beside
+the game's `.exe`:
+
+```
+Base.wz  Character.wz  Effect.wz  Etc.wz  Item.wz  Map.wz  Mob.wz
+Morph.wz  Npc.wz  Quest.wz  Reactor.wz  Skill.wz  Sound.wz  String.wz
+TamingMob.wz        (and UI.wz, which you want from the v178 client instead)
+```
+
+Common places clients end up:
+
+```
+C:\Nexon\MapleStory\
+C:\Program Files (x86)\Wizet\MapleStory\
+```
+
+**4. Copy them - do not move them.** Leave the client intact in case you need
+to do this again, and put the copies in
+[the two folders the installer looks in](#2-put-the-files-where-the-installer-looks).
+
+> **You may not have to copy anything.** The installer already searches
+> `C:\Nexon\MapleStory` and both `Wizet\MapleStory` folders, so a client left
+> where it installed itself is often found where it sits. Try it first.
+
+Some client downloads are already an extracted folder rather than a setup
+program. If you can see `.wz` files, you are past this step - there is nothing
+to install.
+
+---
+
 ### If your files are still `.wz`
 
 The client reads `.nx`. Your MapleStory client has `.wz`.
@@ -271,7 +323,7 @@ most likely to meet:
 | It says | It means |
 |---|---|
 | `Looking for a device ... none found` | Charge-only cable, or USB debugging is off. The cable is the usual one. |
-| `No game data found` | [Step 2](#2-put-the-files-where-the-installer-looks) - the `.nx` files are not in a folder it searches. Use `--data`. |
+| `No game data found` | [Step 2](#2-put-the-files-where-the-installer-looks) - the `.nx` files are not in a folder it searches. Use `--data`. If you have never found any `.wz` files either, the client is probably still an uninstalled setup program: [where they live](#where-the-wz-files-actually-live). |
 | `UI.nx was not found` | That one file has to come from a **v178** client, not v83. It is the mistake everyone with a single client makes. |
 
 Everything else it prints is the device's own words rather than a guess. If the
