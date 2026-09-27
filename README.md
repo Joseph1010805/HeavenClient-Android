@@ -23,8 +23,8 @@ none in this repository and I can't give you any; see
 ## Quick start
 
 Six things, if your game files are already `.nx`. (Still got `.wz` files?
-[Start here instead](#getting-it-running) - it is the same six steps with the
-conversion in them.)
+[Start here instead](#getting-it-running) - same steps, with the conversion
+in them.)
 
 | | |
 |---|---|
@@ -44,14 +44,14 @@ network - though it stops mistakes rather than intruders, and
 Either way there is no sign-up, no server to rent and no address to type.
 
 **No game files yet, still got `.wz`, or not sure what `.nx` means?**
-[Getting it running](#getting-it-running) is these same six steps with every
-detail filled in, including converting.
+[Getting it running](#getting-it-running) is the same thing with every detail
+filled in, including converting.
 
 ---
 
 ## Getting it running
 
-Six steps. Most of the work is step 2, and it is a one-off.
+Five steps, and the installer does the work in all of them.
 
 ### What you need before you start
 
@@ -81,65 +81,7 @@ you do not need git, and you do not need to build anything.**
 > larger. Building the app yourself is [Building it](#building-it), and nobody
 > installing the game needs to.
 
-### 2. Convert your game files from .wz to .nx
-
-The client reads `.nx`. Your MapleStory client has `.wz`.
-
-**The installer does this for you.** Point it at a client that still has `.wz`
-files and it offers to convert them - all fifteen, with the right flag, in the
-right place - and then carries straight on to the install. You need one thing
-first:
-
-**Build [NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx) once.** It
-cannot be shipped with this installer: it declares no licence, which means all
-rights reserved and no right to redistribute a build of it. So this is the one
-step that stays yours. Put `NoLifeWzToNx.exe` beside `INSTALL.bat`, or say
-where it is:
-
-```
-INSTALL.bat --converter C:\path\to\NoLifeWzToNx.exe
-```
-
-<details>
-<summary>Or convert by hand, if you would rather</summary>
-
-```
-NoLifeWzToNx.exe -c Character.wz
-```
-
-**The `-c` matters.** Without it you get server-format files the client cannot
-read, and the game starts to a black screen with nothing anywhere saying why.
-The `.nx` lands beside the `.wz`. Do it for all 15 files in `Util/NxFiles.h`:
-
-```
-Base  Character  Effect  Etc  Item  Map  Mob  Morph
-Npc   Quest      Reactor  Skill  Sound  String  TamingMob
-```
-
-</details>
-
-WARNING: **`UI.nx` is the exception, and it catches everybody out.** It must
-come from a LATER client - v178 is what this project uses. The v83 interface is
-too old: the client looks for menus that did not exist yet and refuses to
-start. So you need two clients, and exactly one file from the second.
-
-<details>
-<summary>NoLifeWzToNx will not compile on a modern Visual Studio - three fixes</summary>
-
-There is no download; it is a Visual Studio project you build yourself, and it
-has aged. In order:
-
-- It uses `std::experimental::filesystem`, which no longer exists. Change it to
-  `std::filesystem` and set the project to C++17.
-- That trips a deprecation warning on `<codecvt>`, and warnings are errors.
-  Define `_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS`.
-- The bundled `libsquish.lib` is too old to link and fails with `C1047`. The
-  source is in the same folder - add `includes/libsquish/*.cpp` to the project
-  and drop the `.lib`.
-
-</details>
-
-### 3. Put the files where the installer looks
+### 2. Put the files where the installer looks
 
 ⚠ **Two folders, because the files come from two different clients.** The
 folder names say which version belongs in them.
@@ -156,7 +98,10 @@ C:\Users\<you>\maple\wz-v178\    <- UI.nx ONLY, and ONLY from a v178 client.
 ```
 
 Fifteen files in total, from two clients. Nothing else goes in either folder.
-`.wz` files can go in the same places - the installer offers to convert them.
+
+> **Still got `.wz` files?** Put them in those same two folders and read
+> [If your files are still `.wz`](#if-your-files-are-still-wz) - the installer
+> converts them for you, once you have built the one tool it needs.
 
 It also finds `Documents\maple\wz-v83`, `C:\maple\wz-v83`, `C:\Nexon\MapleStory`
 and both `Wizet\MapleStory` folders under Program Files, so an untouched install
@@ -168,7 +113,7 @@ Anywhere else, point at it:
 INSTALL.bat --data D:\somewhere\wz-v83
 ```
 
-### 4. Turn on USB debugging
+### 3. Turn on USB debugging
 
 Nothing works without this, and the symptom is a device the installer cannot
 see at all - which looks exactly like a broken cable.
@@ -179,7 +124,7 @@ The short version: **Settings, About, tap "Build number" seven times**, then
 **Developer options, USB debugging, on**. Then plug in and say yes to the
 prompt that appears on the handheld's own screen.
 
-### 5. Plug it in and double-click `INSTALL.bat`
+### 4. Plug it in and double-click `INSTALL.bat`
 
 That is the whole install. It names the device and asks you to confirm it, puts
 the app on, finds your game files, copies them across, and sets the device up to
@@ -199,7 +144,7 @@ picks up where it stopped rather than starting again.
 
 On Mac or Linux there is no `.bat`; run `tools/install.sh` from the same folder.
 
-### 6. Play
+### 5. Play
 
 Open **LocalStory** on the device. The login screen looks for games by itself -
 there is no address to type anywhere.
@@ -258,6 +203,66 @@ Try the cable the device came with, or one you know copies files.
 
 ---
 
+### If your files are still `.wz`
+
+The client reads `.nx`. Your MapleStory client has `.wz`.
+
+**The installer does this for you.** Point it at a client that still has `.wz`
+files and it offers to convert them - all fifteen, with the right flag, in the
+right place - and then carries straight on to the install. You need one thing
+first:
+
+**Build [NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx) once.** It
+cannot be shipped with this installer: it declares no licence, which means all
+rights reserved and no right to redistribute a build of it. So this is the one
+step that stays yours. Put `NoLifeWzToNx.exe` beside `INSTALL.bat`, or say
+where it is:
+
+```
+INSTALL.bat --converter C:\path\to\NoLifeWzToNx.exe
+```
+
+<details>
+<summary>Or convert by hand, if you would rather</summary>
+
+```
+NoLifeWzToNx.exe -c Character.wz
+```
+
+**The `-c` matters.** Without it you get server-format files the client cannot
+read, and the game starts to a black screen with nothing anywhere saying why.
+The `.nx` lands beside the `.wz`. Do it for all 15 files in `Util/NxFiles.h`:
+
+```
+Base  Character  Effect  Etc  Item  Map  Mob  Morph
+Npc   Quest      Reactor  Skill  Sound  String  TamingMob
+```
+
+</details>
+
+WARNING: **`UI.nx` is the exception, and it catches everybody out.** It must
+come from a LATER client - v178 is what this project uses. The v83 interface is
+too old: the client looks for menus that did not exist yet and refuses to
+start. So you need two clients, and exactly one file from the second.
+
+<details>
+<summary>NoLifeWzToNx will not compile on a modern Visual Studio - three fixes</summary>
+
+There is no download; it is a Visual Studio project you build yourself, and it
+has aged. In order:
+
+- It uses `std::experimental::filesystem`, which no longer exists. Change it to
+  `std::filesystem` and set the project to C++17.
+- That trips a deprecation warning on `<codecvt>`, and warnings are errors.
+  Define `_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS`.
+- The bundled `libsquish.lib` is too old to link and fails with `C1047`. The
+  source is in the same folder - add `includes/libsquish/*.cpp` to the project
+  and drop the `.lib`.
+
+</details>
+
+---
+
 ### When it does not work
 
 The installer says what went wrong rather than just failing. The three you are
@@ -266,8 +271,8 @@ most likely to meet:
 | It says | It means |
 |---|---|
 | `Looking for a device ... none found` | Charge-only cable, or USB debugging is off. The cable is the usual one. |
-| `No game data found` | Step 3 - the `.nx` files are not in a folder it searches. Use `--data`. |
-| `UI.nx was not found` | Step 2 - that one file has to come from a v178 client, not v83. |
+| `No game data found` | [Step 2](#2-put-the-files-where-the-installer-looks) - the `.nx` files are not in a folder it searches. Use `--data`. |
+| `UI.nx was not found` | That one file has to come from a **v178** client, not v83. It is the mistake everyone with a single client makes. |
 
 Everything else it prints is the device's own words rather than a guess. If the
 game itself misbehaves once installed, see
@@ -295,7 +300,7 @@ and images, and CHANGES.md explains how. Put it beside the `wz-v83` folder.
 Without it those screens fall back to the stock artwork.
 
 
-### If you'd rather do it by hand
+### Installing by hand, without the installer
 
 There's an APK on the
 [releases page](https://github.com/Joseph1010805/HeavenClient-Android/releases).
