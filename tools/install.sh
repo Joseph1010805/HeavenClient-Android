@@ -7,6 +7,7 @@
 #   tools/install.sh --data DIR       # where your .nx or .wz files are
 #   tools/install.sh --server         # also put Cosmic on it, for offline play
 #   tools/install.sh --cosmic DIR     # where YOUR built Cosmic is
+#   tools/install.sh --converter EXE # your built NoLifeWzToNx, to convert .wz
 #
 # --server looks for a built Cosmic in the usual places beside this checkout;
 # --cosmic says where when it is somewhere else. Both the jar and its wz files
@@ -143,12 +144,14 @@ DEV=""
 WANT_SERVER=0
 GIVEN_DATA=""
 GIVEN_COSMIC=""
+GIVEN_CONV=""
 
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--device) DEV="${2:-}"; shift 2 ;;
 	--data)   GIVEN_DATA="${2:-}"; shift 2 ;;
 	--cosmic) GIVEN_COSMIC="${2:-}"; shift 2 ;;
+	--converter) GIVEN_CONV="${2:-}"; shift 2 ;;
 	--server) WANT_SERVER=1; shift ;;
 	*) bad "unknown option: $1"; exit 1 ;;
 	esac
@@ -418,6 +421,85 @@ has_wz() {
 	[ -f "$1/Base.wz" ] && [ -f "$1/Character.wz" ]
 }
 
+# ---------------------------------------------------------------------------
+# CONVERTING .wz TO .nx, SO NOBODY DOES IT FIFTEEN TIMES BY HAND
+# ---------------------------------------------------------------------------
+#
+# ⚠ THE CONVERTER CANNOT BE SHIPPED WITH THIS, and that is not an oversight.
+# NoLifeWzToNx declares NO LICENCE - neither does the project it forked from -
+# which means all rights reserved and no right to redistribute a build of it.
+# So the one step we cannot take off the player is building it once.
+#
+# Everything AFTER that we can: which fifteen files, the -c flag that decides
+# whether the output is even readable, running it once per file, and knowing
+# where the results go. That was the whole of the old instructions and all of
+# it was on the player.
+#
+# The converter writes its .nx BESIDE THE INPUT - measured, not assumed:
+#     .../cosmic-wz/Etc.wz -> .../cosmic-wz/Etc.nx
+# so a converted client needs nothing moved afterwards.
+find_converter() {
+	local guess
+
+	for guess in \
+		"$GIVEN_CONV" \
+		"$HERE/NoLifeWzToNx.exe" \
+		"${HOME:-}/maple/NoLifeWzToNx/x64/Release/NoLifeWzToNx.exe" \
+		"${HOME:-}/maple/NoLifeWzToNx/Release/NoLifeWzToNx.exe" \
+		"${HOME:-}/Downloads/NoLifeWzToNx.exe" \
+		"$1/NoLifeWzToNx.exe"
+	do
+		[ -n "$guess" ] && [ -f "$guess" ] && CONVERTER="$guess" && return 0
+	done
+
+	command -v NoLifeWzToNx.exe >/dev/null 2>&1 \
+		&& CONVERTER="$(command -v NoLifeWzToNx.exe)" && return 0
+
+	return 1
+}
+
+# Converts in place and says which file it is on, because this takes a while
+# and silence for twenty minutes is indistinguishable from a hang.
+convert_wz() {
+	local dir="$1" f done_n=0 failed=0 total=0
+
+	for f in $NEEDED; do total=$((total + 1)); done
+
+	for f in $NEEDED; do
+		if [ -f "$dir/$f.nx" ]; then
+			step "$f.nx already converted"
+			done_n=$((done_n + 1))
+			continue
+		fi
+
+		if [ ! -f "$dir/$f.wz" ]; then
+			step "$f.wz is NOT IN THIS CLIENT - cannot convert what is not there"
+			failed=$((failed + 1))
+			continue
+		fi
+
+		checking "  $f.wz"
+
+		# ⚠ -c OR THE OUTPUT IS UNREADABLE. Without it the converter writes
+		# the SERVER format, the client starts to a black screen, and nothing
+		# anywhere says why. It is the single most common way this goes wrong
+		# and it is one character.
+		if "$CONVERTER" -c "$(win_path "$dir")/$f.wz" >/dev/null 2>&1 \
+			&& [ -f "$dir/$f.nx" ]; then
+			ok "done"
+			done_n=$((done_n + 1))
+		else
+			nope "FAILED"
+			failed=$((failed + 1))
+		fi
+	done
+
+	step ""
+	step "$done_n of $total converted, $failed missing or failed"
+
+	[ "$failed" -eq 0 ]
+}
+
 DATA=""
 
 checking "Looking for the game data"
@@ -454,20 +536,64 @@ do
 
 	if has_wz "$guess"; then
 		nope "needs converting"
-		step "found a MapleStory client: $guess"
-		step "its .wz files have to be converted to .nx first"
+		say "Found a MapleStory client that has not been converted"
+		step "$guess"
+		step "Its .wz files have to become .nx before the game can read them."
 
-		cat <<'HELP'
+		if find_converter "$guess"; then
+			step ""
+			step "Converter: $CONVERTER"
+			step "This takes a while - twenty minutes or so for a full client -"
+			step "and writes the .nx files beside the .wz ones. Nothing is moved"
+			step "and nothing is deleted."
+			step ""
+			ask "  Convert them now? [Y/n]"
 
-  Convert them with NoLifeWzToNx, which reads YOUR client and writes .nx
-  beside it. It is a separate tool and it is not ours:
+			case "$REPLY" in
+			[Nn]*) ;;
+			*)
+				say "Converting"
 
-      https://github.com/NoLifeDev/NoLifeWzToNx
+				if convert_wz "$guess"; then
+					DATA="$guess"
+					break
+				fi
 
-  Then run this script again.
+				bad "Not every file converted, so the game would start to a"
+				bad "black screen. What is missing is listed above."
+				exit 1
+				;;
+			esac
+		else
+			# ⚠ THE ONE STEP THAT CANNOT BE AUTOMATED, AND WHY.
+			#
+			# NoLifeWzToNx declares no licence, and neither does the project it
+			# forked from. No licence means all rights reserved: we may not ship
+			# a build of it with this installer, however much easier that would
+			# be. Build it once and this script does the rest for ever after.
+			cat <<HELP
+
+  No converter found, and this installer is not allowed to ship one:
+  NoLifeWzToNx declares no licence, so a build of it cannot be
+  redistributed. You have to build it once, yourself:
+
+      https://github.com/ryantpayton/NoLifeWzToNx
+
+  The README has the three fixes it needs to compile on a modern Visual
+  Studio - it will not build as-is:
+
+      https://github.com/Joseph1010805/HeavenClient-Android#2-convert-your-game-files-from-wz-to-nx
+
+  Then put NoLifeWzToNx.exe beside this installer, or point at it:
+
+      INSTALL.bat --converter C:\path\to\NoLifeWzToNx.exe
+
+  After that this script converts all fifteen files for you, with the
+  -c flag, in the right order, and carries straight on to the install.
 
 HELP
-		exit 1
+			exit 1
+		fi
 	fi
 done
 

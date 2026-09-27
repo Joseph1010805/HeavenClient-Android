@@ -65,20 +65,40 @@ source code and you do not have to build anything.
 
 ### 2. Convert your game files from .wz to .nx
 
-The client reads `.nx`. Your MapleStory client has `.wz`. Converting is a
-one-off with [NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx):
+The client reads `.nx`. Your MapleStory client has `.wz`.
+
+**The installer does this for you.** Point it at a client that still has `.wz`
+files and it offers to convert them - all fifteen, with the right flag, in the
+right place - and then carries straight on to the install. You need one thing
+first:
+
+**Build [NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx) once.** It
+cannot be shipped with this installer: it declares no licence, which means all
+rights reserved and no right to redistribute a build of it. So this is the one
+step that stays yours. Put `NoLifeWzToNx.exe` beside `INSTALL.bat`, or say
+where it is:
+
+```
+INSTALL.bat --converter C:\path\to\NoLifeWzToNx.exe
+```
+
+<details>
+<summary>Or convert by hand, if you would rather</summary>
 
 ```
 NoLifeWzToNx.exe -c Character.wz
 ```
 
 **The `-c` matters.** Without it you get server-format files the client cannot
-read. Do that for all 15 files listed in `Util/NxFiles.h`:
+read, and the game starts to a black screen with nothing anywhere saying why.
+The `.nx` lands beside the `.wz`. Do it for all 15 files in `Util/NxFiles.h`:
 
 ```
 Base  Character  Effect  Etc  Item  Map  Mob  Morph
 Npc   Quest      Reactor  Skill  Sound  String  TamingMob
 ```
+
+</details>
 
 WARNING: **`UI.nx` is the exception, and it catches everybody out.** It must
 come from a LATER client - v178 is what this project uses. The v83 interface is
