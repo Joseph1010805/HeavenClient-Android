@@ -978,6 +978,13 @@ namespace ms
 		// 800x600 layout (x2.4 across, x1.8 down), not guessed.
 		case InfoLabel::JOB:
 			return Point<int16_t>(66, -74);
+		// The two rows the stats used to be drawn on. They are full width, so
+		// the value is right-aligned at the far edge - the same x as the INT
+		// and LUK column, which is that edge.
+		case InfoLabel::RANK:
+			return Point<int16_t>(65, -50);
+		case InfoLabel::JOBRANK:
+			return Point<int16_t>(65, -27);
 		case InfoLabel::STR:
 			return Point<int16_t>(-6, -6);
 		case InfoLabel::DEX:
@@ -995,12 +1002,46 @@ namespace ms
 		return Point<int16_t>();
 	}
 
+	std::string UICharSelect::format_rank(const std::pair<int32_t, int8_t>& rank) const
+	{
+		if (rank.first <= 0)
+			return "-";
+
+		std::string text = std::to_string(rank.first);
+
+		// '=' is "no change", and a column of equals signs is noise. Only a
+		// move worth noticing gets a mark.
+		if (rank.second == '+' || rank.second == '-')
+		{
+			text += ' ';
+			text += static_cast<char>(rank.second);
+		}
+
+		return text;
+	}
+
 	std::string UICharSelect::get_infolabel(size_t index, StatsEntry character_stats) const
 	{
 		switch (index)
 		{
 		case InfoLabel::JOB:
 			return Job(character_stats.stats[Maplestat::Id::JOB]).get_name();
+		// PARSED SINCE THE BEGINNING, NEVER DRAWN.
+		//
+		// LoginParser fills both of these from the character list and nothing
+		// ever asked for them, so the panel's own artwork carried two labelled
+		// rows that were empty on every character. The pair is (position,
+		// movement), where movement is already reduced to '+', '-' or '=' by
+		// the parser.
+		//
+		// A rank of 0 is not first place - it is what the entry holds when the
+		// server sent no ranking block at all, which Cosmic does when world
+		// ranking is switched off. Saying "-" is the honest answer; printing 0
+		// would invent a standing nobody has.
+		case InfoLabel::RANK:
+			return format_rank(character_stats.rank);
+		case InfoLabel::JOBRANK:
+			return format_rank(character_stats.jobrank);
 		case InfoLabel::STR:
 			return std::to_string(character_stats.stats[Maplestat::Id::STR]);
 		case InfoLabel::DEX:

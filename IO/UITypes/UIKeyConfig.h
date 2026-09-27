@@ -54,6 +54,11 @@ namespace ms
 		// caller should treat as "draw the name instead".
 		static Texture action_icon(KeyAction::Id action);
 
+		// The same sheet, asked for by index. The emotion page needs it:
+		// its seven icons are not in the order this client's expressions
+		// are, so it pairs them by hand rather than through a KeyAction.
+		static Texture icon_at(int32_t index);
+
 		static constexpr Type TYPE = UIElement::Type::KEYCONFIG;
 		static constexpr bool FOCUSED = false;
 		static constexpr bool TOGGLED = true;

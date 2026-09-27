@@ -1268,8 +1268,13 @@ namespace ms
 		if (found == WHICH.end())
 			return Texture();
 
+		return icon_at(found->second);
+	}
+
+	Texture UIKeyConfig::icon_at(int32_t index)
+	{
 		return Texture(nl::nx::ui["StatusBar3.img"]["KeyConfig"]["icon"]
-			[std::to_string(found->second)]);
+			[std::to_string(index)]);
 	}
 
 	KeyType::Id UIKeyConfig::get_keytype(KeyAction::Id action)

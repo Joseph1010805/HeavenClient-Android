@@ -35,3 +35,6 @@ __pycache__/
 # converted FROM - so the one thing a well-meaning contributor is most likely
 # to drop into the tree was the one thing not covered.
 *.wz
+
+# The screen recordings in diagnostics are evidence, not source.
+diagnostics/**/*.mp4

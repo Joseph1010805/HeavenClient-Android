@@ -65,6 +65,7 @@ namespace ms
 		Point<int16_t> get_character_slot_pos(size_t index, uint16_t x_adj, uint16_t y_adj) const;
 		Point<int16_t> get_infolabel_pos(size_t index) const;
 		std::string get_infolabel(size_t index, StatsEntry character_stats) const;
+		std::string format_rank(const std::pair<int32_t, int8_t>& rank) const;
 		void request_pic();
 		void check_pic(const std::string entered_pic) const;
 
@@ -129,6 +130,8 @@ namespace ms
 		enum InfoLabel : uint8_t
 		{
 			JOB,
+			RANK,
+			JOBRANK,
 			STR,
 			DEX,
 			INT,

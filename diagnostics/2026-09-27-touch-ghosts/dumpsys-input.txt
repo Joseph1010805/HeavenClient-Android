@@ -1,0 +1,60 @@
+INPUT MANAGER (dumpsys input)
+
+Input properties:
+  persist.input.velocitytracker.strategy = default
+
+Input Manager State:
+  Interactive: true
+  System UI Lights Out: false
+  Pointer Speed: 0
+  Pointer Acceleration: 3.000
+  Pointer Gestures Enabled: true
+  Show Touches: true
+  Pointer Capture: Disabled, seq=0
+
+Event Hub State:
+  BuiltInKeyboardId: -2
+  Devices:
+    10: ODIN Station Virtual Mouse
+      Classes: CURSOR_ICON | EXTERNAL
+      Path: /dev/input/event10
+      Enabled: true
+      Descriptor: 215005827afddf4e97a68b3679bcdfdf7635af91
+      Location: 
+      ControllerNumber: 0
+      UniqueId: 
+      Identifier: bus=0x0003, vendor=0x2020, product=0x0111, version=0x00c8
+      KeyLayoutFile: 
+      KeyCharacterMapFile: 
+      ConfigurationFile: 
+      VideoDevice: <none>
+    9: Odin Controller
+      Classes: KEYBOARD | GAMEPAD | JOYSTICK | EXTERNAL
+      Path: /dev/input/event9
+      Enabled: true
+      Descriptor: 8e1073ea5832500672194344d81498833991c43c
+      Location: 
+      ControllerNumber: 1
+      UniqueId: 
+      Identifier: bus=0x0003, vendor=0x2020, product=0x0111, version=0x0000
+      KeyLayoutFile: /system/usr/keylayout/Vendor_2020_Product_0111.kl
+      KeyCharacterMapFile: /system/usr/keychars/Generic.kcm
+      ConfigurationFile: 
+      VideoDevice: <none>
+    1: kalama-qrd-snd-card Button Jack
+      Classes: KEYBOARD
+      Path: /dev/input/event8
+      Enabled: true
+      Descriptor: 84a5d4163d298e00b555398061b1ec6c6e6de819
+      Location: ALSA
+      ControllerNumber: 0
+      UniqueId: 
+      Identifier: bus=0x0000, vendor=0x0000, product=0x0000, version=0x0000
+      KeyLayoutFile: /system/usr/keylayout/Generic.kl
+      KeyCharacterMapFile: /system/usr/keychars/Generic.kcm
+      ConfigurationFile: 
+      VideoDevice: <none>
+    2: kalama-qrd-snd-card Headset Jack
+      Classes: SWITCH
+      Path: /dev/input/event7
+      Enabled: true

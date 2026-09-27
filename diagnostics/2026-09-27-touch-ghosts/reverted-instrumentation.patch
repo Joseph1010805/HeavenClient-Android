@@ -1,0 +1,189 @@
+diff --git a/IO/Window_Android.cpp b/IO/Window_Android.cpp
+index 1863bcc..977c3e4 100644
+--- a/IO/Window_Android.cpp
++++ b/IO/Window_Android.cpp
+@@ -61,6 +61,7 @@
+ #include <stb_image_write.h>
+ 
+ #include "../Util/Shot.h"
++#include "../Util/Silent.h"
+ #include <unistd.h>
+ 
+ #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "HeavenClient", __VA_ARGS__)
+@@ -118,6 +119,10 @@ namespace ms
+ 		// hundred pixels from where it was aimed.
+ 		int fit_x = 0;
+ 		int fit_y = 0;
++
++		// Which contact is the pointer, and whether there is one.
++		SDL_FingerID pointer_finger = 0;
++		bool pointer_held = false;
+ 		int fit_w = 0;
+ 		int fit_h = 0;
+ 
+@@ -1296,8 +1301,150 @@ namespace ms
+ 				// fit_x/fit_w are written by the blit, which is the only place
+ 				// that knows where the picture landed.
+ 			{
++				// ⚠ ONE FINGER DRIVES THE POINTER. THIS IS WHAT "THE CURSOR
++				// GOES CRAZY" WAS.
++				//
++				// There is one cursor and this handler gave it to whichever
++				// finger spoke last. Hold the handheld with a left thumb
++				// resting on the glass and tap with the right, and both
++				// fingers report motion every frame - so the pointer was
++				// thrown between them sixty times a second. Caught in the log
++				// as fingerId 1 at x=234 and fingerId 3 at x=545 alternating
++				// at 16ms, both at y=370: two thumbs, one cursor.
++				//
++				// It never happened on the login screens because nobody holds
++				// a login screen with both thumbs down.
++				//
++				// ⚠ AND IT IS NOT A FINGER. The digitizer reports contacts
++				// pinned at x=0 - its outermost column - while a real touch is
++				// live elsewhere:
++				//
++				//   2 contacts: slot0 id638 (99,984)  slot1 id637 (0,703)
++				//   3 contacts: ...                   slot2 id639 (0,1233)
++				//
++				// They drift slowly and never lift. Held in landscape that
++				// edge is where a hand wraps around the device, and minimising
++				// and restoring re-announces every one of them as a fresh
++				// press - which is how this became reproducible on demand.
++				//
++				// The two ghosts above sit either side of the panel's midpoint
++				// at nearly equal distances, which is why their two positions
++				// in the game's own space kept adding up to 1.000 and looked
++				// like a reflection. It was two ghosts straddling the centre.
++				//
++				// Nothing here can stop the panel reporting them. What it can
++				// do is decline to let more than one contact steer.
++				if (ev.type == SDL_FINGERDOWN)
++				{
++					// THE NEWEST PRESS OWNS IT, not the oldest.
++					//
++					// First-one-wins is the obvious rule and it is the wrong
++					// one here: a ghost that is already sitting on the panel
++					// would hold the cursor for as long as it lasted, and the
++					// stylus could not take it back. A press is a statement of
++					// intent and a contact that has been resting on the edge
++					// for a minute is not - so the thing just pressed becomes
++					// the pointer, and a ghost can only ever cost one tap.
++					pointer_held = true;
++					pointer_finger = ev.tfinger.fingerId;
++				}
++				else if (!pointer_held || ev.tfinger.fingerId != pointer_finger)
++				{
++					// Movement from anything that is not the pointer. This is
++					// the line that stops the cursor being thrown across the
++					// screen sixty times a second.
++					break;
++				}
++
+ 				Point<int16_t> at = scene_point(ev.tfinger.x, ev.tfinger.y);
+ 
++				// ⚠ WHICH SCREEN IS DRIVING THE POINTER.
++				//
++				// This handler has never looked at tfinger.touchId, and on a
++				// Thor there are three things that can produce one:
++				//
++				//   fts_ts    the main screen
++				//   fts_ts_3  the LOWER screen, a second touchscreen
++				//   ODIN Station Virtual Mouse, which SDL delivers as a touch
++				//   with the id SDL_MOUSE_TOUCHID (-1)
++				//
++				// Every one of them is mapped through scene_point(), which is
++				// the MAIN screen's geometry. A finger from either of the
++				// other two therefore lands at a position it was never aimed
++				// at - the pointer jumps, and whatever is under the jump gets
++				// clicked. That is what "the cursor goes crazy and the window
++				// closes" looks like from in here.
++				//
++				// Reported rather than filtered, because which of the three it
++				// is decides the fix and guessing has been wrong before.
++				// Silent::report de-duplicates, so this is one line per device
++				// for a whole evening, not one per finger.
++				// ⚠ AND WHERE IT JUMPED FROM, WHEN IT JUMPS.
++				//
++				// "The cursor moves crazy" is the symptom, and reading this
++				// function cannot explain it: scene_point clamps to the
++				// viewport, so a bad mapping moves the pointer to the WRONG
++				// place but never off the screen. So the numbers have to come
++				// from the machine.
++				//
++				// Any jump over a third of the screen between one finger event
++				// and the next gets written down with everything that produced
++				// it - the raw fraction SDL gave us, the letterbox rectangle
++				// the blit last wrote, and which touch device sent it. One of
++				// those is lying, and this says which.
++				//
++				// Capped at 15 so an evening of play cannot fill the log.
++				{
++					static Point<int16_t> last(0, 0);
++					static int jumps = 0;
++
++					int16_t dx = static_cast<int16_t>(at.x() - last.x());
++					int16_t dy = static_cast<int16_t>(at.y() - last.y());
++					int far = dx * dx + dy * dy;
++
++					if (far > 260 * 260 && jumps < 15)
++					{
++						jumps++;
++
++						Silent::report("Cursor jump",
++							std::to_string(last.x()) + "," + std::to_string(last.y())
++							+ " -> " + std::to_string(at.x()) + "," + std::to_string(at.y())
++							+ "  raw " + std::to_string(ev.tfinger.x)
++							+ "," + std::to_string(ev.tfinger.y)
++							+ "  fit " + std::to_string(fit_x) + "," + std::to_string(fit_y)
++							+ " " + std::to_string(fit_w) + "x" + std::to_string(fit_h)
++							+ "  panel " + std::to_string(panel_w) + "x" + std::to_string(panel_h)
++							+ "  finger " + std::to_string(static_cast<long long>(ev.tfinger.fingerId))
++							+ " on device " + std::to_string(static_cast<long long>(ev.tfinger.touchId))
++							+ (ev.type == SDL_FINGERDOWN ? " DOWN" : " MOVE"));
++					}
++
++					last = at;
++				}
++
++				{
++					static SDL_TouchID first_touch = 0;
++
++					if (first_touch == 0)
++						first_touch = ev.tfinger.touchId;
++
++					Silent::report("Touch",
++						"pointer driven by device "
++						+ std::to_string(static_cast<long long>(ev.tfinger.touchId))
++						+ (ev.tfinger.touchId == SDL_MOUSE_TOUCHID
++							? " (the VIRTUAL MOUSE, not a finger)" : ""));
++
++					if (ev.tfinger.touchId != first_touch)
++						Silent::report("Touch",
++							"a SECOND input device is moving the pointer: "
++							+ std::to_string(static_cast<long long>(ev.tfinger.touchId))
++							+ " - the first was "
++							+ std::to_string(static_cast<long long>(first_touch))
++							+ ". Both are being mapped through the main"
++							" screen's geometry, so one of them is landing"
++							" where it was not aimed.");
++				}
++
+ 				// THE ONE-SCREEN PANEL EATS THE TOUCH. It is drawn over
+ 				// everything, so a press on it must not also reach the game
+ 				// underneath - tapping a menu button would otherwise walk the
+@@ -1316,6 +1463,14 @@ namespace ms
+ 
+ 			case SDL_FINGERUP:
+ 			{
++				// Only the finger that owns the pointer can release it. A
++				// resting thumb lifting used to count as letting go of a
++				// button it never pressed.
++				if (!pointer_held || ev.tfinger.fingerId != pointer_finger)
++					break;
++
++				pointer_held = false;
++
+ 				auto diff_ms = ContinuousTimer::get().stop(click_start) / 1000;
+ 				click_start = ContinuousTimer::get().start();
+ 

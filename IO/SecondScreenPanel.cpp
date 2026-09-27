@@ -221,7 +221,7 @@ namespace ms
 		// draws with. One of them had to have a different name.
 		// The action each emote is bound to, so the page can borrow the key
 		// config's picture for it - the same seven the keyboard window shows.
-		struct Emote { const char* name; int32_t id; KeyAction::Id key; };
+		struct Emote { const char* name; int32_t id; KeyAction::Id key; int32_t icon; };
 
 		// THE REAL LIST, and where the first attempt went wrong.
 		//
@@ -238,14 +238,36 @@ namespace ms
 		// other sixteen are items you have to buy. These are the client's own
 		// Expression::names, so the label and the face agree by construction
 		// rather than by my guessing at them.
+		//
+		// ⚠ AND THE ICON IS NOT THE SLOT. THIS IS WHY THE FACES DID NOT MATCH.
+		//
+		// The pictures come from StatusBar3.img/KeyConfig/icon/100-106 - the
+		// v178 UI, because v83 has no UI.nx we can use - and that sheet is NOT
+		// in this client's expression order. Reading the seven: 103 is
+		// streaming tears, 104 is a shouting fury, 105 is dot eyes and a blush,
+		// 106 is a single sweat drop. The open laughing mouth on 101 is the
+		// SMILE and the flat wince on 102 is the HIT - checked on the panel,
+		// which is the only court that matters for a judgement about a
+		// picture. So the sheet ends with TROUBLED where
+		// this enum has it fourth, and cry / angry / bewildered each sit one
+		// slot earlier than the code assumed.
+		//
+		// Pairing them by position put a crying face on "Troubled" and an
+		// angry one on "Cry". The id sent is unaffected and always was right -
+		// only the picture was wrong.
+		//
+		// ⚠ Read off the artwork, not out of the data: there is no name-keyed
+		// emote art anywhere in UI.nx (searched for all seven names) and no
+		// v83 UI to check against. If one of these ever looks wrong at the
+		// table, it is this column to change and nothing else.
 		const Emote FACES[] = {
-			{ "Blink",      Expression::Id::BLINK,      KeyAction::Id::FACE1 },
-			{ "Hit",        Expression::Id::HIT,        KeyAction::Id::FACE2 },
-			{ "Smile",      Expression::Id::SMILE,      KeyAction::Id::FACE3 },
-			{ "Troubled",   Expression::Id::TROUBLED,   KeyAction::Id::FACE4 },
-			{ "Cry",        Expression::Id::CRY,        KeyAction::Id::FACE5 },
-			{ "Angry",      Expression::Id::ANGRY,      KeyAction::Id::FACE6 },
-			{ "Bewildered", Expression::Id::BEWILDERED, KeyAction::Id::FACE7 },
+			{ "Blink",      Expression::Id::BLINK,      KeyAction::Id::FACE1, 100 },
+			{ "Hit",        Expression::Id::HIT,        KeyAction::Id::FACE2, 102 },
+			{ "Smile",      Expression::Id::SMILE,      KeyAction::Id::FACE3, 101 },
+			{ "Troubled",   Expression::Id::TROUBLED,   KeyAction::Id::FACE4, 106 },
+			{ "Cry",        Expression::Id::CRY,        KeyAction::Id::FACE5, 103 },
+			{ "Angry",      Expression::Id::ANGRY,      KeyAction::Id::FACE6, 104 },
+			{ "Bewildered", Expression::Id::BEWILDERED, KeyAction::Id::FACE7, 105 },
 		};
 
 		// Above this the server wants the emote ITEM in your inventory.
@@ -2635,7 +2657,7 @@ namespace ms
 			// face is the fallback: truer to what you will actually pull, but
 			// it is drawn at the size a character's head is, which on a
 			// button reads as a smudge.
-			Texture art = UIKeyConfig::action_icon(FACES[i].key);
+			Texture art = UIKeyConfig::icon_at(FACES[i].icon);
 
 			if (art.is_valid())
 			{
@@ -4504,6 +4526,11 @@ namespace ms
 		party_head.draw(Point<int16_t>(mid, box.top() + 2));
 
 		constexpr int16_t ROW_H = 34;
+
+		// The height of the "what a party is" panel drawn when you have none.
+		// Named because the list below has to know how much room it took.
+		constexpr int16_t BLURB_H = 56;
+
 		int16_t TOP = static_cast<int16_t>(box.top() + 26);
 
 		if (grouped && !members.empty())
@@ -4543,7 +4570,7 @@ namespace ms
 		}
 		else
 		{
-			GraphicsGL::get().drawrectangle(left, TOP, width, 56,
+			GraphicsGL::get().drawrectangle(left, TOP, width, BLURB_H,
 				1.0f, 1.0f, 1.0f, 0.10f);
 
 			party_text.change_text("A party shares experience and lets you");
@@ -4564,12 +4591,26 @@ namespace ms
 		// Same list the trade page uses, for the same reason - it is whoever
 		// is standing here, which is who you would ask.
 		{
+			// ⚠ MEASURE WHAT IS ABOVE, NOT JUST THE ROWS.
+			//
+			// This counted member rows and nothing else, so with no party
+			// `rows` was 0 and this list started at TOP + 6 - directly on top
+			// of the 56-pixel explanation drawn from TOP by the branch above.
+			// "Nobody else on this map" was printed straight through "A party
+			// shares experience and lets you see each other on the map."
+			//
+			// The blurb REPLACES the rows, so it has to be measured like them.
 			int16_t rows = grouped ? static_cast<int16_t>(members.size()) : 0;
 
 			if (rows > 6)
 				rows = 6;
 
-			int16_t y = static_cast<int16_t>(TOP + rows * ROW_H + 6);
+			// Same condition the branch above uses to choose between them.
+			int16_t used = (grouped && !members.empty())
+				? static_cast<int16_t>(rows * ROW_H)
+				: BLURB_H;
+
+			int16_t y = static_cast<int16_t>(TOP + used + 10);
 
 			party_text.change_text(nearby_names.empty()
 				? "Nobody else on this map"

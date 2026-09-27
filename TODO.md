@@ -436,6 +436,32 @@ position for `isNpcNearby`. Both are accepted - that argument is optional.
 
 ---
 
+## Waiting on the device, not on us
+
+⚠ **THE THOR'S POINTER GOES MAD, AND THE DIGITIZER IS REPORTING CONTACTS
+NOBODY MAKES.** Raw `getevent` caught up to four simultaneous contacts with
+two of them pinned at **x = 0**, the panel's outermost column, drifting slowly
+and never lifting, alive beside a real stylus touch. The client hands its one
+cursor to whichever contact spoke last, so the pointer is thrown between them
+at frame rate. Reproducible by minimising and restoring the app; happens
+outside the game too; unaffected by reverting every client change made that
+night. **Full record, raw logs, a screen recording and how to measure it again:
+`diagnostics/2026-09-27-touch-ghosts/FINDINGS.md`.**
+
+Next: `pointer_location 1` on the home screen decides whether it is the device.
+If the ghosts are real and permanent, the client's answer is one contact owning
+the cursor plus rejecting the extreme edge - neither is written.
+
+Found on the way and still open:
+- **`Expression::byaction()` subtracts 98**, so FACE1 gives HIT and FACE7 asks
+  for STUNNED, a cash emote the server refuses. Should be 99.
+- **Keyboard emotes send no packet** - your own face changes, nobody else sees.
+- **`handle_stick` latches**: it acts only on axis EVENTS and never re-reads the
+  stick, so one missed "back to centre" holds a direction down for the rest of
+  the session, flooding move packets and walking you out of NPC conversations.
+
+---
+
 ## Recently landed
 
 - ⭐ **THE LAUNCHER WAS REVERTING ITS OWN FIX ON EVERY HOST PRESS.** `run.sh`
