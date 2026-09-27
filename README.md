@@ -27,7 +27,7 @@ Already have MapleStory v83 `.nx` files? This is the whole thing:
 | **1. Get this** | [**Download the installer**](../../releases/latest) - the `LocalStory-installer-*.zip` on that page |
 | **2. Unzip it** | Anywhere. Your Desktop is fine. |
 | **3. Put your game files here** | `C:\Users\<you>\maple\wz-v83\` - and `UI.nx` on its own in `C:\Users\<you>\maple\wz-v178\` |
-| **4. Plug the handheld in** | USB cable that carries data, with USB debugging turned on |
+| **4. Plug the handheld in** | USB cable that carries data, with [USB debugging](#how-to-turn-on-usb-debugging) turned on |
 | **5. Run the installer** | Double-click **`INSTALL.bat`**, confirm it named the right device, wait |
 | **6. Finished** | Open **LocalStory** on the device and tap **CREATE A GAME** |
 
@@ -120,9 +120,14 @@ INSTALL.bat --data D:\somewhere\wz-v83
 
 ### 4. Turn on USB debugging
 
-On the handheld: **Settings, About, then tap "Build number" seven times**. Then
-**Developer options, USB debugging**. Nothing works without it, and the symptom
-is a device the installer cannot see at all.
+Nothing works without this, and the symptom is a device the installer cannot
+see at all - which looks exactly like a broken cable.
+
+**[Don't know how? Open this.](#how-to-turn-on-usb-debugging)**
+
+The short version: **Settings, About, tap "Build number" seven times**, then
+**Developer options, USB debugging, on**. Then plug in and say yes to the
+prompt that appears on the handheld's own screen.
 
 ### 5. Plug it in and double-click `INSTALL.bat`
 
@@ -150,6 +155,46 @@ Open **LocalStory** on the device. Somebody has to be hosting for there to be a
 game to join, and the login screen finds one by itself - there is no address to
 type. No game yet? Tap **CREATE A GAME**, pick six digits, and read them out to
 whoever is joining.
+
+---
+
+### How to turn on USB debugging
+
+It is hidden on every Android device, in the same way on nearly all of them.
+
+**1. Unlock the developer options.**
+Open **Settings**, then **About phone** (or **About tablet**, or **About
+device**). Find **Build number** and **tap it seven times**. It counts down at
+you - "you are now 3 steps away from being a developer" - and finishes with
+"You are now a developer!". You may have to enter your PIN.
+
+> On some devices Build number is one level deeper, under
+> **About phone, Software information**. On an AYN Thor it is directly under
+> About.
+
+**2. Turn USB debugging on.**
+Go back to **Settings**, then **System**, then **Developer options** - a new
+entry that was not there a minute ago. Scroll to **USB debugging** and switch
+it on. Confirm the warning.
+
+**3. Plug it into the PC and say yes on the HANDHELD.**
+The first time a particular computer connects, the device asks - on its own
+screen, not the PC's:
+
+> **Allow USB debugging?**
+> The computer's RSA key fingerprint is...
+
+Tick **Always allow from this computer**, then **Allow**. Miss this and the
+installer reports the device as `not allowed` rather than missing, which is at
+least an honest difference.
+
+**If no prompt appears at all**, swipe down on the handheld, tap the USB
+notification ("Charging this device via USB") and change it to **File
+transfer**. Some devices will not talk over a cable that is only charging.
+
+**Still nothing?** It is almost always the cable. A charge-only cable has no
+data wires, looks identical, and produces no error whatsoever - just silence.
+Try the cable the device came with, or one you know copies files.
 
 ---
 

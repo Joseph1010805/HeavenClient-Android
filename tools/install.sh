@@ -222,6 +222,8 @@ HELP
     2. Developer options are on: Settings > About > tap "Build number"
        seven times.
     3. USB debugging is on, in Developer options.
+       Step by step, with pictures of what each prompt says:
+       https://github.com/Joseph1010805/HeavenClient-Android#how-to-turn-on-usb-debugging
     4. The device is unlocked, with its screen on.
 
 HELP
