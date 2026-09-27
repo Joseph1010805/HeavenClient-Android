@@ -20,22 +20,23 @@ can't give you any - see [About the game files](#about-the-game-files).
 
 ## Quick start
 
-Already have MapleStory v83 `.nx` files? This is the whole thing:
+Six things. If you already have a MapleStory v83 client, this is all of it:
 
 | | |
 |---|---|
-| **1. Get this** | [**Download the installer**](../../releases/latest) - `LocalStory-installer-*.zip`, about 120 KB. Not the repository, not the APK. |
+| **1. Get the installer** | [**Download `LocalStory-installer-*.zip`**](../../releases/latest) - about 120 KB. Not the repository, not the APK. |
 | **2. Unzip it** | Anywhere. Your Desktop is fine. |
-| **3. Put your game files here** | `C:\Users\<you>\maple\wz-v83\` - and `UI.nx` on its own in `C:\Users\<you>\maple\wz-v178\` |
-| **4. Plug the handheld in** | USB cable that carries data, with [USB debugging](#how-to-turn-on-usb-debugging) turned on |
-| **5. Run the installer** | Double-click **`INSTALL.bat`**, confirm it named the right device, wait |
-| **6. Finished** | Open **LocalStory** on the device and tap **CREATE A GAME** |
+| **3. Put your game files here** | `C:\Users\<you>\maple\wz-v83\` - plus `UI.nx` from a v178 client in `C:\Users\<you>\maple\wz-v178\`. Only got `.wz` files? Put those there instead and the installer offers to convert them. |
+| **4. Plug the handheld in** | A USB cable that carries data, with [USB debugging](#how-to-turn-on-usb-debugging) turned on. |
+| **5. Run the installer** | Double-click **`INSTALL.bat`**. Check it names your device, press ENTER, and leave it. Ten minutes the first time. |
+| **6. Play** | Open **LocalStory**, tap **+ CREATE A GAME**, pick six digits. Log in with any username and password - the account is made for you. |
 
-That is it. No accounts, no server address, nothing to type.
+Others join by tapping your game under **GAMES NEARBY** and typing those six
+digits. There is no sign-up, no server to rent and no address to type anywhere.
 
-**Do not have the game files yet, or not sure what `.nx` means?**
-[Getting it running](#getting-it-running) below is the same six steps with
-every detail filled in.
+**No game files yet, or not sure what `.nx` means?**
+[Getting it running](#getting-it-running) is these same six steps with every
+detail filled in.
 
 ---
 
@@ -176,10 +177,19 @@ On Mac or Linux there is no `.bat`; run `tools/install.sh` from the same folder.
 
 ### 6. Play
 
-Open **LocalStory** on the device. Somebody has to be hosting for there to be a
-game to join, and the login screen finds one by itself - there is no address to
-type. No game yet? Tap **CREATE A GAME**, pick six digits, and read them out to
-whoever is joining.
+Open **LocalStory** on the device. The login screen looks for games by itself -
+there is no address to type anywhere.
+
+- **First one playing?** Tap **+ CREATE A GAME**, pick six digits, and read
+  them out to whoever is joining.
+- **Somebody already hosting?** Their game is listed under **GAMES NEARBY** by
+  name. Tap it and type their six digits.
+
+Then log in with any username and password you like. There is no sign-up: the
+account is created on that server the first time you use it.
+
+More on hosting, joining and playing with no network at all:
+[Playing together](#playing-together).
 
 ---
 
@@ -516,21 +526,28 @@ appear and the menus behave normally.
 
 ## Playing together
 
-The login screen has **HOST** and **JOIN**. Neither is chosen for you, and
-each opens a panel that checks what it needs before it will commit.
+The login screen starts looking the moment it opens. Games on your network are
+listed under **GAMES NEARBY** by name - "AYN Thor", not an IP address - and the
+last row of the list is **+ CREATE A GAME**.
 
-**HOST** starts a server on the device itself, then asks how the others should
-reach you:
+**To host**, tap CREATE A GAME and pick a six-digit code, or leave the game
+open with no code at all. Your row then reads **YOUR GAME IS OPEN**, and
+**CLOSE THE GAME** ends it. The device you create on is the one that has to
+stay switched on.
 
-- **Use this wifi** - everyone joins over the network you're already on.
-- **Make my own network** - the device *becomes* the network, via Wi-Fi
-  Direct. For a car, a hotel, or a router that blocks devices from seeing each
-  other. Needs the wifi radio on, but no network to be connected.
+**To join**, tap the name and type the six digits if the row says *needs a
+code*. There is nowhere to type an address and that is deliberate: discovery is
+mDNS (`_maplestory._tcp`) over the network.
 
-**JOIN** looks for hosts and lists them **by name** - "AYN Thor", not an IP
-address. You pick one and press Join. There is nowhere to type an address and
-that is deliberate; discovery is mDNS (`_maplestory._tcp`) over the network,
-falling back to Wi-Fi Direct peer discovery.
+> ⚠ **The code is not a password.** It makes joining deliberate, nothing more.
+> The scrambled form travels in the mDNS announcement, where anyone already on
+> your wifi can read it, and six digits is a million guesses. It stops
+> mistakes, not intruders.
+
+**With no network at all** - a car, a hotel, a router that stops devices seeing
+each other - it falls back to **Wi-Fi Direct** by itself and the device becomes
+the network. It only reaches for that when there is genuinely nothing else, and
+it needs the wifi radio on even when there is nothing to connect to.
 
 Losing the host is survivable: 45 seconds of silence returns you to the login
 screen, where hosting yourself or joining someone else is two taps away.
