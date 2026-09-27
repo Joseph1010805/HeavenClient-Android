@@ -38,7 +38,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # ⚠ NOT THE DEFAULT PACKAGE LIST.
+      #
+      # setup-android asks for `tools platform-tools` unless told otherwise,
+      # and `tools` - the obsolete SDK Tools package - has been REMOVED from
+      # Google's repository. sdkmanager answers "Failed to find package
+      # 'tools'" and exits 1, so the job dies before it has compiled a line.
+      #
+      # The same workflow built v0.9.1 on 15 September and failed on the same
+      # step on 27 September with nothing changed in this file. Nothing here
+      # needs `tools`; gradle uses platform-tools and the NDK.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       # Seconds, and it runs BEFORE the twenty-minute native build.
       #
