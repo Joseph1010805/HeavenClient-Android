@@ -312,30 +312,48 @@ the file says so in its own first lines, so you can check before you send it.
 
 ## What works, and what doesn't
 
-Worth knowing before you spend an evening on it. None of the missing things
-crash - they just quietly never happen, which is harder to diagnose than a
-crash if you don't know to expect it.
+Worth knowing before you spend an evening on it. Almost nothing here crashes -
+it quietly never happens instead, which is harder to spot than a crash if you
+do not know to expect it.
 
-**Works:** moving, jumping, ladders and ropes, combat, dying, loot, the
-inventory, equipping, skills and spending points, shops, NPC conversation,
-levelling, standing HP and MP recovery, the minimap and the world map, the
-cash shop (browsing, buying, taking out, wearing), hosting or joining a game
-from the login screen, and the AYN Thor's second screen.
+**Works** - played, repeatedly, by people who were not the author:
 
-**Doesn't, yet:**
+moving, jumping, ladders and ropes, combat, dying, loot, the inventory,
+equipping, skills and spending points, shops, NPC conversation, **quests -
+starting, handing in, the journal, and the "Quest complete" message**,
+levelling, standing HP and MP recovery, the minimap and the world map, chairs,
+the cash shop (browsing, buying, taking out, wearing), hosting or joining a
+game from the login screen, and the AYN Thor's second screen.
 
-- **Parties are unproven, not unbuilt.** Every message Cosmic sends about a
-  party is handled - invitation, creation, joining, leaving, being expelled,
-  disbanding, the leader changing, and the status messages. The member HP bars
-  were the one real gap and are now wired up. What has never happened is two
-  people actually forming a party at a table, so treat it as untested rather
-  than working.
-- **Quest completion.** Quests can be started and turned in, but the client
-  ignores the packet that says one finished, so nothing tells you it did.
-- Pets, summons, mage doors and mist skills.
-- Other players' skill effects and buffs - you see them move and attack, but
-  not what they cast.
-- Chairs, including chair healing.
+**Built, but never proven at a table.** The code is all there and every packet
+is handled; what has not happened is two people using it in the same room.
+Treat these as untested rather than working:
+
+- **Parties.** Every message Cosmic sends is handled - invitation, creation,
+  joining, leaving, being expelled, disbanding, the leader changing, the status
+  messages, and the member HP bars.
+- **Trade and storage.** Written from the server's own spec in one pass.
+- **Pets.** You can call one out. It will not pick up loot or learn tricks;
+  those are three more packets that do not exist yet.
+- **Summons and mists.**
+
+**Does not work yet:**
+
+- **Mage doors.**
+- **Other players' buffs.** You see what they cast - the effect is drawn - but
+  the packet that says what they are currently buffed WITH is still read and
+  thrown away.
+- **The F-key face emotes are off by one**, so F1 pulls the wrong face and F7
+  asks for one the server refuses; and pressing them changes only your own
+  face, because no packet is sent. The emotion page on the second screen does
+  work.
+
+⚠ **The quest scripts are the thin ice.** 2,392 of them were generated from the
+game's own data and perhaps a dozen have ever been played. They fail in whole
+classes rather than one at a time - a quiz generated as a plain conversation, a
+completion that pays nothing - so expect to be the first person to walk into
+one. The server names the cause in its own log when it happens, which is worth
+more than it sounds: `tail ~/cosmic/cosmic.log` on the host.
 
 `docs_QUEST.md` covers running it on a Meta Quest - it is the same APK, but
 the controls and the sideloading differ, and the setup has three traps in it.
