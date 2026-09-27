@@ -1,4 +1,4 @@
-# HeavenClient for Android
+# LocalStory
 
 MapleStory on your phone or handheld. This is an Android port of
 [HeavenClient](https://github.com/ryantpayton/MapleStory-Client), an open-source
@@ -16,8 +16,28 @@ device becomes the network and the others join it by name. See
 **You supply your own game files.** There are none in this repository and I
 can't give you any - see [About the game files](#about-the-game-files).
 
-Once you have them, `INSTALL.bat` does the rest in one double-click.
-**[Getting it running](#getting-it-running)** is the step-by-step.
+---
+
+## Quick start
+
+Already have MapleStory v83 `.nx` files? This is the whole thing:
+
+| | |
+|---|---|
+| **1. Get this** | [**Download the installer**](../../releases/latest) - the `LocalStory-installer-*.zip` on that page |
+| **2. Unzip it** | Anywhere. Your Desktop is fine. |
+| **3. Put your game files here** | `C:\Users\<you>\maple\wz-v83\` - and `UI.nx` on its own in `C:\Users\<you>\maple\wz-v178\` |
+| **4. Plug the handheld in** | USB cable that carries data, with USB debugging turned on |
+| **5. Run the installer** | Double-click **`INSTALL.bat`**, confirm it named the right device, wait |
+| **6. Finished** | Open **LocalStory** on the device and tap **CREATE A GAME** |
+
+That is it. No accounts, no server address, nothing to type.
+
+**Do not have the game files yet, or not sure what `.nx` means?**
+[Getting it running](#getting-it-running) below is the same six steps with
+every detail filled in.
+
+---
 
 ## Getting it running
 
