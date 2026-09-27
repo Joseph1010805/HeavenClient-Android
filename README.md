@@ -13,8 +13,10 @@ handheld can host a game with no PC, no router and no internet at all - one
 device becomes the network and the others join it by name. See
 [Playing together](#playing-together).
 
-**You supply your own game files.** There are none in this repository and I
-can't give you any - see [About the game files](#about-the-game-files).
+**You supply your own game files, from TWO different MapleStory clients** -
+**v83** for the game itself and **v178** for a single interface file. There are
+none in this repository and I can't give you any; see
+[About the game files](#about-the-game-files).
 
 ---
 
@@ -26,7 +28,7 @@ Six things. If you already have a MapleStory v83 client, this is all of it:
 |---|---|
 | **1. Get the installer** | [**Download `LocalStory-installer-*.zip`**](../../releases/latest) - about 120 KB. Not the repository, not the APK. |
 | **2. Unzip it** | Anywhere. Your Desktop is fine. |
-| **3. Put your game files here** | `C:\Users\<you>\maple\wz-v83\` - plus `UI.nx` from a v178 client in `C:\Users\<you>\maple\wz-v178\`. Only got `.wz` files? Put those there instead and the installer offers to convert them. |
+| **3. Put your game files here** | ⚠ **You need TWO different MapleStory clients.** 14 files come from **v83**, and one file comes from **v178**.<br><br>• The 14 `.nx` files **from your v83 client** → `C:\Users\<you>\maple\wz-v83\`<br>• `UI.nx` **from a v178 client**, on its own → `C:\Users\<you>\maple\wz-v178\`<br><br>Only got `.wz` files? Put those in the same two folders and the installer offers to convert them for you. |
 | **4. Turn on USB debugging** | On the handheld: **Settings → About → tap "Build number" seven times**. Then **Developer options → USB debugging → on**. ([Stuck? The long version.](#how-to-turn-on-usb-debugging)) |
 | **5. Plug it in and run the installer** | A USB cable **that carries data** - not a charging-only one. Tap **Allow** on the handheld when it asks about USB debugging, then double-click **`INSTALL.bat`**, check it names your device, and leave it. Ten minutes the first time. |
 | **6. Play** | Open **LocalStory** and tap **+ CREATE A GAME**. It asks **WHO CAN JOIN?** - **PUBLIC** (anyone nearby, nothing to type) or **PRIVATE** (you pick six digits and read them out). Then log in with any username and password - the account is made for you. |
@@ -54,9 +56,12 @@ Six steps. Most of the work is step 2, and it is a one-off.
 - **A Windows PC and a USB cable that carries DATA.** A charge-only cable shows
   up as nothing at all and is the usual reason a device "isn't found".
 - **An Android device**, arm64. Built for the AYN Thor; it runs on others.
-- **A MapleStory v83 client of your own.** The game data is Nexon's. It is not
-  in this repository, it is not in the APK, and the installer will never
-  download it - see [About the game files](#about-the-game-files) below.
+- **TWO MapleStory clients of your own.** A **v83** client, which nearly
+  everything comes from, and any **v178** client, which exactly one file comes
+  from (`UI.nx` - the v83 interface is too old for this client to start on).
+  The game data is Nexon's: it is not in this repository, it is not in the APK,
+  and the installer will never download it - see
+  [About the game files](#about-the-game-files) below.
 - **[Git for Windows](https://git-scm.com/download/win)**, installed with the
   default options. The installer uses the bash that comes with it.
 
@@ -134,10 +139,22 @@ has aged. In order:
 
 ### 3. Put the files where the installer looks
 
+⚠ **Two folders, because the files come from two different clients.** The
+folder names say which version belongs in them.
+
 ```
-C:\Users\<you>\maple\wz-v83\     <- the 14 .nx files converted from v83
-C:\Users\<you>\maple\wz-v178\    <- UI.nx ONLY, from the later client
+C:\Users\<you>\maple\wz-v83\     <- 14 files, ALL from your v83 client:
+                                    Base Character Effect Etc Item Map Mob
+                                    Morph Npc Quest Reactor Skill Sound
+                                    String TamingMob
+
+C:\Users\<you>\maple\wz-v178\    <- UI.nx ONLY, and ONLY from a v178 client.
+                                    Not the UI.nx from v83 - the client will
+                                    not start on it.
 ```
+
+Fifteen files in total, from two clients. Nothing else goes in either folder.
+`.wz` files can go in the same places - the installer offers to convert them.
 
 It also finds `Documents\maple\wz-v83`, `C:\maple\wz-v83`, `C:\Nexon\MapleStory`
 and both `Wizet\MapleStory` folders under Program Files, so an untouched install
@@ -265,8 +282,9 @@ The `.nx` data is converted from Nexon's `.wz` files. It is Nexon's work, so:
 - the installer will never download it, and this project will not point you at
   somebody else's copy - that is distributing Nexon's work either way
 
-You need a client of your own. That caps who can install this at people who
-already have one, and that is understood and accepted.
+You need clients of your own - **two of them**: a **v83** client for the game,
+and any **v178** client for `UI.nx` alone. That caps who can install this at
+people who already have both, and that is understood and accepted.
 
 There is also an optional 16th file, `Map001.nx`, holding custom artwork for the
 login, world select, character select and character creation screens. It is not
