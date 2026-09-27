@@ -123,6 +123,25 @@ jobs:
           cp "android/$APK" "out/LocalStory-${{ steps.version.outputs.name }}$SUFFIX.apk"
           ls -la out/
 
+      # ⚠ THE INSTALLER IS NOT ONE FILE, AND THE PAGE USED TO PRETEND IT WAS.
+      #
+      # install.sh resolves its siblings - `bash "$HERE/tools/deploy_data.sh"`,
+      # `"$HERE/tools/stage_server.sh"` - and stage_server.sh sends
+      # termux_setup.sh and bootstrap.sh to the device. Attaching install.sh by
+      # itself and saying "download it and run it" gives somebody a script that
+      # installs the app and then dies on a file that was never beside it.
+      #
+      # v0.9 and v0.9.1 both shipped that promise. So the page carries the
+      # whole of tools/ and the .bat as one zip, and says to use the zip.
+      - name: The installer, as something that stands on its own
+        run: |
+          mkdir -p bundle
+          cp INSTALL.bat bundle/
+          cp -r tools bundle/
+          rm -rf bundle/tools/__pycache__
+          (cd bundle && zip -qr "../out/LocalStory-installer-${{ steps.version.outputs.name }}.zip" .)
+          ls -la out/
+
       - uses: actions/upload-artifact@v4
         with:
           name: apk
@@ -139,13 +158,20 @@ jobs:
           # comes from. Attaching it here means the page is enough on its own.
           files: |
             out/*.apk
+            out/*.zip
             tools/install.sh
           draft: true
           generate_release_notes: true
           body: |
-            **Start with `install.sh`,** not the APK. Download it below, plug
-            the device in by USB, and run it - it installs the app and puts
-            the game data where it belongs. On Windows use Git Bash.
+            **Start with the installer zip,** not the APK. Download
+            `LocalStory-installer-*.zip` below, unzip it, turn USB debugging
+            on, plug the device in, and double-click **`INSTALL.bat`**. That is
+            the whole install - it puts the app on the device and the game data
+            where it belongs.
+
+            On Mac or Linux there is no `.bat`: run `tools/install.sh` from the
+            same unzipped folder. (`install.sh` is also attached on its own for
+            reading, but it needs the rest of `tools/` beside it to run.)
 
             The APK is here for anyone who would rather install by hand; on
             its own it will start and then have nothing to read.
