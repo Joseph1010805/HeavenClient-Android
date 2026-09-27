@@ -100,6 +100,13 @@ HERE_WIN="$(cd "$HERE_UNIX" && pwd -W 2>/dev/null)"
 # device-side script moves things across from here.
 DIR=/sdcard/Download/cosmic
 
+# QUIET, WHEN tools/install.sh IS DOING THE TALKING. Same rule as
+# deploy_data.sh: by hand this is a report, from the installer it is one step,
+# and what goes quiet is only ever the good news. Failures print in both.
+QUIET="${INSTALL_QUIET:-0}"
+
+q() { [ "$QUIET" = "1" ] || echo "$@"; }
+
 # Where the tars are built. Beside the source, not in the repo.
 BUILD_UNIX="$COSMIC_UNIX/.stage"
 BUILD_WIN="$COSMIC_WIN/.stage"
@@ -139,6 +146,16 @@ send() {
 	local src_win="$1" src_unix="$2" name="$3"
 	local want have sum stamp
 
+	# A SOURCE THAT IS NOT THERE IS ITS OWN ANSWER.
+	# Without this, stat fails, $want is empty, and the report reads
+	# "FAILED (device has 92112664 bytes, expected )" - which blames the
+	# device for a file that never existed on this machine.
+	if [ ! -f "$src_unix" ]; then
+		printf '  %-14s MISSING on this PC: %s
+' "$name" "$src_unix"
+		return 1
+	fi
+
 	want=$(stat -c %s "$src_unix")
 	sum=$(stamp_of "$src_unix")
 	have=$(remote_size "$DIR/$name")
@@ -147,7 +164,7 @@ send() {
 	# BOTH must agree. A missing stamp - anything staged before this check
 	# existed - counts as unknown and is sent again, once.
 	if [ "$want" = "$have" ] && [ -n "$stamp" ] && [ "$sum" = "$stamp" ]; then
-		printf '  %-16s %6s MB  already there\n' "$name" "$((want / 1024 / 1024))"
+		[ "$QUIET" = "1" ] || printf '  %-16s %6s MB  already there\n' "$name" "$((want / 1024 / 1024))"
 		return 0
 	fi
 
@@ -191,8 +208,7 @@ make_tar() {
 	# newer than the tar, the tar is out of date.
 	if [ -f "$BUILD_UNIX/$name" ]; then
 		if [ -z "$(find "$COSMIC_UNIX/$dir" -newer "$BUILD_UNIX/$name" -print -quit 2>/dev/null)" ]; then
-			printf '  %-16s reusing
-' "$name"
+			[ "$QUIET" = "1" ] || printf '  %-16s reusing\n' "$name"
 			return 0
 		fi
 
@@ -212,17 +228,31 @@ make_tar() {
 	echo "ok"
 }
 
-echo "Staging the server for $DEV"
-echo
+q "Staging the server for $DEV"
+q
 
 sh "mkdir -p '$DIR'" >/dev/null 2>&1
 
-echo "Packing:"
+# ⚠ DELETE ANY STAGED run.sh. IT CAN ONLY EVER BE STALE.
+#
+# run.sh is generated ON THE DEVICE, at the end of termux_setup.sh, and
+# nothing here has staged one for a month. But an earlier version of this
+# script did, and that orphan stayed - and bootstrap.sh copies a staged
+# run.sh over the live one whenever the two differ.
+#
+# So a 28 August launcher was reinstalled on every press of HOST, quietly
+# undoing the 14 September fix for the login hang each time. Two weeks of a
+# bug that was already fixed. Removing the file is the half of that repair
+# that belongs here; bootstrap.sh now also demands that a staged copy be
+# NEWER before it wins.
+sh "rm -f '$DIR/run.sh'" >/dev/null 2>&1
+
+q "Packing:"
 make_tar wz wz.tar || exit 1
 make_tar scripts scripts.tar || exit 1
-echo
+q
 
-echo "Sending:"
+q "Sending:"
 FAILED=0
 
 send "$COSMIC_WIN/target/Cosmic.jar" "$COSMIC_UNIX/target/Cosmic.jar" Cosmic.jar || FAILED=$((FAILED + 1))
@@ -249,7 +279,7 @@ LANIP=$(adb -s "$DEV" shell "ip route get 1.1.1.1 2>/dev/null" \
 	| tr -d '\r' | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)
 
 if [ -n "$LANIP" ]; then
-	echo "  this device is $LANIP - writing it into the config"
+	q "  this device is $LANIP - writing it into the config"
 
 	STAGED_CONF="$BUILD_UNIX/config.staged.yaml"
 
@@ -277,7 +307,7 @@ send "$HERE_WIN/tools/termux_setup.sh" "$HERE_UNIX/tools/termux_setup.sh" termux
 # The one the GAME runs. See tools/bootstrap.sh for why it is not run.sh.
 send "$HERE_WIN/tools/bootstrap.sh" "$HERE_UNIX/tools/bootstrap.sh" bootstrap.sh || FAILED=$((FAILED + 1))
 
-echo
+q
 
 if [ "$FAILED" -gt 0 ]; then
 	echo "$FAILED file(s) did not arrive. Nothing else to do until they do."
@@ -304,8 +334,8 @@ fi
 # remembered per device is a step that will be forgotten - and the way it
 # announces itself is a dropped game an hour later that looks like a network
 # fault. Neither needs root.
-echo
-echo "[$DEV] telling Android to leave the server alone"
+q
+q "[$DEV] telling Android to leave the server alone"
 
 adb -s "$DEV" shell "settings put global settings_enable_monitor_phantom_procs false" >/dev/null 2>&1
 adb -s "$DEV" shell "/system/bin/device_config set_sync_disabled_for_tests persistent" >/dev/null 2>&1
@@ -315,22 +345,32 @@ adb -s "$DEV" shell "dumpsys deviceidle whitelist +com.termux" >/dev/null 2>&1
 PHANTOM=$(adb -s "$DEV" shell "settings get global settings_enable_monitor_phantom_procs" 2>/dev/null | tr -d '\r\n')
 DOZE=$(adb -s "$DEV" shell "dumpsys deviceidle whitelist" 2>/dev/null | grep -c termux)
 
-echo "  phantom process killer : ${PHANTOM:-unknown}   (want: false)"
-echo "  termux exempt from doze: $([ "${DOZE:-0}" -gt 0 ] && echo yes || echo NO)"
+q "  phantom process killer : ${PHANTOM:-unknown}   (want: false)"
+q "  termux exempt from doze: $([ "${DOZE:-0}" -gt 0 ] && echo yes || echo NO)"
 
 if [ "${PHANTOM:-}" != "false" ] || [ "${DOZE:-0}" -eq 0 ]; then
 	echo "  ⚠ one of these did not stick - the server will be killed mid-game."
 fi
 
+# ⚠ THE BY-HAND ROUTE, AND ONLY WHEN SOMEBODY IS ACTUALLY DOING IT BY HAND.
+#
+# This used to print unconditionally, so a run through tools/install.sh ended
+# in a page of steps it had just performed itself, under a warning to ignore
+# them. Instructions that do not apply are worse than none: they leave the
+# person unsure whether the thing they just watched happen actually happened.
+#
+# adb CAN reach Termux, through `run-as`, on a DEBUGGABLE Termux build - that
+# is how install.sh does all of this without anybody typing. A stock F-Droid
+# Termux is not debuggable, and falls back to exactly these steps.
+if [ "$QUIET" = "1" ]; then
+	echo "  staged"
+	exit 0
+fi
+
 cat <<'NEXT'
 Everything is on the device, in /sdcard/Download/cosmic.
 
-⚠ IF YOU RAN THIS THROUGH `tools/install.sh --server`, STOP HERE.
-It runs the setup below for you - see run_termux_setup there - and none of
-these steps are yours to do. This script only DELIVERS the files; it is the
-instructions for the case where somebody staged them by hand.
-
-Doing it yourself:
+To finish it by hand:
 
   1. Install Termux from F-Droid. NOT the Play Store version: it is years
      old and its package repository no longer resolves.
@@ -341,23 +381,13 @@ Doing it yourself:
         cp /sdcard/Download/cosmic/termux_setup.sh ~
         bash ~/termux_setup.sh
 
-     It installs Java and MariaDB, unpacks the server, starts the database
-     and builds the schema. Twenty minutes, most of it downloading.
+     Java, MariaDB, the server and its schema. Twenty minutes.
 
   3. When it finishes:
 
         ~/cosmic/run.sh
 
-  4. In the game's settings file on that device, set
-
-        ServerIP = 127.0.0.1
-
-     and nothing else changes. The same server still answers anyone else on
-     the hotspot at the handheld's LAN address.
-
-A NOTE ON WHAT CHANGED, because the old text here said the opposite:
-adb CAN reach Termux, through `run-as`, on a DEBUGGABLE Termux build. That
-is how install.sh now does all of the above without anybody typing. A stock
-F-Droid Termux is not debuggable and falls back to these instructions, which
-is why they are still here and still correct.
+  4. Set ServerIP = 127.0.0.1 in the game settings on that device. Nothing
+     else changes - the same server still answers everyone else on the
+     network at this handheld's LAN address.
 NEXT
