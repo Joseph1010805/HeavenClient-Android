@@ -16,7 +16,7 @@ device becomes the network and the others join it by name. See
 **You supply your own game files.** There are none in this repository and I
 can't give you any - see below.
 
-Once you have them, `tools/install.sh` does the rest in one command - see
+Once you have them, `INSTALL.bat` does the rest in one double-click - see
 [Installing it](#installing-it).
 
 ## Getting the game files
@@ -68,33 +68,28 @@ cd HeavenClient-Android
 ```
 
 or, if you don't have git: press the green **Code** button at the top of this
-page, choose **Download ZIP**, and unzip it somewhere. You only need `tools/`
-to install - the rest is the source, and you don't have to build anything.
+page, choose **Download ZIP**, and unzip it somewhere. You only need
+`INSTALL.bat` and `tools/` to install - the rest is the source, and you don't
+have to build anything.
 
-**Then one command.** Plug the device in by USB and run:
+**Then turn USB debugging on, plug the device in, and double-click
+`INSTALL.bat`.** That is the whole install.
 
-```
-tools/install.sh
-```
+It asks one thing - `Install to <your device>?` - and then does the rest:
+installs the app, finds the game files you already have, copies them across, and
+sets the device up to **host** as well as play, so it can run a game with no PC
+and no internet. Safe to re-run: every file is checked against the device first,
+so an interrupted 4 GB copy picks up where it stopped.
 
-On Windows, run that from **Git Bash** (it comes with git). On Mac or Linux any
-terminal will do.
+Hosting adds Java, MariaDB and the server itself inside Termux - twenty minutes
+or so on a new device, all of it automatic. If you haven't built a Cosmic server
+of your own the game still installs; that device will join somebody else's.
 
-It finds the device, downloads the latest APK, installs it, finds the game
-files you already have, converts them if they're still `.wz`, and copies them
-across. It asks before anything slow or destructive and it's safe to re-run -
-every file is checked against the device first, so an interrupted 4 GB copy
-picks up where it stopped rather than starting again.
-
-Add `--server` if you want the device to **host** as well as play, so you can
-run a game with no PC and no internet:
+On Mac or Linux there is no `.bat` - run the same installer from any terminal:
 
 ```
-tools/install.sh --server
+tools/install.sh              # add --server to host as well as play
 ```
-
-That one takes a while: it installs Java and MariaDB inside Termux, unpacks the
-server, and starts the database. Everything else is the same.
 
 If more than one device is plugged in it asks which; `--device SERIAL` skips
 the question.
@@ -105,8 +100,8 @@ the question.
   The installer will not download them and cannot help you find them - it only
   works with a copy you already have.
 - **USB debugging on.** Settings → About → tap "Build number" seven times, then
-  Developer options → USB debugging. The installer tells you this if it can't
-  see the device.
+  Developer options → USB debugging. Nothing works without it, and the symptom
+  is a device the installer cannot see at all - it says so, and says this.
 - **A cable that carries data.** Some charging cables don't, and the symptom is
   a device that charges but never appears.
 

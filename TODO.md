@@ -8,7 +8,7 @@ same day, whether or not it is started; when it is done it moves to *Recently
 landed* and then out. A list that only records decisions already acted on is
 a diary, not a plan.
 
-*Last updated: 1 September 2026.*
+*Last updated: 27 September 2026.*
 
 ---
 
@@ -402,11 +402,13 @@ can actually back, which is the only thing that decides it:
 - Ownership: discovery and election, no HOST/JOIN choice, account handover.
 - Thor + RP5 + Quest 3 on the home wifi. Needs no new architecture.
 
-**The installer's front door.** It is a bash script in a terminal, which is
-right for us and wrong for anybody else - it needs Git Bash, which a Windows
-player will not have. A PowerShell port with a double-clickable `.bat` shim
-is the cheapest thing that removes the dependency; a real GUI is a project.
-⚠ Whatever it becomes, the PC step cannot be designed away: the game data is
+**The installer's front door.** ✅ `INSTALL.bat` at the repo root - a shim,
+not a second installer: it finds the bash Git for Windows ships, hands it
+`tools/install.sh`, and **pauses at the end** so a failure can be read instead
+of vanishing with the console. It asks nothing of its own - every device gets a
+server, so the only question in the install is `Install to <device>?`. Git Bash is still the dependency; a
+real GUI, or a PowerShell port that removes it, is still a project.
+⚠ The PC step cannot be designed away whatever it becomes: the game data is
 converted from the player's OWN MapleStory client and is never downloaded.
 
 **OpenStory is the reference implementation, and it is ours.**
@@ -420,15 +422,59 @@ position for `isNpcNearby`. Both are accepted - that argument is optional.
 
 **Housekeeping**
 - Commit the Cosmic changes. It is a fork; ask before pushing.
-- Publish v0.8.
-- **Publish a v0.8 release.** The installer's download branch still fetches
-  **v0.7** - anybody without a local build gets a months-old client.
-- `tools/install.sh --server` (stage_server.sh) is still the one path in the
-  installer nobody has run.
+- ⭐ **Publish v0.9.2.** The download branch asks for `releases/latest` and
+  gets **v0.9.1 (15 Sep)**, which is three commits behind: the login-hang
+  fix, the stale `.installing` marker, and bug reports reaching Downloads.
+  Anybody installing from the release page today gets the hang.
+  *(The old note here said the branch was pinned to v0.7. It was not - the
+  RELEASE was old, not the URL.)*
+- `tools/install.sh --server` has now been run end to end on an AYN Thor
+  (27 Sep) and on an RP5 (13 Sep). ✅ The Thor's launcher was verified
+  afterwards: 8,766 bytes, the database guard present, no staged orphan.
+- ⚠ **The changelog jumps v0.8 → v0.9.2.** v0.9 shipped 12 commits and v0.9.1
+  shipped 3, and neither got an entry. Backfill from the commit messages.
 
 ---
 
 ## Recently landed
+
+- ⭐ **THE LAUNCHER WAS REVERTING ITS OWN FIX ON EVERY HOST PRESS.** `run.sh`
+  is generated on the device by `termux_setup.sh`, and `bootstrap.sh` copied a
+  *staged* copy over the live one whenever the two DIFFERED. An orphan
+  `run.sh` from **28 August** was sitting in `/sdcard/Download/cosmic` (an
+  older `stage_server.sh` put it there; nothing has staged one since), so the
+  correct launcher was written and then overwritten every single time. That is
+  why the **14 Sep login-hang fix never took effect**: the symptom was
+  identical to it never having been fixed. Found by grepping the live `run.sh`
+  on the Thor for the comment the fix adds - absent, and byte-identical to the
+  August file (4,987 bytes against the 8,766 the current generator writes).
+  `stage_server.sh` deletes the orphan now, and `bootstrap.sh` demands a
+  staged copy be **NEWER**, not merely different. ⚠ **A device that was set up
+  before this needs one `INSTALL.bat --server` run to regenerate `run.sh`.**
+- ⭐ **`adb shell` WAS EATING THE OPERATOR'S ANSWERS.** `adb shell` reads
+  stdin. Three `getprop` calls run between "Looking for a device" and "Install
+  to X?", and they swallowed the answer to a question not yet asked - so the
+  new confirmation was answered by EOF, EOF read as yes, and the install went
+  ahead on a device nobody had confirmed. Caught by answering `n` and watching
+  it install anyway. Every adb call in `install.sh` goes through `dev()` /
+  `adbq()` now, which close stdin. The same bug was eating the device LIST in
+  the multi-device picker, whose loop reads from that same stdin.
+- **The installer says less and means more.** It asks, checks, and names the
+  answer on the same line - `Checking adb ......... ok`,
+  `Device found: AYN Thor`, `Install to AYN Thor? [Y/n]`. `deploy_data.sh` and
+  `stage_server.sh` take `INSTALL_QUIET=1`: run by hand they are still reports,
+  run from the installer they are steps. **What goes quiet is only ever the
+  good news** - every failure prints in full in both modes, and the 200 lines
+  of Termux setup output are kept in a file and printed the moment it fails.
+  Gone: the page of by-hand instructions that used to print *after* the
+  installer had done all of it, under a warning to ignore them.
+- **It is LocalStory.** "Bugs 'n Beans Story" is retired. The launcher icon
+  said neither - the application label was `HeavenClient` and the activity
+  label, which is the one Android actually shows, said `MapleStory`. Both read
+  `@string/app_name` now, and bug reports land in `Download/LocalStory`.
+- **Only Explorer and Cygnus Knights can be made.** Aran was the one other
+  branch left enabled; it is greyed like the remaining twenty-three.
+  `UIAranCreation` is left wired up, so re-enabling it is one line.
 
 - **The login screen has no HOST / JOIN pair any more.** It browses from the
   moment it opens and shows what it finds, with CREATE A GAME as the last row

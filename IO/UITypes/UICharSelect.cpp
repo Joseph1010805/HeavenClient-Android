@@ -961,16 +961,31 @@ namespace ms
 	{
 		switch (index)
 		{
+		// ⚠ THE FOUR STATS WERE DRAWN TWO ROWS ABOVE THEIR OWN BOXES.
+		//
+		// The panel has five rows under the name: Job, Overall Ranking, World
+		// Ranking, then STR/INT and DEX/LUK. Job was right; the stats were at
+		// -50 and -27, which is the pitch of one row below Job - so they landed
+		// on the two RANKING rows, overlapping those labels, while the boxes
+		// actually labelled STR, DEX, INT and LUK sat empty underneath.
+		//
+		// It reads as "the data doesn't fit in the boxes", and it is not a
+		// fitting problem at all: the numbers were never over their boxes. The
+		// rows are 22 apart with one extra gap between the ranking block and
+		// the stat block, so every stat moves down by 44.
+		//
+		// Measured off a 1920x1080 framebuffer from an AYN Thor rendering the
+		// 800x600 layout (x2.4 across, x1.8 down), not guessed.
 		case InfoLabel::JOB:
 			return Point<int16_t>(66, -74);
 		case InfoLabel::STR:
-			return Point<int16_t>(-6, -50);
+			return Point<int16_t>(-6, -6);
 		case InfoLabel::DEX:
-			return Point<int16_t>(-6, -27);
+			return Point<int16_t>(-6, 17);
 		case InfoLabel::INT:
-			return Point<int16_t>(65, -50);
+			return Point<int16_t>(65, -6);
 		case InfoLabel::LUK:
-			return Point<int16_t>(65, -27);
+			return Point<int16_t>(65, 17);
 		case InfoLabel::NUM_LABELS:
 			break;
 		default:

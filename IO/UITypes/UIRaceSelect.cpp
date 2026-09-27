@@ -79,7 +79,12 @@ namespace ms
 		class_isdisabled[Classes::RESISTANCE] = true;
 		class_isdisabled[Classes::EXPLORER] = false;
 		class_isdisabled[Classes::CYGNUSKNIGHTS] = false;
-		class_isdisabled[Classes::ARAN] = false;
+		// ARAN is OFF on purpose. The two branches this game ships are
+		// EXPLORER and CYGNUS KNIGHTS - the only ones Cosmic has been played
+		// through - so Aran is greyed like the other twenty-three rather than
+		// offered and then disappointing somebody four maps in. The creation
+		// screen below is left wired up, so re-enabling it is this one line.
+		class_isdisabled[Classes::ARAN] = true;
 		class_isdisabled[Classes::EVAN] = true;
 		class_isdisabled[Classes::MERCEDES] = true;
 		class_isdisabled[Classes::DEMON] = true;

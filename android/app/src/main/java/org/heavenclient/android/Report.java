@@ -181,7 +181,7 @@ public final class Report {
         }
     }
 
-    private static final String FOLDER = "BugsNBeans";
+    private static final String FOLDER = "LocalStory";
 
     /**
      * One file into public Downloads, by whichever route this Android allows.

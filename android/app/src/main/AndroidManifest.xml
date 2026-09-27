@@ -46,14 +46,14 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
-        android:label="HeavenClient"
+        android:label="@string/app_name"
         android:allowBackup="true"
         android:hardwareAccelerated="true"
         android:requestLegacyExternalStorage="true">
 
         <activity
             android:name=".HeavenClientActivity"
-            android:label="MapleStory"
+            android:label="@string/app_name"
             android:exported="true"
             android:theme="@android:style/Theme.Black.NoTitleBar"
             android:launchMode="singleInstance"
