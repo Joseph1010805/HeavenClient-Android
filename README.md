@@ -24,7 +24,7 @@ Already have MapleStory v83 `.nx` files? This is the whole thing:
 
 | | |
 |---|---|
-| **1. Get this** | [**Download the installer**](../../releases/latest) - the `LocalStory-installer-*.zip` on that page |
+| **1. Get this** | [**Download the installer**](../../releases/latest) - `LocalStory-installer-*.zip`, about 120 KB. Not the repository, not the APK. |
 | **2. Unzip it** | Anywhere. Your Desktop is fine. |
 | **3. Put your game files here** | `C:\Users\<you>\maple\wz-v83\` - and `UI.nx` on its own in `C:\Users\<you>\maple\wz-v178\` |
 | **4. Plug the handheld in** | USB cable that carries data, with [USB debugging](#how-to-turn-on-usb-debugging) turned on |
@@ -54,14 +54,19 @@ Six steps. Most of the work is step 2, and it is a one-off.
 - **[Git for Windows](https://git-scm.com/download/win)**, installed with the
   default options. The installer uses the bash that comes with it.
 
-### 1. Get this repository
+### 1. Get the installer
 
-Green **Code** button at the top of this page, then **Download ZIP**, and unzip
-it somewhere. You only need `INSTALL.bat` and the `tools/` folder - the rest is
-source code and you do not have to build anything.
+**[Releases page](../../releases/latest) → download `LocalStory-installer-*.zip`
+→ unzip it anywhere.**
 
-> Already looking at the [releases page](../../releases)?
-> `LocalStory-installer-*.zip` is the same two things and smaller.
+That is all you need. It is `INSTALL.bat` and a `tools` folder, about 120 KB,
+and it fetches the app itself when it runs. **You do not need this repository,
+you do not need git, and you do not need to build anything.**
+
+> Want the source instead? The green **Code** button at the top of this page
+> has a **Download ZIP** that contains the installer too - it is simply much
+> larger. Building the app yourself is [Building it](#building-it), and nobody
+> installing the game needs to.
 
 ### 2. Convert your game files from .wz to .nx
 
