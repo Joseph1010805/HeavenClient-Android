@@ -29,10 +29,15 @@ Six things. If you already have a MapleStory v83 client, this is all of it:
 | **3. Put your game files here** | `C:\Users\<you>\maple\wz-v83\` - plus `UI.nx` from a v178 client in `C:\Users\<you>\maple\wz-v178\`. Only got `.wz` files? Put those there instead and the installer offers to convert them. |
 | **4. Plug the handheld in** | A USB cable that carries data, with [USB debugging](#how-to-turn-on-usb-debugging) turned on. |
 | **5. Run the installer** | Double-click **`INSTALL.bat`**. Check it names your device, press ENTER, and leave it. Ten minutes the first time. |
-| **6. Play** | Open **LocalStory**, tap **+ CREATE A GAME**, pick six digits. Log in with any username and password - the account is made for you. |
+| **6. Play** | Open **LocalStory** and tap **+ CREATE A GAME**. It asks **WHO CAN JOIN?** - **PUBLIC** (anyone nearby, nothing to type) or **PRIVATE** (you pick six digits and read them out). Then log in with any username and password - the account is made for you. |
 
-Others join by tapping your game under **GAMES NEARBY** and typing those six
-digits. There is no sign-up, no server to rent and no address to type anywhere.
+**PUBLIC is the simple one if it is your own house.** Others just tap your
+game's name under **GAMES NEARBY** and they are in. **PRIVATE** adds a
+six-digit code they have to type, which is worth it on a shared or public
+network - though it stops mistakes rather than intruders, and
+[Playing together](#playing-together) explains why.
+
+Either way there is no sign-up, no server to rent and no address to type.
 
 **No game files yet, or not sure what `.nx` means?**
 [Getting it running](#getting-it-running) is these same six steps with every
@@ -180,10 +185,11 @@ On Mac or Linux there is no `.bat`; run `tools/install.sh` from the same folder.
 Open **LocalStory** on the device. The login screen looks for games by itself -
 there is no address to type anywhere.
 
-- **First one playing?** Tap **+ CREATE A GAME**, pick six digits, and read
-  them out to whoever is joining.
+- **First one playing?** Tap **+ CREATE A GAME**. It asks **WHO CAN JOIN?**:
+  - **PUBLIC** - no code, anyone nearby can join. Simplest at home.
+  - **PRIVATE** - you pick six digits and read them out to whoever you want.
 - **Somebody already hosting?** Their game is listed under **GAMES NEARBY** by
-  name. Tap it and type their six digits.
+  name. Tap it - and type their six digits if the row says *needs a code*.
 
 Then log in with any username and password you like. There is no sign-up: the
 account is created on that server the first time you use it.
@@ -530,16 +536,24 @@ The login screen starts looking the moment it opens. Games on your network are
 listed under **GAMES NEARBY** by name - "AYN Thor", not an IP address - and the
 last row of the list is **+ CREATE A GAME**.
 
-**To host**, tap CREATE A GAME and pick a six-digit code, or leave the game
-open with no code at all. Your row then reads **YOUR GAME IS OPEN**, and
-**CLOSE THE GAME** ends it. The device you create on is the one that has to
+**To host**, tap CREATE A GAME. It asks **WHO CAN JOIN?** and the screen says
+what each one means:
+
+- **PUBLIC** - "No code. Anyone nearby can join. Simplest, if it is only your
+  own house."
+- **PRIVATE** - "A code is needed to get in. You read it out to whoever you
+  want." Six digits, shown large and kept on screen, because the host has to
+  read it out again an hour later when somebody's handheld runs flat.
+
+Then you choose the network. Your row afterwards reads **YOUR GAME IS OPEN**,
+and **CLOSE THE GAME** ends it. The device you create on is the one that has to
 stay switched on.
 
 **To join**, tap the name and type the six digits if the row says *needs a
 code*. There is nowhere to type an address and that is deliberate: discovery is
 mDNS (`_maplestory._tcp`) over the network.
 
-> ⚠ **The code is not a password.** It makes joining deliberate, nothing more.
+> ⚠ **PRIVATE is not a password.** It makes joining deliberate, nothing more.
 > The scrambled form travels in the mDNS announcement, where anyone already on
 > your wifi can read it, and six digits is a million guesses. It stops
 > mistakes, not intruders.
