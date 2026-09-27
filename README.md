@@ -22,13 +22,15 @@ none in this repository and I can't give you any; see
 
 ## Quick start
 
-Six things. If you already have a MapleStory v83 client, this is all of it:
+Six things, if your game files are already `.nx`. (Still got `.wz` files?
+[Start here instead](#getting-it-running) - it is the same six steps with the
+conversion in them.)
 
 | | |
 |---|---|
 | **1. Get the installer** | [**Download `LocalStory-installer-*.zip`**](../../releases/latest) - about 120 KB. Not the repository, not the APK. |
 | **2. Unzip it** | Anywhere. Your Desktop is fine. |
-| **3. Put your game files here** | ⚠ **You need TWO different MapleStory clients.** 14 files come from **v83**, and one file comes from **v178**.<br><br>• The 14 `.nx` files **from your v83 client** → `C:\Users\<you>\maple\wz-v83\`<br>• `UI.nx` **from a v178 client**, on its own → `C:\Users\<you>\maple\wz-v178\`<br><br>Only got `.wz` files? Put those in the same two folders and the installer offers to convert them for you. |
+| **3. Put your game files here** | ⚠ **They come from TWO different MapleStory clients** - 14 files from **v83**, one from **v178**.<br><br>• The 14 `.nx` files **from your v83 client** → `C:\Users\<you>\maple\wz-v83\`<br>• `UI.nx` **from a v178 client**, on its own → `C:\Users\<you>\maple\wz-v178\` |
 | **4. Turn on USB debugging** | On the handheld: **Settings → About → tap "Build number" seven times**. Then **Developer options → USB debugging → on**. ([Stuck? The long version.](#how-to-turn-on-usb-debugging)) |
 | **5. Plug it in and run the installer** | A USB cable **that carries data** - not a charging-only one. Tap **Allow** on the handheld when it asks about USB debugging, then double-click **`INSTALL.bat`**, check it names your device, and leave it. Ten minutes the first time. |
 | **6. Play** | Open **LocalStory** and tap **+ CREATE A GAME**. It asks **WHO CAN JOIN?** - **PUBLIC** (anyone nearby, nothing to type) or **PRIVATE** (you pick six digits and read them out). Then log in with any username and password - the account is made for you. |
@@ -41,9 +43,9 @@ network - though it stops mistakes rather than intruders, and
 
 Either way there is no sign-up, no server to rent and no address to type.
 
-**No game files yet, or not sure what `.nx` means?**
+**No game files yet, still got `.wz`, or not sure what `.nx` means?**
 [Getting it running](#getting-it-running) is these same six steps with every
-detail filled in.
+detail filled in, including converting.
 
 ---
 
