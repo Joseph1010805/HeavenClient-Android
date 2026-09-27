@@ -27,8 +27,8 @@ Six things. If you already have a MapleStory v83 client, this is all of it:
 | **1. Get the installer** | [**Download `LocalStory-installer-*.zip`**](../../releases/latest) - about 120 KB. Not the repository, not the APK. |
 | **2. Unzip it** | Anywhere. Your Desktop is fine. |
 | **3. Put your game files here** | `C:\Users\<you>\maple\wz-v83\` - plus `UI.nx` from a v178 client in `C:\Users\<you>\maple\wz-v178\`. Only got `.wz` files? Put those there instead and the installer offers to convert them. |
-| **4. Plug the handheld in** | A USB cable that carries data, with [USB debugging](#how-to-turn-on-usb-debugging) turned on. |
-| **5. Run the installer** | Double-click **`INSTALL.bat`**. Check it names your device, press ENTER, and leave it. Ten minutes the first time. |
+| **4. Turn on USB debugging** | On the handheld: **Settings → About → tap "Build number" seven times**. Then **Developer options → USB debugging → on**. ([Stuck? The long version.](#how-to-turn-on-usb-debugging)) |
+| **5. Plug it in and run the installer** | A USB cable **that carries data** - not a charging-only one. Tap **Allow** on the handheld when it asks about USB debugging, then double-click **`INSTALL.bat`**, check it names your device, and leave it. Ten minutes the first time. |
 | **6. Play** | Open **LocalStory** and tap **+ CREATE A GAME**. It asks **WHO CAN JOIN?** - **PUBLIC** (anyone nearby, nothing to type) or **PRIVATE** (you pick six digits and read them out). Then log in with any username and password - the account is made for you. |
 
 **PUBLIC is the simple one if it is your own house.** Others just tap your
