@@ -14,98 +14,160 @@ device becomes the network and the others join it by name. See
 [Playing together](#playing-together).
 
 **You supply your own game files.** There are none in this repository and I
-can't give you any - see below.
+can't give you any - see [About the game files](#about-the-game-files).
 
-Once you have them, `INSTALL.bat` does the rest in one double-click - see
-[Installing it](#installing-it).
+Once you have them, `INSTALL.bat` does the rest in one double-click.
+**[Getting it running](#getting-it-running)** is the step-by-step.
 
-## Getting the game files
+## Getting it running
 
-The client needs MapleStory's `.nx` data - the artwork, maps, music and sound.
-Those belong to Nexon, so they're not here and I can't send them to you. You
-convert them yourself from a client you already have, using
-[NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx).
+Six steps. Most of the work is step 2, and it is a one-off.
 
-There's no download for that tool - it's a Visual Studio project you build
-yourself, and it won't compile as-is on anything recent. Three things need
-fixing first:
+### What you need before you start
 
-- It uses `std::experimental::filesystem`, which no longer exists. Change it to
-  `std::filesystem` and set the project to C++17.
-- That then trips a deprecation warning on `<codecvt>`, and warnings are treated
-  as errors. Define `_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS`.
-- The `libsquish.lib` it ships with is too old to link against and fails with
-  `C1047`. The source is in the same folder - add `includes/libsquish/*.cpp` to
-  the project and drop the `.lib`.
+- **A Windows PC and a USB cable that carries DATA.** A charge-only cable shows
+  up as nothing at all and is the usual reason a device "isn't found".
+- **An Android device**, arm64. Built for the AYN Thor; it runs on others.
+- **A MapleStory v83 client of your own.** The game data is Nexon's. It is not
+  in this repository, it is not in the APK, and the installer will never
+  download it - see [About the game files](#about-the-game-files) below.
+- **[Git for Windows](https://git-scm.com/download/win)**, installed with the
+  default options. The installer uses the bash that comes with it.
 
-Then run it once per file:
+### 1. Get this repository
+
+Green **Code** button at the top of this page, then **Download ZIP**, and unzip
+it somewhere. You only need `INSTALL.bat` and the `tools/` folder - the rest is
+source code and you do not have to build anything.
+
+> Already looking at the [releases page](../../releases)?
+> `LocalStory-installer-*.zip` is the same two things and smaller.
+
+### 2. Convert your game files from .wz to .nx
+
+The client reads `.nx`. Your MapleStory client has `.wz`. Converting is a
+one-off with [NoLifeWzToNx](https://github.com/ryantpayton/NoLifeWzToNx):
 
 ```
 NoLifeWzToNx.exe -c Character.wz
 ```
 
-The `-c` matters. Without it you get server-format files the client can't read.
+**The `-c` matters.** Without it you get server-format files the client cannot
+read. Do that for all 15 files listed in `Util/NxFiles.h`:
 
-You need all 15 files listed in `Util/NxFiles.h`. Nearly all of them come from
-a v83 client, with one exception: **`UI.nx` has to come from a later client**
-(I used v178). The v83 interface is too old - the client looks for menus that
-didn't exist yet and refuses to start.
+```
+Base  Character  Effect  Etc  Item  Map  Mob  Morph
+Npc   Quest      Reactor  Skill  Sound  String  TamingMob
+```
 
-There's also an optional 16th file, `Map001.nx`, holding custom artwork for the
-login, world select, character select and character creation screens. It isn't
+WARNING: **`UI.nx` is the exception, and it catches everybody out.** It must
+come from a LATER client - v178 is what this project uses. The v83 interface is
+too old: the client looks for menus that did not exist yet and refuses to
+start. So you need two clients, and exactly one file from the second.
+
+<details>
+<summary>NoLifeWzToNx will not compile on a modern Visual Studio - three fixes</summary>
+
+There is no download; it is a Visual Studio project you build yourself, and it
+has aged. In order:
+
+- It uses `std::experimental::filesystem`, which no longer exists. Change it to
+  `std::filesystem` and set the project to C++17.
+- That trips a deprecation warning on `<codecvt>`, and warnings are errors.
+  Define `_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS`.
+- The bundled `libsquish.lib` is too old to link and fails with `C1047`. The
+  source is in the same folder - add `includes/libsquish/*.cpp` to the project
+  and drop the `.lib`.
+
+</details>
+
+### 3. Put the files where the installer looks
+
+```
+C:\Users\<you>\maple\wz-v83\     <- the 14 .nx files converted from v83
+C:\Users\<you>\maple\wz-v178\    <- UI.nx ONLY, from the later client
+```
+
+It also finds `Documents\maple\wz-v83`, `C:\maple\wz-v83`, `C:\Nexon\MapleStory`
+and both `Wizet\MapleStory` folders under Program Files, so an untouched install
+is found where it already sits.
+
+Anywhere else, point at it:
+
+```
+INSTALL.bat --data D:\somewhere\wz-v83
+```
+
+### 4. Turn on USB debugging
+
+On the handheld: **Settings, About, then tap "Build number" seven times**. Then
+**Developer options, USB debugging**. Nothing works without it, and the symptom
+is a device the installer cannot see at all.
+
+### 5. Plug it in and double-click `INSTALL.bat`
+
+That is the whole install. It names the device and asks you to confirm it, puts
+the app on, finds your game files, copies them across, and sets the device up to
+host as well as play:
+
+```
+  Checking adb ................. ok
+  Looking for a device ......... found
+
+Device found: AYN Thor  (Android 13, arm64-v8a)
+  Install to AYN Thor? [Y/n]
+```
+
+Several gigabytes go over USB the first time - ten minutes or so. It is safe to
+re-run: every file is checked against the device first, so an interrupted copy
+picks up where it stopped rather than starting again.
+
+On Mac or Linux there is no `.bat`; run `tools/install.sh` from the same folder.
+
+### 6. Play
+
+Open **LocalStory** on the device. Somebody has to be hosting for there to be a
+game to join, and the login screen finds one by itself - there is no address to
+type. No game yet? Tap **CREATE A GAME**, pick six digits, and read them out to
+whoever is joining.
+
+---
+
+### When it does not work
+
+The installer says what went wrong rather than just failing. The three you are
+most likely to meet:
+
+| It says | It means |
+|---|---|
+| `Looking for a device ... none found` | Charge-only cable, or USB debugging is off. The cable is the usual one. |
+| `No game data found` | Step 3 - the `.nx` files are not in a folder it searches. Use `--data`. |
+| `UI.nx was not found` | Step 2 - that one file has to come from a v178 client, not v83. |
+
+Everything else it prints is the device's own words rather than a guess. If the
+game itself misbehaves once installed, see
+[Something went wrong? Send a report](#something-went-wrong-send-a-report).
+
+---
+
+### About the game files
+
+The `.nx` data is converted from Nexon's `.wz` files. It is Nexon's work, so:
+
+- it is not in this repository (`*.nx` is in `.gitignore`)
+- it is not in the APK
+- the installer will never download it, and this project will not point you at
+  somebody else's copy - that is distributing Nexon's work either way
+
+You need a client of your own. That caps who can install this at people who
+already have one, and that is understood and accepted.
+
+There is also an optional 16th file, `Map001.nx`, holding custom artwork for the
+login, world select, character select and character creation screens. It is not
 converted from anything - `tools/make_assets.py` builds it from your own video
-and images, and CHANGES.md explains how. Without it those screens fall back to
-the stock artwork, which is what they used before.
+and images, and CHANGES.md explains how. Put it beside the `wz-v83` folder.
+Without it those screens fall back to the stock artwork.
 
-## Installing it
-
-**First, get these files.** The installer is a script in this repository, not
-something on the releases page. Either:
-
-```
-git clone --recursive https://github.com/Joseph1010805/HeavenClient-Android.git
-cd HeavenClient-Android
-```
-
-or, if you don't have git: press the green **Code** button at the top of this
-page, choose **Download ZIP**, and unzip it somewhere. You only need
-`INSTALL.bat` and `tools/` to install - the rest is the source, and you don't
-have to build anything.
-
-**Then turn USB debugging on, plug the device in, and double-click
-`INSTALL.bat`.** That is the whole install.
-
-It asks one thing - `Install to <your device>?` - and then does the rest:
-installs the app, finds the game files you already have, copies them across, and
-sets the device up to **host** as well as play, so it can run a game with no PC
-and no internet. Safe to re-run: every file is checked against the device first,
-so an interrupted 4 GB copy picks up where it stopped.
-
-Hosting adds Java, MariaDB and the server itself inside Termux - twenty minutes
-or so on a new device, all of it automatic. If you haven't built a Cosmic server
-of your own the game still installs; that device will join somebody else's.
-
-On Mac or Linux there is no `.bat` - run the same installer from any terminal:
-
-```
-tools/install.sh              # add --server to host as well as play
-```
-
-If more than one device is plugged in it asks which; `--device SERIAL` skips
-the question.
-
-### What you need first
-
-- **The game files.** See [Getting the game files](#getting-the-game-files).
-  The installer will not download them and cannot help you find them - it only
-  works with a copy you already have.
-- **USB debugging on.** Settings → About → tap "Build number" seven times, then
-  Developer options → USB debugging. Nothing works without it, and the symptom
-  is a device the installer cannot see at all - it says so, and says this.
-- **A cable that carries data.** Some charging cables don't, and the symptom is
-  a device that charges but never appears.
-
-You don't need adb, Android Studio, Python, or a Google account.
 
 ### If you'd rather do it by hand
 
