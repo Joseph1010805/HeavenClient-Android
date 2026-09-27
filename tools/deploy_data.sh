@@ -80,6 +80,22 @@ REPO="$(cd "$REPO_UNIX" && pwd -W 2>/dev/null)"
 DIR=/sdcard/Android/data/org.heavenclient.android/files/HeavenClient
 STAGE=/sdcard/Download
 
+# QUIET, WHEN SOMETHING ELSE IS DOING THE TALKING.
+#
+# tools/install.sh sets this. Run by hand, this script is a REPORT -
+# seventeen files, their sizes, and a directory listing at the end - and that
+# is right, because by hand you are here to check. Run from the installer it
+# is one step of nine, and a player does not need the inventory of Nexon's
+# data to find out whether the game arrived.
+#
+# ⚠ WHAT IT SUPPRESSES IS ONLY EVER THE GOOD NEWS. Every failure still
+# prints in full, in both modes. A quiet mode that can hide a fault is the
+# same bug as discarding stderr, wearing a nicer hat.
+QUIET="${INSTALL_QUIET:-0}"
+SKIPPED=0
+
+q() { [ "$QUIET" = "1" ] || echo "$@"; }
+
 sh() { adb -s "$DEV" shell "$@"; }
 
 # Size of a file on the device, or 0 if it isn't there.
@@ -93,11 +109,22 @@ send() {
 	local src="$1" name="$2"
 	local want have
 
+	# A SOURCE THAT IS NOT THERE IS ITS OWN ANSWER.
+	# Without this, stat fails, $want is empty, and the report reads
+	# "FAILED (device has 92112664 bytes, expected )" - which blames the
+	# device for a file that never existed on this machine.
+	if [ ! -f "$src" ]; then
+		printf '  %-14s MISSING on this PC: %s
+' "$name" "$src"
+		return 1
+	fi
+
 	want=$(stat -c %s "$src")
 	have=$(remote_size "$DIR/$name")
 
 	if [ "$want" = "$have" ]; then
-		printf '  %-14s %6s MB  already there\n' "$name" "$((want / 1024 / 1024))"
+		SKIPPED=$((SKIPPED + 1))
+		[ "$QUIET" = "1" ] || printf '  %-14s %6s MB  already there\n' "$name" "$((want / 1024 / 1024))"
 		return 0
 	fi
 
@@ -146,8 +173,8 @@ send() {
 	return 1
 }
 
-echo "Deploying to $DEV"
-echo
+q "Deploying to $DEV"
+q
 
 if ! sh "echo ok" >/dev/null 2>&1; then
 	echo "adb is present but $DEV does not answer."
@@ -163,7 +190,7 @@ fi
 # rather than assuming.
 sh "mkdir -p '$DIR'" >/dev/null 2>&1
 
-echo "Game data:"
+q "Game data:"
 FAILED=0
 
 for f in Base Character Effect Etc Item Map Mob Morph Npc Quest Reactor Skill Sound String TamingMob; do
@@ -178,8 +205,8 @@ send "$V178/UI.nx" "UI.nx" || FAILED=$((FAILED + 1))
 send "$CUSTOM/Map001.nx" "Map001.nx" || FAILED=$((FAILED + 1))
 
 # Without the fonts, text simply does not appear - no error, no warning.
-echo
-echo "Fonts:"
+q
+q "Fonts:"
 # adb cannot CREATE a directory under /sdcard/Android/data on Android 11 and
 # up - "remote secure_mkdirs failed: Operation not permitted" - though it can
 # write files into one that already exists. That is why the .nx files landed
@@ -211,7 +238,7 @@ if [ "$(sh "ls '$DIR/fonts' 2>/dev/null | wc -l" | tr -d '\r')" -gt 0 ]; then
 	# untraversable and the fonts inside unreachable.
 	sh "chmod -R a+rX '$DIR'" >/dev/null 2>&1
 	sh "chmod 666 '$DIR/Settings' 2>/dev/null" >/dev/null 2>&1
-	echo "  ok"
+	q "  ok"
 else
 	echo "  FAILED"
 	FAILED=$((FAILED + 1))
@@ -230,8 +257,8 @@ fi
 #
 #   curl -LO https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
 #   unzip it next to the wz folder and rename it to  vosk-model
-echo
-echo "Speech model:"
+q
+q "Speech model:"
 MODEL="$(dirname "$V83")/vosk-model"
 
 if [ -d "$MODEL" ]; then
@@ -247,8 +274,8 @@ if [ -d "$MODEL" ]; then
 	sh "chmod -R a+rX '$DIR'" >/dev/null 2>&1
 	sh "chmod 666 '$DIR/Settings' 2>/dev/null" >/dev/null 2>&1
 
-	if [ "$(sh "ls '$DIR/vosk-model' 2>/dev/null | wc -l" | tr -d '')" -gt 0 ]; then
-		echo "  ok"
+	if [ "$(sh "ls '$DIR/vosk-model' 2>/dev/null | wc -l" | tr -d '\r')" -gt 0 ]; then
+		q "  ok"
 	else
 		echo "  FAILED"
 		FAILED=$((FAILED + 1))
@@ -272,11 +299,11 @@ fi
 #
 # The catch: at 1.5x everything is SMALLER than it was at 2.4x. The font scale
 # in GraphicsGL is the counterweight for text; artwork still wants its own.
-echo
+q
 if [ "$SERVER_IP_GIVEN" -eq 1 ]; then
-	echo "Settings (server $SERVER_IP):"
+	q "Settings (server $SERVER_IP):"
 else
-	echo "Settings (no address given - leaving ServerIP alone):"
+	q "Settings (no address given - leaving ServerIP alone):"
 fi
 # Staged in the repo rather than /tmp: adb is being given raw paths here, and
 # a Unix /tmp/... is exactly the thing it cannot resolve.
@@ -304,14 +331,14 @@ fi
 # has any business setting is the server address, and only when there is no
 # file at all to read one from.
 if [ "$(remote_size "$DIR/Settings")" -gt 0 ]; then
-	echo "  kept (already on the device - resolution and bindings are the player's)"
+	q "  kept (already on the device - resolution and bindings are the player's)"
 
 	# Still worth making sure it points at this machine.
 	if [ "$SERVER_IP_GIVEN" -eq 1 ]; then
 		sh "sed -i 's/^ServerIP = .*/ServerIP = $SERVER_IP/' '$DIR/Settings'" >/dev/null 2>&1
-		echo "  ServerIP set to $SERVER_IP"
+		q "  ServerIP set to $SERVER_IP"
 	else
-		echo "  ServerIP left as $(sh "grep '^ServerIP' '$DIR/Settings'" | tr -d '' | awk '{print $3}')"
+		q "  ServerIP left as $(sh "grep '^ServerIP' '$DIR/Settings'" | tr -d '\r' | awk '{print $3}')"
 	fi
 
 	SETTINGS_DONE=1
@@ -344,19 +371,25 @@ rm -f "$REPO_UNIX/.Settings.tmp"
 fi
 
 if [ "$(remote_size "$DIR/Settings")" -gt 0 ]; then
-	echo "  ok"
+	q "  ok"
 else
 	echo "  FAILED"
 	FAILED=$((FAILED + 1))
 fi
 
-echo
-echo "On the device:"
-sh "ls -la '$DIR'" | tr -d '\r'
+if [ "$QUIET" != "1" ]; then
+	echo
+	echo "On the device:"
+	sh "ls -la '$DIR'" | tr -d '\r'
+fi
 
-echo
+q
 if [ "$FAILED" -eq 0 ]; then
-	echo "All present."
+	if [ "$QUIET" = "1" ]; then
+		echo "  all present ($SKIPPED already on the device)"
+	else
+		echo "All present."
+	fi
 else
 	echo "$FAILED item(s) did not make it. Re-run - it only sends what is missing."
 	exit 1

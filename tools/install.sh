@@ -73,6 +73,34 @@ step() { printf '  %s\n' "$*"; }
 bad()  { printf '\n\033[31m%s\033[0m\n' "$*"; }
 ask()  { printf '%s ' "$*"; read -r REPLY; }
 
+# A NAMED STEP WITH ITS ANSWER ON THE SAME LINE.
+#
+#     Checking adb ................. ok
+#
+# The dots are not decoration. A step that announces itself and then says
+# nothing is exactly how this project keeps losing reasons; a line that has
+# to end in its own result cannot do it.
+DOTS='..............................'
+checking() { printf '  %s %s ' "$1" "${DOTS:$((${#1} + 1))}"; }
+ok()       { printf '\033[32m%s\033[0m\n' "${1:-ok}"; }
+nope()     { printf '\033[31m%s\033[0m\n' "${1:-FAILED}"; }
+
+# ⚠ EVERY adb CALL GETS ITS OWN STDIN. THIS IS NOT A STYLE CHOICE.
+#
+# `adb shell` READS STDIN, and takes whatever is there whether it wants it or
+# not. Three getprops run between "Looking for a device" and "Install to X?",
+# and they swallowed the answer to a question that had not been asked yet - so
+# the confirmation was answered by EOF, EOF read as yes, and the install went
+# ahead on a device nobody had confirmed. Caught by answering "n" and watching
+# it install anyway.
+#
+# The same bug eats the device LIST in the picker below, where the loop's
+# stdin is the list itself.
+#
+# So nothing here calls adb directly any more. These close stdin, once.
+dev()  { adb -s "$DEV" "$@" </dev/null; }
+adbq() { adb "$@" </dev/null; }
+
 # ---------------------------------------------------------------------------
 # adb
 # ---------------------------------------------------------------------------
@@ -108,22 +136,6 @@ find_adb() {
 	return 1
 }
 
-if ! find_adb; then
-	bad "adb was not found."
-	cat <<'HELP'
-
-  adb is the tool that talks to an Android device over USB. It comes with
-  Android's "platform tools", a 10MB download that needs no account:
-
-      https://developer.android.com/tools/releases/platform-tools
-
-  Unzip it anywhere, then run this script again from a terminal that has
-  that folder on its PATH - or just drop adb.exe next to this script.
-
-HELP
-	exit 1
-fi
-
 # ---------------------------------------------------------------------------
 # The device
 # ---------------------------------------------------------------------------
@@ -142,31 +154,65 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
+# -------------------------------------------------------------------------
+# ONE THING AT A TIME, AND SAY WHAT HAPPENED TO IT.
+#
+# Everything below asks, checks, and names the answer on the same line. This
+# used to narrate instead - what the .nx files are, why they are never
+# downloaded, how to stage the server by hand - and the one line that
+# mattered on the night it failed ("no device") sat inside four paragraphs
+# that did not. The explanation belongs in comments like this one and in the
+# README. The run itself should read like a checklist.
+# -------------------------------------------------------------------------
+say "Connect the handheld"
+step "The cable has to carry DATA. A charge-only cable shows up as nothing"
+step "at all, and is the usual reason a device is not found."
+printf '\n'
+ask "  Plugged in? Press ENTER to continue."
+printf '\n'
+
+checking "Checking adb"
+if ! find_adb; then
+	nope "not found"
+	cat <<'HELP'
+
+  adb is what talks to the device over USB. It comes with Android's
+  "platform tools" - a 10MB download, no account needed:
+
+      https://developer.android.com/tools/releases/platform-tools
+
+  Unzip it anywhere, put that folder on your PATH, and run this again.
+
+HELP
+	exit 1
+fi
+ok
+
+
 pick_device() {
-	adb start-server >/dev/null 2>&1
+	adbq start-server >/dev/null 2>&1
 
 	# Serial and state, one per line, only the ones actually ready. A device
 	# that is "unauthorized" is plugged in and has not had the prompt
 	# accepted on its screen, which is worth saying out loud rather than
 	# reporting as "no devices".
 	local ready unauth
-	ready=$(adb devices | awk '$2 == "device" { print $1 }')
-	unauth=$(adb devices | awk '$2 == "unauthorized" { print $1 }')
+	ready=$(adbq devices | awk '$2 == "device" { print $1 }')
+	unauth=$(adbq devices | awk '$2 == "unauthorized" { print $1 }')
 
 	if [ -n "$unauth" ]; then
-		bad "A device is connected but has not been allowed."
+		nope "not allowed"
 		cat <<'HELP'
 
-  Look at the device's screen: there is a prompt asking whether to allow
-  USB debugging from this computer. Tick "always allow" and accept it,
-  then run this again.
+  The device is asking on its own screen whether to allow USB debugging
+  from this computer. Tick "always allow", accept it, and run this again.
 
 HELP
 		exit 1
 	fi
 
 	if [ -z "$ready" ]; then
-		bad "No device found."
+		nope "none found"
 		cat <<'HELP'
 
   Check, in this order:
@@ -187,15 +233,17 @@ HELP
 
 	if [ "$count" -eq 1 ]; then
 		DEV="$ready"
+		ok "found"
 		return 0
 	fi
 
+	printf '\n'
 	say "More than one device is connected."
 
 	local n=1
 	printf '%s\n' "$ready" | while read -r one; do
 		printf '  %d) %-24s %s\n' "$n" "$one" \
-			"$(adb -s "$one" shell getprop ro.product.model 2>/dev/null | tr -d '\r')"
+			"$(adb -s "$one" shell getprop ro.product.model </dev/null 2>/dev/null | tr -d '\r')"
 		n=$((n + 1))
 	done
 
@@ -208,13 +256,40 @@ HELP
 	fi
 }
 
-[ -n "$DEV" ] || pick_device
+if [ -n "$DEV" ]; then
+	GIVEN_DEVICE=1
+else
+	GIVEN_DEVICE=0
+	checking "Looking for a device"
+	pick_device
+fi
 
-MODEL=$(adb -s "$DEV" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
-ANDROID=$(adb -s "$DEV" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
-ABI=$(adb -s "$DEV" shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')
+MODEL=$(dev shell getprop ro.product.model 2>/dev/null | tr -d '\r')
+ANDROID=$(dev shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
+ABI=$(dev shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')
 
-say "Installing to: $MODEL  (Android $ANDROID, $ABI)"
+# ⚠ THE CONFIRMATION IS NOT A FORMALITY.
+#
+# What follows installs an app, writes several gigabytes, and reconfigures
+# Android's process killer. Naming the device out loud is the cheapest way to
+# stop all of that happening to the wrong one - and with two handhelds on the
+# desk, both plugged in at some point, that is not a theoretical worry.
+#
+# Skipped when --device named one: saying which device is the whole point of
+# that flag, and asking again is just noise in a scripted run.
+if [ "$GIVEN_DEVICE" -eq 0 ]; then
+	say "Device found: $MODEL  (Android $ANDROID, $ABI)"
+	ask "  Install to $MODEL? [Y/n]"
+
+	case "$REPLY" in
+	[Nn]*)
+		bad "Stopped. Nothing on the device was changed."
+		exit 1
+		;;
+	esac
+else
+	say "Installing to: $MODEL  (Android $ANDROID, $ABI)"
+fi
 
 # The APK is arm64 only. Saying so now is kinder than a failed install with
 # INSTALL_FAILED_NO_MATCHING_ABIS, which explains nothing to anybody.
@@ -256,8 +331,8 @@ do
 done
 
 if [ -z "$APK" ]; then
-	say "Fetching the app"
-	step "no local build found, downloading the latest release"
+say "Downloading the game"
+	step "no build here - fetching the latest release"
 
 	# OURS to distribute - the client is AGPL-3.0 and the release page is the
 	# project's own. Nothing here touches game data.
@@ -279,8 +354,7 @@ if [ -z "$APK" ]; then
 	fi
 fi
 
-say "Installing the app"
-step "$(basename "$APK")"
+checking "Installing the game"
 
 # ⚠ SAY WHAT ADB SAID.
 #
@@ -296,33 +370,34 @@ step "$(basename "$APK")"
 INSTALL_SAID=""
 
 for try in 1 2; do
-	INSTALL_SAID=$(adb -s "$DEV" install -r "$APK" 2>&1)
+	INSTALL_SAID=$(dev install -r "$APK" 2>&1)
 
 	case "$INSTALL_SAID" in
 	*Success*) break ;;
 	esac
 
 	if [ "$try" -eq 1 ]; then
-		step "the device refused it - waiting a moment and trying once more"
+		printf 'refused, retrying... '
 		sleep 4
 	fi
 done
 
 case "$INSTALL_SAID" in
-*Success*) ;;
+*Success*) ok "done" ;;
 *)
-	bad "The install failed. This is what the device said:"
-	printf '%s
-' "$INSTALL_SAID" | sed 's/^/      /'
+	nope "failed"
+	bad "This is what the device said:"
+	printf '%s\n' "$INSTALL_SAID" | sed 's/^/      /'
 	echo
 	step "INSTALL_FAILED_UPDATE_INCOMPATIBLE means an older copy signed with a"
-	step "different key is in the way. Remove it first:"
+	step "different key is in the way. Removing it clears the way - but it also"
+	step "DELETES the game data already on the device, which is a ten-minute"
+	step "copy to put back:"
 	step "  adb -s $DEV uninstall org.heavenclient.android"
 	exit 1
 	;;
 esac
 
-step "installed"
 
 # ---------------------------------------------------------------------------
 # The game data - FOUND, never fetched. See the banner at the top.
@@ -343,7 +418,7 @@ has_wz() {
 
 DATA=""
 
-say "Looking for the game data"
+checking "Looking for the game data"
 
 # A path given on the command line is taken at its word, and complained about
 # clearly if it is wrong. Falling back to a search would hide a typo behind
@@ -351,7 +426,7 @@ say "Looking for the game data"
 if [ -n "$GIVEN_DATA" ]; then
 	if has_all_nx "$GIVEN_DATA"; then
 		DATA="$GIVEN_DATA"
-		step "using: $DATA"
+		ok "$DATA"
 	else
 		bad "$GIVEN_DATA does not hold a full set of .nx files."
 		step "expected all of: $NEEDED"
@@ -371,13 +446,14 @@ do
 
 	if has_all_nx "$guess"; then
 		DATA="$guess"
-		step "found converted data: $DATA"
+		ok "$DATA"
 		break
 	fi
 
 	if has_wz "$guess"; then
+		nope "needs converting"
 		step "found a MapleStory client: $guess"
-		step "it has .wz files, which have to be converted to .nx first"
+		step "its .wz files have to be converted to .nx first"
 
 		cat <<'HELP'
 
@@ -394,6 +470,7 @@ HELP
 done
 
 if [ -z "$DATA" ]; then
+	nope "not found"
 	bad "No game data found."
 	cat <<'HELP'
 
@@ -419,11 +496,15 @@ fi
 # refuses to start on it, so it comes from a later client.
 UI_FROM=""
 
+checking "Looking for UI.nx"
 for guess in "${HOME:-}/maple/wz-v178" "$(dirname "$DATA")/wz-v178" "$DATA"; do
 	[ -f "$guess/UI.nx" ] && UI_FROM="$guess" && break
 done
 
+[ -z "$UI_FROM" ] || ok "$UI_FROM"
+
 if [ -z "$UI_FROM" ]; then
+	nope "not found"
 	bad "UI.nx was not found."
 	step "v83's own interface is too old - the client needs UI.nx from a"
 	step "later client (v178 is what this project uses)."
@@ -431,8 +512,8 @@ if [ -z "$UI_FROM" ]; then
 fi
 
 say "Copying the game data"
-step "this is several gigabytes over USB - ten minutes or so"
-step "from: $DATA"
+step "Several gigabytes over USB if this device is new - ten minutes or so."
+step "Anything already there is skipped, so re-running this is cheap."
 
 # Map001.nx is the one data file that IS ours: the login videos, the panel
 # icons and the gauge artwork, all built by tools/make_assets.py. On this
@@ -447,7 +528,8 @@ CUSTOM_FROM="$(dirname "$DATA")"
 # This is why the installer had never once got past the app. Seventeen
 # files, seventeen zero-byte failures, and the reason was a script two
 # lines further down being handed the wrong kind of path.
-if ! MAPLE_DATA="$(win_path "$DATA")" \
+if ! INSTALL_QUIET=1 \
+	MAPLE_DATA="$(win_path "$DATA")" \
 	MAPLE_UI="$(win_path "$UI_FROM")" \
 	MAPLE_CUSTOM="$(win_path "$CUSTOM_FROM")" \
 	bash "$HERE/tools/deploy_data.sh" "$DEV"; then
@@ -552,28 +634,30 @@ HELP
 prepare_termux() {
 	say "Preparing Termux"
 
-	if ! adb -s "$DEV" shell "pm list packages" 2>/dev/null | tr -d '\r' \
+	if ! dev shell "pm list packages" 2>/dev/null | tr -d '\r' \
 		| grep -q "^package:com.termux$"; then
-		step "Termux is not installed - skipping."
+		step "Termux is not installed, so this device cannot host."
 		step "Install it from F-DROID (not the Play Store; that build is"
-		step "years out of date and cannot run this), then re-run with --server."
+		step "years out of date), then run this again with --server."
 		return 0
 	fi
 
 	# 1. Storage, in place of termux-setup-storage.
-	adb -s "$DEV" shell \
+	dev shell \
 		"pm grant com.termux android.permission.READ_EXTERNAL_STORAGE" \
 		>/dev/null 2>&1
-	adb -s "$DEV" shell \
+	dev shell \
 		"pm grant com.termux android.permission.WRITE_EXTERNAL_STORAGE" \
 		>/dev/null 2>&1
 
-	if adb -s "$DEV" shell "dumpsys package com.termux" 2>/dev/null \
+	checking "Storage permission"
+
+	if dev shell "dumpsys package com.termux" 2>/dev/null \
 		| tr -d '\r' | grep -q "READ_EXTERNAL_STORAGE: granted=true"; then
-		step "storage              granted (no termux-setup-storage needed)"
+		ok "granted"
 	else
-		step "storage              COULD NOT GRANT - you will have to run"
-		step "                     termux-setup-storage in Termux yourself"
+		nope "could not grant"
+		step "Run termux-setup-storage in Termux yourself."
 	fi
 
 	# 2. allow-external-apps, so the game can start the server on its own.
@@ -583,14 +667,16 @@ prepare_termux() {
 	# key would be a poor trade.
 	local props="files/home/.termux/termux.properties"
 
-	if adb -s "$DEV" shell "run-as com.termux cat $props" 2>/dev/null \
+	checking "Letting the game start it"
+
+	if dev shell "run-as com.termux cat $props" 2>/dev/null \
 		| tr -d '\r' | grep -qE "^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true"; then
-		step "allow-external-apps  already set"
+		ok "already set"
 		return 0
 	fi
 
-	if ! adb -s "$DEV" shell "run-as com.termux id" >/dev/null 2>&1; then
-		step "allow-external-apps  CANNOT SET IT FROM HERE"
+	if ! dev shell "run-as com.termux id" >/dev/null 2>&1; then
+		nope "not from here"
 		step ""
 		step "  This Termux is not a debuggable build, which is normal and is"
 		step "  deliberately what stops other apps driving it. Open Termux once"
@@ -605,15 +691,16 @@ prepare_termux() {
 
 	# Appended, never overwritten, and the directory made first - on a Termux
 	# that has never been opened, ~/.termux does not exist yet.
-	adb -s "$DEV" shell \
+	dev shell \
 		"run-as com.termux sh -c 'mkdir -p files/home/.termux && printf \"allow-external-apps = true\n\" >> files/home/.termux/termux.properties'" \
 		>/dev/null 2>&1
 
-	if adb -s "$DEV" shell "run-as com.termux cat $props" 2>/dev/null \
+	if dev shell "run-as com.termux cat $props" 2>/dev/null \
 		| tr -d '\r' | grep -qE "^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true"; then
-		step "allow-external-apps  set"
+		ok "set"
 	else
-		step "allow-external-apps  WRITE FAILED - set it by hand in Termux:"
+		nope "write failed"
+		step "Set it by hand in Termux:"
 		step "    mkdir -p ~/.termux && echo 'allow-external-apps = true' >> ~/.termux/termux.properties"
 	fi
 }
@@ -640,7 +727,7 @@ TERMUX_PREFIX=/data/data/com.termux/files/usr
 run_termux_setup() {
 	say "Setting the server up on the device"
 
-	if ! adb -s "$DEV" shell "run-as com.termux id" >/dev/null 2>&1; then
+	if ! dev shell "run-as com.termux id" >/dev/null 2>&1; then
 		step "Cannot drive Termux from here - this build is not debuggable."
 		step "Open Termux on the device and run these two lines:"
 		step ""
@@ -649,9 +736,18 @@ run_termux_setup() {
 		return 0
 	fi
 
-	step "This installs Java and MariaDB and unpacks the server."
-	step "Twenty minutes or so, most of it downloading. Leave it alone."
-	step ""
+	step "Java, MariaDB and the server itself. Twenty minutes or so, most of"
+	step "it downloading. Nothing to do but leave it alone."
+	printf '\n'
+
+	# KEPT, NOT SHOWN - AND SHOWN THE INSTANT IT MATTERS.
+	#
+	# Two hundred lines of apt output is not something to read while it works,
+	# and it is the only thing worth reading when it breaks. So all of it goes
+	# to a file, the six milestones termux_setup.sh prints go to the screen,
+	# and the failure branch below prints the lot. Throwing it away to keep
+	# the output tidy would be the one habit this project has sworn off.
+	SETUP_LOG=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/localstory-setup.$$")
 
 	# The script is copied into Termux's home first, exactly as the by-hand
 	# instructions do - it expects to be run from there, and a copy on the SD
@@ -659,7 +755,7 @@ run_termux_setup() {
 	#
 	# `set -o pipefail` matters: without it the exit status is `tee`'s, which
 	# is always 0, and a failed setup would report success.
-	adb -s "$DEV" shell "run-as com.termux files/usr/bin/bash -c '
+	dev shell "run-as com.termux files/usr/bin/bash -c '
 		set -o pipefail
 		export PREFIX=$TERMUX_PREFIX
 		export HOME=$TERMUX_HOME
@@ -668,18 +764,23 @@ run_termux_setup() {
 		export TMPDIR=\$PREFIX/tmp
 		cp /sdcard/Download/cosmic/termux_setup.sh \$HOME/ || exit 1
 		bash \$HOME/termux_setup.sh 2>&1 | tee \$HOME/setup.log
-	'" 2>&1 | tr -d '\r' | sed 's/^/  /'
+	'" 2>&1 | tr -d '\r' | tee "$SETUP_LOG" | awk '/^=== /{sub(/^=== /,"    "); print; fflush()}'
 
 	# Asked of the device rather than trusted from the pipe above - adb shell
 	# does not forward the remote exit status, so the only honest way to know
 	# is to look for what a finished setup leaves behind.
-	if adb -s "$DEV" shell "run-as com.termux ls files/home/cosmic/run.sh" \
+	if dev shell "run-as com.termux ls files/home/cosmic/run.sh" \
 		>/dev/null 2>&1; then
-		step ""
-		step "Server installed. The game can start it from the login screen."
+		step "Server installed - the login screen can start it."
+		rm -f "$SETUP_LOG"
 	else
-		bad "The setup did not finish."
-		step "What it printed is above, and on the device at ~/setup.log."
+		bad "The server setup did not finish. This is what it printed:"
+		sed 's/^/      /' "$SETUP_LOG"
+		step "The same log is on the device at ~/setup.log."
+		step ""
+		step "The game itself IS installed and the data is there - only the"
+		step "server failed, so this device cannot host. It can still join one."
+		exit 1
 	fi
 }
 
@@ -687,50 +788,58 @@ run_termux_setup() {
 # The server, if they want to play with no network at all
 # ---------------------------------------------------------------------------
 if [ "$WANT_SERVER" -eq 1 ]; then
-	find_cosmic || exit 1
-	prepare_termux
-	say "Putting the server on the device"
-	bash "$HERE/tools/stage_server.sh" "$DEV" "$COSMIC" || exit 1
-	run_termux_setup
+	# A MISSING COSMIC IS NOT A FAILED INSTALL.
+	#
+	# INSTALL.bat asks for --server on every run now, because any device can be
+	# the one that CREATES the game - the login screen has no HOST / JOIN pair.
+	# So "there is no built server on this PC" has to mean "this device will
+	# join somebody else's", not an exit code handed over after the app and four
+	# gigabytes have already landed. find_cosmic says what is missing either way.
+	if find_cosmic; then
+		prepare_termux
+		say "Putting the server on the device"
+		INSTALL_QUIET=1 bash "$HERE/tools/stage_server.sh" "$DEV" "$COSMIC" || exit 1
+		run_termux_setup
+	else
+		# So the closing text offers the server instead of congratulating them
+		# on one they have not got.
+		WANT_SERVER=0
+	fi
 fi
 
 say "Done."
 
+# ⚠ WHAT THEY NEED NEXT, AND NOTHING ELSE.
+#
+# This used to end in four paragraphs and then contradict itself: it told
+# somebody who had just sat through the twenty-minute server install to go
+# and install a server. Advice that argues with what just happened reads as a
+# failure, and the obvious response is to run the whole thing again.
 cat <<DONE
+  $MODEL now has LocalStory. Open it from the app list.
 
-  $MODEL now has the game.
+  Somebody has to be hosting for there to be a game to join, and the login
+  screen finds one by itself - there is no address to type.
 
-  To play, open "Bugs 'n Beans Story" on it.
+    * A game already running on your wifi appears under GAMES NEARBY. Tap
+      it and type the six digits the host reads out.
 
-  Somebody has to be HOSTING for there to be a game to join. The login
-  screen looks for one by itself - no addresses, nothing to type:
-
-    * If a game is already running on your wifi, it appears under GAMES
-      NEARBY. Tap its name and type the six-digit code the host reads out.
-
-    * If there is no game yet, tap CREATE A GAME. You pick the six digits,
-      and everyone else types them in. The device you create on is the one
-      that has to stay switched on.
+    * No game yet? Tap CREATE A GAME, choose six digits, and read them out.
+      The device you create on has to stay switched on.
 
 DONE
 
-# ⚠ ONLY WHEN THERE IS NOT ALREADY ONE ON IT. This printed unconditionally,
-# so somebody who had just sat through the twenty-minute server install was
-# then told to go and run the thing they had only just finished. Advice that
-# contradicts what just happened reads as a failure, and the obvious response
-# is to run it a second time.
 if [ "$WANT_SERVER" -eq 1 ]; then
 	cat <<'HOSTING'
-  This device can host the game itself, so it can be the one the others
-  join. Tap SERVER at the top left of the login screen - it starts the
-  server for you and remembers the way back.
+  This device can host by itself: tap SERVER at the top left of the login
+  screen and it starts its own server.
 
 HOSTING
 else
 	cat <<HOSTING
-  To put a server on THIS device as well, so it can be the one hosting:
+  To let THIS device host as well, so the others join it:
 
-      tools/install.sh --device $DEV --server
+      INSTALL.bat --server
 
 HOSTING
 fi
